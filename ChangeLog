@@ -1,3 +1,8 @@
+2002-12-08  Till Kamppeter <till.kamppeter@gmx.net>
+
+	* foomatic-gswrapper.in: If there is no /dev/fd/3, don't use
+	  /dev/fd/3 for standard output. Use the good old "| cat >&3".
+
 2002-12-04  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* *: Tagged CVS for the release of foomatic-filters 2.9.0. 

@@ -16,13 +16,13 @@ grep (m!\-sOutputFile=\-!
       && do {
 	  # Send the job to fd 3; errors will be on 2(stderr) and job
 	  # ps program interpreter output on 1(stdout)
-	  # The /dev/fd/3 is equivalent to "| cat >&3" but it works with
+	  # The /dev/fd/3 is equivalent to "| cat >&3" and it works with
 	  # all versions of GhostScript under every shell and nearly
-	  # every Unix configuration. For the rare case that there is no
-	  # /dev/fd/ file descriptor directory we fall back to the good 
+	  # every Unix configuration. For the case that there is no
+	  # /dev/fd/3 file descriptor we fall back to the good 
 	  # old "| cat >&3".
 	  $_ = '-sOutputFile=' . 
-	      ((-e "/dev/fd/0") ? "/dev/fd/3" : "| cat >&3");
+	      ((-e "/dev/fd/3") ? "/dev/fd/3" : "| cat >&3");
 	  # quoted properly below...
       }, @ARGV);
 
