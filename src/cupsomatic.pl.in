@@ -552,8 +552,8 @@ do {
 	    # PostScript data stream
 	    $line .= $accounting_prolog;
         } else {
-            if (($line =~ m/\%\%(BeginFeature):\s+\*?([^\s=]+)\s+(\S.*)$/) ||
-		($line =~ m/\%\%\s*(FoomaticOpt):\s*([^\s=]+)\s*=\s*(\S.*)$/)) {
+            if (($line =~ m/\%\%(BeginFeature):\s+\*?([^\s=]+)\s+(\S[^\r]*)\r?$/) ||
+		($line =~ m/\%\%\s*(FoomaticOpt):\s*([^\s=]+)\s*=\s*(\S[^\r]*)\r?$/)) {
                 my ($linetype, $option, $value) = ($1, $2, $3);
 
                 # OK, we have an option.  If it's not a
