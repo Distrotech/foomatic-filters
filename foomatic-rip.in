@@ -3494,7 +3494,10 @@ sub getdocgeneratorhandle {
 	      "-F ", "", "\"*", " ", "\"",
 	      "-F ", "\"*", " ", "\"",
 	      " "," <file>",
-	      "");
+	      "\n  Custom size: -F \"*PageSize Custom\" --ripopts " .
+	      "<width>x<height>[<unit>]\n" .
+	      "               Units: pt (default), in, cm, mm\n" .
+	      "  Example: -F \"*PageSize Custom\" --ripopts 4.0x6.0in\n");
     } elsif ($spooler eq 'ppr-int') {
 	($command,
 	 $enumopt, $enumoptleft, $enumoptequal, $enumoptright,

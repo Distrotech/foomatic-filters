@@ -1,5 +1,20 @@
 2002-11-26  Till Kamppeter <till.kamppeter@gmx.net>
 
+	* foomatic-rip.in: Added instructions for using a custom page size
+	  to the documentation page output ("-o docs") for the PPR RIP
+	  mode of foomatic-rip.
+
+	* src/*.in, src/Makefile, lpdomatic.8.in, directomatic.1.in:
+	  Removed the old spooler-specific filters, they are replaced
+	  by foomatic-rip now.
+
+	* Makefile.in, configure.in: Removed stuff to build the old
+	  src/*omatic filter.
+
+	* foomatic-rip.1.in: Added man page for foomatic-rip.
+
+2002-11-25  Till Kamppeter <till.kamppeter@gmx.net>
+
 	* foomatic-rip.in: Various fixes and adaptations to make
 	  foomatic-rip well working together with the new
 	  foomatic-configure:

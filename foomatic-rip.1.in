@@ -1,0 +1,305 @@
+.\" This -*- nroff -*- source file is part of foomatic.
+.\"
+.
+.\" --------------------------------------------------------------------
+.\" Setup - Macros stolen fro "roff" man page
+.\" --------------------------------------------------------------------
+.
+.mso www.tmac
+.
+.if n \{\
+.  mso tty-char.tmac
+.  ftr CR R
+.  ftr CI I
+.  ftr CB B
+.\}
+.
+.if '\*[.T]'dvi' \{\
+.  ftr CB CW
+.\}
+.
+.
+.\" --------------------------------------------------------------------
+.\" String definitions
+.
+.\" Final `\""' comments are used to make Emacs happy, sic \""
+.
+.\" The `-' sign for options.
+.ie t \{\
+.  ds @- \-\"
+.  ds @-- \-\-\"
+.\}
+.el \{\
+.  ds @- -\"
+.  ds @-- --\"
+.\}
+.
+.ds Comment \.\[rs]\[dq]\"
+.ds Ellipsis \.\|.\|.\&\"
+.
+.
+.\" --------------------------------------------------------------------
+.\" Begin of macro definitions
+.
+.de c
+.\" this is like a comment request when escape mechanism is off
+..
+.
+.eo
+.
+.c ---------------------------------------------------------------------
+.
+.de Text
+.  nop \)\$*
+..
+.
+.de CodeSkip
+.  ie t \
+.    sp 0.2v
+.  el \
+.    sp
+..
+.
+.de Esc
+.  ds @1 \$1\"
+.  shift
+.  Text \f[B]\[rs]\*[@1]\f[]\$*
+.  rm @1
+..
+.
+.de QuotedChar
+.  ds @1 \$1
+.  shift
+.  nop `\f[B]\*[@1]\f[]'\$*
+.  rm @1
+..
+.
+.c --------------------------------------------------------------------
+.
+.c a shell command line
+.de ShellCommand
+.  br
+.  ad l
+.  nh
+.  Text \f[I]sh#\h'1m'\f[]\f[CR]\$*\f[]\&\"
+.  ft R
+.  ft P
+.  hy
+.  ad
+..
+.
+.c --------------------------------------------------------------------
+.
+.c ShortOpt ([c [punct]])
+.c
+.c `-c' somewhere in the text.
+.c The second argument is some trailing punctuation.
+.c
+.de ShortOpt
+.  ds @1 \$1\"
+.  shift
+.  nh
+.  Text \f[CB]\*[@-]\f[]\f[B]\*[@1]\f[]\/\$*
+.  hy
+.  rm @1
+..
+.
+.de TP+
+.  br
+.  ns
+.  TP \$1
+..
+.
+.c --------------------------------------------------------------------
+.
+.c Topic
+.c
+.de Topic
+.  TP 2m
+.  Text \[bu]
+..
+.
+.ec
+.\" End of macro definitions
+.
+.
+
+
+.TH FOOMATIC-RIP 1 "2002-11-26" "Foomatic Project"
+.SH NAME
+foomatic-rip \- Universal print filter/RIP wrapper
+.SH SYNOPSIS
+
+.SS \fRSpooler-less printing/CPS filter:
+.BI \fBfoomatic-rip\fR\ \fB[\fB-P\fR \ \fI<printer>\fR \ | \ \fB--ppd\fR \ \fI<ppdfile>\fR \fB]\fR \ [\fB-J\fR\ \fI<jobtitle>\fR ] \ [\fB-o\fR \ \fI<option>\fB=\fI<value>\fR \ [...]] \ \fB[\fI<files>\fB]\fR
+
+.SS \fRCUPS filter:
+.BI \fBfoomatic-rip\fR\ \fI<jobid>\fR \ \fI<user>\fR \ \fI<jobtitle>\fR \ \fI<numcopies>\fR \ \fI<options>\fR \ \fB[\fI<file>\fB]\fR 
+
+.SS \fRLPRng filter:
+.BI \fBfoomatic-rip\fR\ \fB--lprng\fR \ \fB[\fB-J\fI<jobtitle>\fB]\fR \ \fB[\fB-Z\fI<option>\fB=\fI<value>\fB[,\fI<option>\fB=\fI<value>\fB[, \ \fB...]]\fR \ \fI<ppdfile>\fR
+
+.SS \fRLPD/GNUlpr filter:
+.BI \fBfoomatic-rip\fR\ \fB[\fB-w\fR\ \fI<number>\fB]\fR\ \fB[\fB-l\fR\ \fI<number>\fB]\fR\ \fB[\fB-x\fR\ \fI<number>\fB]\fR\ \fB[\fB-y\fR\ \fI<number>\fB]\fR\ \fB[\fB-i\fR\ \fI<number>\fB]\fR\ \fB[\fB-c\fB]\fR\ \fB[\fB-n\fR\ \fI<string>\fB]\fR\ \fB[\fB-h\fR\ \fI<string>\fB]\fR\ \fB[\fB-j|-J\fR\ \fI<jobtitle>\fB|\fI<options>\fB]\fR\ \fI<ppdfile>\fR
+
+.SS \fRPPR RIP:
+.BI \fBfoomatic-rip\fR\ \fB[\fI<option>\fB=\fI<value>\fR \ [...]]
+
+.SS \fRPPR interface:
+.BI \fBfoomatic-rip\fR\ \fI<queue>\fR \ \fI<destaddress>\fR \ \fI<options>\fR \ \fI<jobbreak>\fR \ \fI<feedback>\fR \ \fI<codes>\fR \ \fI<jobname>\fR \ \fI<routing>\fR \ \fI<for>\fR \ \fI<filetype>\fR \ \fB[\fI<file>\fB]\fR 
+
+.SS \fRPDQ driver file generation:
+.BI foomatic-rip\ \fB[\fB--ppd\fR \ \fI<ppdfile>\fB]\fR \ [\fB-o\fR \ \fI<option>\fB=\fI<value>\fR \ [...]] \ \fB--genpdq|--appendpdq|--genrawpdq|--appendrawpdq\fR
+
+.SS \fRPDQ filter:
+.BI foomatic-rip\ \fB--pdq\fR\ \fB--ppd\fR \ \fI<ppdfile>\fR \fB]\fR \ [\fB-o\fR \ \fI<option>\fB=\fI<value>\fR \ [...]] \ \fI<file>\fR
+
+.SH DESCRIPTION
+foomatic-rip is a universal print filter which works with every know free
+software printer spooler. It has the following features:
+
+.Topic 
+It translates PostScript (and also other file formats) from standard
+input to the printer's native language (usually put to standard
+output).
+
+.Topic
+The translation is done with an external renderer, usually GhostScript
+(\fBgs(1)\fR). If no translation is needed (PostScript printer) the
+renderer's command line reduces to \fBcat(1)\fR. The way how this
+translation is done is described in a \fBPPD file\fR.
+
+.Topic
+Printer capabilities, how to handle user options, and how to build the
+renderer command line is always described by \fBPPD files\fR, these
+PPD files can come from \fBFoomatic\fR or can be the ones supplied by
+the manufacturers of PostScript printers. The PPD files are the same
+for all spoolers.
+
+.Topic
+foomatic-rip works with every known spooler (\fBCUPS\fR, \fBLPRng\fR,
+\fBLPD\fR, \fBGNUlpr\fR, \fBPPR\fR, \fBPDQ\fR, \fBCPS\fR, and
+\fBwithout spooler\fR). It auto-detects the spooler from which it was
+called by the command line options and environment variables which
+were supplied by the spooler.
+
+.Topic
+Non-PostScript files are translated to PostScript before they are
+passed to the renderer. This is usually done by \fBa2ps(1)\fR,
+\fBenscript(1)\fR, or \fBmpage(1)\fR. foomatic-rip auto-detects which
+program is installed, but manual configuration is also possible.
+
+.SH SPOOLER-LESS PRINTING
+
+.SS Options
+.TP 10
+.BI \-P \ <printer>
+\fI<printer>\fR is the configured printer which should be used for this job.
+.TP 10
+.BI \--ppd \ <ppdfile>
+The PPD file \fI<ppdfile>\fR should be applied for processing this job.
+.TP 10
+.BI \-J \ <jobtitle>
+The \fI<jobtitle>\fR will be printed in the head line of every page of
+a plain text job.
+.TP 10
+.BI \-o \ \fI<option>\fB=\fI<value>\fR
+Option settings for this job, do 
+
+.B foomatic-rip -P \fI<printer>\fR \fB-o docs \fI<file>\fR 
+
+(\fI<file>\fR can be an arbitrary existing file, as \fB.bashrc\fR,
+will not be printed) to print a list of available options for the
+specified \fI<printer>\fR.
+.TP 10
+.BI \fI<files>\fR
+The file(s) to be printed.
+
+.P
+\fBfoomatic-rip\fR will print from standard input unless a file to
+print is specified on the command line.
+If your printer PPD file is stored as \fI@$sysdeps{'foo-etc'}@/direct/<printer>.ppd\fR
+or \fI~/.foomatic/direct/<printer>.ppd\fR you can use it by simply specifying "-P \fI<printer>\fR".
+
+Put a line
+
+\fB*FoomaticRIPPostPipe: "| \fI<command>\fB"\fR
+
+into the PPD file, right after \fB*PPD-Adobe: "4.3"\fR, where
+\fI<command>\fR is a command into which you wnat to re-direct the
+output data. Due to the restictions of PPD files \fB<\fR, \fB>\fR, and
+\fB"\fR are not allowed in the \fI<command>\fR, replace them as
+follows:
+
+.CodeSkip
+.nf
+.B Character	Replacement
+.B ---------------------
+.B		<	&lt;
+.B		>	&gt;
+.B		"	&quot;
+.fi
+
+This way you can print directly to your printer, use
+
+\fB*FoomaticRIPPostPipe: "| cat &gt; /dev/lp0"\fR
+
+or
+
+\fB*FoomaticRIPPostPipe: "| cat &gt; /dev/usb/lp0"\fR
+
+for local parallel or USB printers. To make normal users able to print
+this way add them to the group \fBlp\fR and make sure that the
+appropriate printer device file \fI/dev/...\fR is group-writable for
+the \fBlp\fR group.
+
+for a TCP/Socket/JetDirect printer with the host name \fBprinter\fR
+listening on port \fB9100\fR you need this:
+
+\fB*FoomaticRIPPostPipe: "| /usr/bin/nc -w 1 printer 9100"\fR
+
+Note the "-w 1" in the "nc" command line, it makes "nc" exiting
+immediately after the data is tranferred to the printer.
+
+\fB*FoomaticRIPPostPipe: "| rlpr -Plp@printserver"\fR
+
+directs your jobs to the LPD printer queue \fBlp\fR on the machine
+named \fBprintserver\fR.
+
+See also http://www.linuxprinting.org/foomatic2.9/direct-doc.html
+
+.SH PRINTING WITH SPOOLER
+
+To be done.
+
+.SH FILES
+.PD 0
+.TP 0
+@$sysdeps{'foo-etc'}@/cups/<printer>.ppd
+.TP 0
+@$sysdeps{'foo-etc'}@/lpd/<printer>.ppd
+.TP 0
+@$sysdeps{'foo-etc'}@/ppr/<printer>.ppd
+.TP 0
+@$sysdeps{'foo-etc'}@/pdq/<printer>.ppd
+.TP 8
+@$sysdeps{'foo-etc'}@/direct/<printer>.ppd
+
+The PPD files of the currently defined printers
+.PD 0
+
+.\".SH SEE ALSO
+.\".IR foomatic-XXX (1),
+
+.SH EXIT STATUS
+.B foomatic-rip
+returns 0 unless something unexpected happens.
+
+.SH AUTHOR
+Till Kamppeter <\fItill.kamppeter@gmx.net\fR> with parts of Manfred
+Wassmanns's <\fImanolo@NCC-1701.B.Shuttle.de\fR> man pages for the
+Foomatic 2.0.x filters (\fBdirectomatic(1)\fR, \fBlpdomatic(8)\fR).
+
+.SH BUGS
+None so far.
+
