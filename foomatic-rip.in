@@ -6119,7 +6119,7 @@ sub buildpdqdriver {
     }
     for my $arg (@{$dat->{'args'}}) {
 	if ($arg->{'varname'}) {
-	    $commandline .= "\${$prefix$arg->{'varname'}}";
+	    $commandline .= "\${$arg->{'varname'}}";
 	}
     }
     $commandline .= "\${DRIVERDOCS} \$INPUT > \$OUTPUT";

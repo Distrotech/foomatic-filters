@@ -1,3 +1,7 @@
+2003-02-26  Till Kamppeter <till.kamppeter@gmx.net>
+
+	* foomatic-rip.in: Fixed building of PDQ driver description file.
+
 2003-02-18  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* *: Tagged CVS for the release of foomatic-filters 3.0.1. 
