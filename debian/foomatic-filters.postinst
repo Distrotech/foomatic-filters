@@ -26,20 +26,20 @@ if [ $RET = true ]; then
 fi
 
 db_get foomatic-filters/textfilter
-if [ $RET = Automagic ]; then
+if [ "$RET" = Automagic ]; then
 	textfilter="# textfilter:"
 else
-	if [ $RET = Custom ]; then
+	if [ "$RET" = Custom ]; then
 		db_get foomatic-filters/custom_textfilter
 	fi
 	textfilter="textfilter: $RET"
 fi
 
 db_get foomatic-filters/gspath
-if [ $RET = gs ]; then
+if [ "$RET" = "gs" ]; then
     gspath="# gspath: gs"
 else
-    if [ $RET = Custom ]; then
+    if [ "$RET" = "Custom" ]; then
         db_get foomatic-filters/custom_gspath
     fi
     gspath="gspath: $RET"
@@ -53,9 +53,9 @@ else
 fi
 
 db_get foomatic-filters/spooler
-echo "$RET" > /etc/foomatic/defaultspooler
+echo "$RET" >| /etc/foomatic/defaultspooler
 
-cat <<EOF > $tempfile
+cat <<EOF >| $tempfile
 # This file allows you to configure the "foomatic-rip" filter.
 
 # You can force reconfiguration managed via debconf by running the
