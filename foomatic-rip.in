@@ -3219,10 +3219,18 @@ sub getrendererhandle {
 		}
 	    }
 	    if ($havewrapper) {
-		$commandline =~ s!^\s*gs !foomatic-gswrapper !;
-		$commandline =~ s!(\|\s*)gs !\|foomatic-gswrapper !;
-		$commandline =~ s!(;\s*)gs !; foomatic-gswrapper !;
+		$commandline =~ s!^\s*gs\s!foomatic-gswrapper !g;
+		$commandline =~ s!(\|\s*)gs\s!\|foomatic-gswrapper !g;
+		$commandline =~ s!(;\s*)gs\s!; foomatic-gswrapper !g;
 	    }
+
+	    # If the renderer command line contains the "echo"
+	    # command, replace the "echo" by the user-chosen $myecho
+	    # (important for non-GNU systems where GNU echo is in a
+	    # special path
+	    $commandline =~ s!^\s*echo\s!$myecho !g;
+	    $commandline =~ s!(\|\s*)echo\s!\|$myecho !g;
+	    $commandline =~ s!(;\s*)echo\s!; $myecho !g;
 
 	    # In debug mode save the data supposed to be fed into the
 	    # renderer also into a file
