@@ -16,6 +16,7 @@ my $ripversion='$Revision$';
 # link it to spooler-specific directories when you use CUPS or PPR:
 
 #    ln -s /usr/bin/foomatic-rip /usr/lib/cups/filter/
+#    ln -s /usr/bin/foomatic-rip /usr/lib/ppr/lib/
 #    ln -s /usr/bin/foomatic-rip /usr/lib/ppr/interfaces/
 
 # Mark this filter world-readable and world-executable (note that most
@@ -150,8 +151,19 @@ $SIGTTOU = 22;
 
 ## Some important variables
 
-# We don't know yet, which spooler will be used. If we don't detect one.
-# we assume that we do spooler-less printing.
+# We don't know yet, which spooler will be used. If we don't detect
+# one.  we assume that we do spooler-less printing. Supported spoolers
+# are currently:
+
+#    cups    - CUPS - Common Unix Printing System
+#    lpd     - LPD - Line Printer Daemon
+#    lprng   - LPRng - LPR - New Generation
+#    gnulpr  - GNUlpr, an enhanced LPD (development stopped)
+#    ppr     - PPR (foomatic-rip runs as a PPR RIP)
+#    ppr_int - PPR (foomatic-rip runs as an interface)
+#    pdq     - PDQ - Print, Don't Queue
+#    direct  - Direct, spooler-less printing (also CPS)
+
 $spooler = 'direct';
 
 # PPD file name
@@ -238,12 +250,19 @@ if (defined(%conf) and $conf{textfilter}) {
 
 ## Environment variables;
 
-# "PPD": PPD file name for CUPS
+# "PPD": PPD file name for CUPS or PPR (if we run as PPR RIP)
 if (defined($ENV{'PPD'})) {
     $ppdfile = $ENV{'PPD'};
-    # CUPS uses the "PPD" environment variable to make the PPD file name
-    # available
+    # CUPS and PPR (RIP filter) use the "PPD" environment variable to 
+    # make the PPD file name available (we set CUPS here preliminarily,
+    # in the next step we check for PPR
     $spooler = 'cups';
+}
+
+# "PPR_VERSION": PPR
+if (defined($ENV{'PPR_VERSION'})) {
+    # We have PPR
+    $spooler = 'ppr';
 }
 
 # "LPOPTS": Option settings for some LPD implementations (ex: GNUlpr)
@@ -291,6 +310,8 @@ GetOptions("q"        => \$opt_q,         # Quiet
 	   "z=s"      => \$opt_z,         # (not used)
 	   "Z=s"      => \$opt_Z,         # Options when LPRng is the
 	                                  # spooler
+	   # PDQ
+	   "pdq"      => \$opt_pdq,       # Were we called from PDQ?
 	   # Spooler-less printing
 	   "P=s"      => \$opt_P,         # Printer
 	   "d=s"      => \$opr_d,         # Printer
@@ -376,7 +397,7 @@ if (defined($opt_J)) {
     $jobtitle = $opt_J;
 }
 
-# Options for spooler-less printing
+# Options for spooler-less printing or PDQ
 if ((defined(@opt_o)) && ($#opt_o >= 0)) {
     foreach $opt (@opt_o) {
 	$opt =~ s/^\s+//;
@@ -386,52 +407,46 @@ if ((defined(@opt_o)) && ($#opt_o >= 0)) {
 	}
 	$optstr .= "$opt ";
     }
-    # We print without spooler
+    # We print without spooler (we check for PDQ later)
     $spooler = 'direct';
 }
 
-# Printer for spooler-less printing
+# Printer for spooler-less printing or PDQ
 if (!defined($opt_P) && (defined($opt_d))) {
     $opt_P = $opt_d;
 }
 if (defined($opt_P)) {
     $direct_printer = $opt_P;
     $printer = $direct_printer;
-    # We print without spooler
+    # We print without spooler (we check for PDQ later)
     $spooler = 'direct';
+}
+
+# Were we called from a PDQ wrapper
+if ($opt_pdq) {
+    # We have PDQ
+    $spooler = 'pdq';
 }
 
 
 
 ## Command line arguments without name
 
-# Check for PPR
-my $pwd = `pwd`;
-chomp($pwd);
-if (($ARGV[3] =~ /^\s*\d\d?\s*$/) &&
-    ($ARGV[5] =~ /^\s*\d\d?\s*$/) &&
-    (($#ARGV == 10) || ($#ARGV == 9) || ($#ARGV == 7)) &&
-    ($pwd =~ m!/ppr/?$!)) {
-    # PPR calls interfaces with many command line parameters, where
-    # the forth and the sixth is a small integer number. In addition,
-    # we have 8 (PPR <= 1.31) or 10 (PPR>=1.32) command line parameters.
-    # We also check whether the current working directory is a PPR
-    # directory.
-
+# Load definitions for PPR error messages, check whether we run as
+# PPR interface or as PPR RIP
+if ($spooler eq 'ppr') {
     # Read interface.sh so we will know the correct exit codes and
     # also signal.sh for the signal codes
-    my $pprinstalled = 1; # When one of the files is missing, we assume
-                          # that PPR is not installed and our guess
-                          # that PPR is the spooler is wrong.
+    my $deffound = 0; # Did we find one of the definition files
     my @definitions;
     for my $file (("lib/interface.sh", "lib/signal.sh")) {
 	
 	open FILE, "$file" || do {
 	    print $logh "error opening $file.\n";
-	    $pprinstalled = 0;
-	    last;
+	    next;
 	};
 	
+	$deffound = 1;
 	while(my $line = <FILE>) {
 	    # Translate the shell script to Perl
 	    if (($line !~ m/^\s*$/) && ($line !~ m/^\s*\#/)) {
@@ -442,8 +457,26 @@ if (($ARGV[3] =~ /^\s*\d\d?\s*$/) &&
 	close FILE;
     }
 
-    if ($pprinstalled) {
+    if ($deffound) {
+	# Apply the definitions loaded from PPR
+	eval join('',@definitions) || do {
+	    print $logh "unable to evaluate definitions\n";
+	    rip_die ("Error in definitions evaluation",
+		     $EXIT_PRNERR_NORETRY_BAD_SETTINGS);
+	};
+    }
 
+    # Check whether we run as a PPR interface (if not, we run as a PPR RIP)
+    if (($ARGV[3] =~ /^\s*\d\d?\s*$/) &&
+	($ARGV[5] =~ /^\s*\d\d?\s*$/) &&
+	(($#ARGV == 10) || ($#ARGV == 9) || ($#ARGV == 7))) {
+	# PPR calls interfaces with many command line parameters,
+	# where the forth and the sixth is a small integer
+	# number. In addition, we have 8 (PPR <= 1.31), 10
+	# (PPR>=1.32), 11 (PPR >= 1.50) command line parameters.
+	# We also check whether the current working directory is a
+	# PPR directory.
+	
 	# Get all command line parameters
 	$ppr_printer = $ARGV[0];
 	$ppr_address = $ARGV[1];
@@ -455,30 +488,28 @@ if (($ARGV[3] =~ /^\s*\d\d?\s*$/) &&
 	$ppr_routing = $ARGV[7];
 	$ppr_for = $ARGV[8];
 	$ppr_filetype = $ARGV[9];
-
+	$ppr_filetoprint = $ARGV[10];
+	
 	# Common job parameters
 	$printer = $ppr_printer;
 	$jobtitle = $ppr_jobname;
+	if ((!$jobtitle) && ($ppr_filetoprint)) {
+	    $jobtitle = $ppr_filetoprint;
+	}
 	$optstr = "$ppr_options $ppr_routing";
-
-	# Apply  the definitions loaded from PPR
-	eval join('',@definitions) || do {
-	    print $logh "unable to evaluate definitions\n";
-	    rip_die ("Error in definitions evaluation",
-		     $EXIT_PRNERR_NORETRY_BAD_SETTINGS);
-	};
-
+	
 	# Get the path of the PPD file from the queue configuration
 	$ppdfile = `LANG=en_US; ppad show $ppr_printer | grep PPDFile`;
 	$ppdfile =~ s/PPDFile:\s+//;
 	if ($ppdfile !~ m!^/!) {
 	    $ppdfile = "../../share/ppr/PPDFiles/$ppdfile";
 	}
-
-	# We have PPR
-	$spooler = 'ppr';
+	chomp($ppdfile);
+	
+	# We have PPR and run as an interface
+	$spooler = 'ppr_int';
     }
-}   
+}
 
 # CUPS
 if ($spooler eq 'cups') {
@@ -619,9 +650,9 @@ def
     $printer = $2;
 }
 
-# No spooler
+# No spooler/PDQ
 
-if ($spooler eq 'direct') {
+if (($spooler eq 'direct') || ($spooler eq 'pdq')) {
 
     # Path for personal Foomatic configuration
     my $user_default_path = "$ENV{'HOME'}/.foomatic";
@@ -719,7 +750,7 @@ for $file (@filelist) {
 
 ## When we print without spooler do not log onto STDERR unless the "-v"
 ## ('Verbose') is set or the debug mode is used
-if (($spooler eq "direct") && (!$opt_v) && (!$debug)) {
+if (($spooler eq 'direct') && (!$opt_v) && (!$debug)) {
     close $logh;
     open LOG, "> /dev/null";
     $logh = *LOG;
@@ -1226,7 +1257,7 @@ for (@opts) {
 
 	# At first look for the "backend" option to determine the PPR
 	# backend to use
-	if (($aname =~ m!^backend$!i) && ($spooler eq 'ppr')) {
+	if (($aname =~ m!^backend$!i) && ($spooler eq 'ppr_int')) {
 	    # Backend interface name
 	    $backend = $avalue;
         } elsif ($aname =~ m!^media$!i) {
@@ -1340,7 +1371,7 @@ for (@opts) {
 		    # Invalid choice, make log entry
 		    print $logh "Invalid choice $aname=$avalue.\n";
 		}
-            } elsif ($spooler eq 'ppr') {
+            } elsif ($spooler eq 'ppr_int') {
                 # Unknown option, pass it to PPR's backend interface
 		push (@backendoptions, "$aname=$avalue");
             } else {
@@ -1379,8 +1410,14 @@ for (@opts) {
 
 ## Set the $postpipe
 
-# Set up PPR backend.
+# $postpipe when running as a PPR RIP
 if ($spooler eq 'ppr') {
+    # Strange, the PPR RIP must send to /dev/fd/3 instead of to STDOUT
+    $postpipe = "| cat - >&3";
+}
+
+# Set up PPR backend (if we run as a PPR interface).
+if ($spooler eq 'ppr_int') {
 
     # Is the chosen backend installed and executable
     if (!-x "interfaces/$backend") {
@@ -1409,6 +1446,7 @@ if ($spooler eq 'ppr') {
 
 }
 
+# CUPS has its own backends, it does not need a $postpipe
 if ($spooler eq 'cups') {
     # No $postpipe for CUPS, even if one is defined in the PPD file
     $postpipe = "";
@@ -2448,10 +2486,11 @@ close STDIN;
 
 
 ## Only for debugging
-if ($debug) {
+if ($debug && 1) {
     use Data::Dumper;
     local $Data::Dumper::Purity=1;
     local $Data::Dumper::Indent=1;
+    print $logh Dumper(%ENV);
     print $logh Dumper($dat);
 }
 
@@ -3233,7 +3272,7 @@ sub getdocgeneratorhandle {
 	$boolopt, $booloptleft, $booloptequal, $booloptright,
 	$numopt, $numoptleft, $numoptequal, $numoptright,
 	$optsep, $trailer, $custompagesize);
-    if ($spooler eq "cups") {
+    if ($spooler eq 'cups') {
 	($command,
 	 $enumopt, $enumoptleft, $enumoptequal, $enumoptright,
 	 $boolopt, $booloptleft, $booloptequal, $booloptright,
@@ -3248,7 +3287,7 @@ sub getdocgeneratorhandle {
 	      "<width>x<height>[<unit>]\n" .
 	      "               Units: pt (default), in, cm, mm\n" .
 	      "  Example: -o PageSize=Custom.4.0x6.0in\n");
-    } elsif ($spooler eq "lpd") {
+    } elsif ($spooler eq 'lpd') {
 	($command,
 	 $enumopt, $enumoptleft, $enumoptequal, $enumoptright,
 	 $boolopt, $booloptleft, $booloptequal, $booloptright,
@@ -3263,7 +3302,7 @@ sub getdocgeneratorhandle {
 	      "<width>x<height>[<unit>]\n" .
 	      "               Units: pt (default), in, cm, mm\n" .
 	      "  Example: PageSize=Custom.4.0x6.0in\n");
-    } elsif ($spooler eq "gnulpr") {
+    } elsif ($spooler eq 'gnulpr') {
 	($command,
 	 $enumopt, $enumoptleft, $enumoptequal, $enumoptright,
 	 $boolopt, $booloptleft, $booloptequal, $booloptright,
@@ -3278,7 +3317,7 @@ sub getdocgeneratorhandle {
 	      "<width>x<height>[<unit>]\n" .
 	      "               Units: pt (default), in, cm, mm\n" .
 	      "  Example: -o PageSize=Custom.4.0x6.0in\n");
-    } elsif ($spooler eq "lprng") {
+    } elsif ($spooler eq 'lprng') {
 	($command,
 	 $enumopt, $enumoptleft, $enumoptequal, $enumoptright,
 	 $boolopt, $booloptleft, $booloptequal, $booloptright,
@@ -3293,7 +3332,19 @@ sub getdocgeneratorhandle {
 	      "<width>x<height>[<unit>]\n" .
 	      "               Units: pt (default), in, cm, mm\n" .
 	      "  Example: -Z PageSize=Custom.4.0x6.0in\n");
-    } elsif ($spooler eq "ppr") {
+    } elsif ($spooler eq 'ppr') {
+	($command,
+	 $enumopt, $enumoptleft, $enumoptequal, $enumoptright,
+	 $boolopt, $booloptleft, $booloptequal, $booloptright,
+	 $numopt, $numoptleft, $numoptequal, $numoptright,
+	 $optsep, $trailer, $custompagesize) =
+	     ("ppr -d $printerstr ",
+	      "-F ", "\"*", " ", "\"",
+	      "-F ", "\"*", " ", "\"",
+	      "-F ", "\"*", " ", "\"",
+	      " "," <file>",
+	      "");
+    } elsif ($spooler eq 'ppr-int') {
 	($command,
 	 $enumopt, $enumoptleft, $enumoptequal, $enumoptright,
 	 $boolopt, $booloptleft, $booloptequal, $booloptright,
@@ -3308,7 +3359,7 @@ sub getdocgeneratorhandle {
 	      "<width>x<height>[<unit>]\n" .
 	      "               Units: pt (default), in, cm, mm\n" .
 	      "  Example: -F \"*PageSize Custom\" -i 4.0x6.0in\n");
-    } elsif ($spooler eq "direct") {
+    } elsif ($spooler eq 'direct') {
 	($command,
 	 $enumopt, $enumoptleft, $enumoptequal, $enumoptright,
 	 $boolopt, $booloptleft, $booloptequal, $booloptright,
@@ -3323,7 +3374,7 @@ sub getdocgeneratorhandle {
 	      "<width>x<height>[<unit>]\n" .
 	      "               Units: pt (default), in, cm, mm\n" .
 	      "  Example: -o PageSize=Custom.4.0x6.0in\n");
-    } elsif ($spooler eq "pdq") {
+    } elsif ($spooler eq 'pdq') {
 	($command,
 	 $enumopt, $enumoptleft, $enumoptequal, $enumoptright,
 	 $boolopt, $booloptleft, $booloptequal, $booloptright,
@@ -3396,7 +3447,7 @@ sub getdocgeneratorhandle {
     close KID0_IN;
 
     # Kill data on STDIN to satisfy PPR
-    if ($spooler eq "ppr") {
+    if (($spooler eq 'ppr_int') || ($spooler eq 'ppr')) {
 	while (my $dummy = <STDIN>) {};
     }
     close STDIN
@@ -3620,7 +3671,8 @@ sub rip_die {
     }
 
     print $logh "Process dieing with \"$message\", exit stat: $exitstat\n";
-    if ($spooler eq 'ppr') {
+    if ($spooler eq 'ppr_int') {
+	# Special error handling for PPR intefaces
 	$message =~ s/\\/\\\\/;
 	$message =~ s/\"/\\\"/;
 	@messagelines = split("\n", $message);

@@ -1,3 +1,24 @@
+2002-11-14  Till Kamppeter <till.kamppeter@gmx.net>
+
+	* foomatic-rip.in: Added support for foomatic-rip running as a PPR
+	  RIP (PPR 1.5x), before it could only run as a PPR interface. To
+	  use it as a PPR RIP one sets up the print queue as follows:
+
+	     ln -s foomatic-rip /usr/lib/ppr/lib/
+	     ppad interface foo parallel /dev/lp0
+	     ppad ppd foo /path/to/foo.ppd
+	     ppad rip foo foomatic-rip other x
+
+	  (the "x" in the end of the last line is needed to work around a
+	  bug.)
+
+	  Use "PPR_VERSION" environment variable to auto-detect whether
+	  PPR is the spooler.
+	
+	  Prepared foomatic-rip for PDQ support.
+
+	  Added comment about the supported spoolers.
+	
 2002-11-13  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* foomatic-rip.in: The basic functionality of foomatic-rip is now
