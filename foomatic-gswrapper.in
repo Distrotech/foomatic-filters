@@ -1,5 +1,5 @@
 #!@PERL@
-
+# -*- perl -*-
 # $Revision$
 
 # This is a little Ghostscript regularization script.  It massages
@@ -28,26 +28,15 @@ $ENV{'PATH'} = $execpath;
 grep (m!\-sOutputFile=\-! 
       && do {
 	  # Send the job to fd 3; errors will be on 2(stderr) and job
-	  # ps program interpreter output on 1(stdout)
-	  # The /dev/fd/3 is equivalent to "| cat >&3" and it works with
-	  # all versions of GhostScript under every shell and nearly
-	  # every Unix configuration. For the case that there is no
-	  # /dev/fd/3 file descriptor we fall back to the good 
-	  # old "| cat >&3".
-	  $_ = '-sOutputFile=' . 
-	      ((-e "/dev/fd/3") ? "/dev/fd/3" : "| cat >&3");
+	  # ps program interpreter output on 1(stdout).
+	  $_ = '-sOutputFile=/dev/fd/3';
 	  # quoted properly below...
       }, @ARGV);
 
 grep (((m!^\-$!) || (m!^\-_$!))
       && do {
-	  # Get the input from fd 0; The /dev/fd/0 is equivalent to
-	  # "-" but there are some pesky PostScript files which do not
-	  # work with "-". This works with all versions of GhostScript
-	  # under every shell and every Unix. For the rare case that 
-	  # there is no /dev/fd/ file descriptor directory we fall back 
-	  # to "-_" (as "-" but block instead of character reading).
-	  $_ = ((-e "/dev/fd/0") ? "/dev/fd/0" : "-_");
+	  # Get the input from fd 0.
+	  $_ = "/dev/fd/0";
       }, @ARGV);
 
 # Turn *off* -q (quiet!); now that stderr is useful! :)
