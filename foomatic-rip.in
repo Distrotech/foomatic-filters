@@ -184,6 +184,18 @@ $postpipe = "";
 # Files to be printed
 @filelist = ();
 
+# JCL prefix to put before the JCL options (Can be modified by a
+# "*JCLBegin:" keyword in the PPD file):
+$jclbegin = "\033%-12345X\@PJL\n";
+
+# JCL command to switch the printer to the PostScript interpreter (Can
+# be modified by a "*JCLToPSInterpreter:" keyword in the PPD file):
+$jcltointerpreter = "";
+
+# JCL command to close a print job (Can be modified by a "*JCLEnd:"
+# keyword in the PPD file):
+$jclend = "\033%-12345X\@PJL RESET\n";
+
 
 
 ## Environment variables;
@@ -357,7 +369,7 @@ if (defined($opt_P)) {
 
 
 
-## Command line options without name
+## Command line arguments without name
 
 # Check for PPR
 if (($ARGV[3] =~ /^\s*\d\d?\s*$/) &&
@@ -451,11 +463,7 @@ if ($spooler eq 'cups') {
 	($cups_filename ne '-')) {
 	# We get the input from a file
 	@filelist = ($cups_filename);
-	#print $logh "Getting input from file $cups_filename\n";
-	#close STDIN;
-	#open STDIN, "< $cups_filename" or
-	#    rip_die ("Error opening input file $cups_filename",
-	#	     $EXIT_JOBERR);
+	print $logh "Getting input from file $cups_filename\n";
     }
 }
 
@@ -675,7 +683,7 @@ print $logh "Printer: $printer\n";
 print $logh "PPD file: $ppdfile\n";
 print $logh "Options: $optstr\n";
 print $logh "Job title: $jobtitle\n";
-print $logh "File(s) to be printed:\n @filelist\n\n";
+print $logh "File(s) to be printed:\n@filelist\n\n";
 
 
 
@@ -696,6 +704,8 @@ my $currentargument = "";  # We are currently reading this argument
 
 # Parse the PPD file
 while(<PPD>) {
+    # foomatic-rip should also work with PPD file downloaded under Windows.
+    undossify;
     # Parse keywords
     if (m!^\*FoomaticRIPPostPipe:\s*\"(.*)$!) {
 	# "*FoomaticRIPPostPipe: <code>"
@@ -773,10 +783,10 @@ while(<PPD>) {
 	    $dat->{'args_byname'}{'PageSize'}{'vals_byname'}{$setting}{'driverval'} = $code;
 	    $dat->{'args_byname'}{'PageRegion'}{'vals_byname'}{$setting}{'driverval'} = $code;
 	}
-    } elsif (m!^\*OpenUI\s+\*([^:]+):\s*(\S+)\s*$!) {
-	# "*OpenUI *<option>[/<translation>]: <type>"
-	my $argnametrans = $1;
-	my $argtype = $2;
+    } elsif (m!^\*(JCL|)OpenUI\s+\*([^:]+):\s*(\S+)\s*$!) {
+	# "*[JCL]OpenUI *<option>[/<translation>]: <type>"
+	my $argnametrans = $2;
+	my $argtype = $3;
 	my $argname;
 	my $translation = "";
 	if ($argnametrans =~ m!^([^:/\s]+)/([^:]*)$!) {
@@ -803,9 +813,9 @@ while(<PPD>) {
 	# Mark in which argument we are currently, so that we can find
 	# the entries for the choices
 	$currentargument = $argname;
-    } elsif (m!^\*CloseUI:\s+\*([^:/\s]+)\s*$!) {
-	# "*CloseUI *<option>"
-	my $argname = $1;
+    } elsif (m!^\*(JCL|)CloseUI:\s+\*([^:/\s]+)\s*$!) {
+	# "*[JCL]CloseUI *<option>"
+	my $argname = $2;
 	# Unmark the current argument to do not mis-interpret any keywords
 	# as choices
 	$currentargument = "";
@@ -828,7 +838,7 @@ while(<PPD>) {
 	    $dat->{'args_byname'}{$argname}{'style'} = 'C';
 	} elsif ($argstyle eq "JCL") {
 	    $dat->{'args_byname'}{$argname}{'style'} = 'J';
-	    $dat->{'pjl'} = 1;
+	    $dat->{'jcl'} = 1;
 	} elsif ($argstyle eq "Collective") {
 	    $dat->{'args_byname'}{$argname}{'style'} = 'X';
 	}
@@ -873,7 +883,7 @@ while(<PPD>) {
 	# Store the values
 	$dat->{'args_byname'}{$argname}{'min'} = $min;
 	$dat->{'args_byname'}{$argname}{'max'} = $max;
-    } elsif (m!^\*OrderDependency:\s*(\S+)\s+(\S+)\s+\*([^:/\s]+)$!) {
+    } elsif (m!^\*OrderDependency:\s*(\S+)\s+(\S+)\s+\*([^:/\s]+)\s*$!) {
 	# "*OrderDependency: <order> <section> *<option>"
 	my $order = $1;
 	my $section = $2;
@@ -992,34 +1002,46 @@ while(<PPD>) {
 	} else {
 	    $dat->{'args_byname'}{$argname}{'vals_byname'}{$setting}{'driverval'} = unhtmlify($code);
 	}
-    } elsif (m!^\*CloseUI:\s+\*([^:/\s]+)\s*$!) {
-	# "*CloseUI: *<option>"
-	my $argname = $1;
-	# Unmark the current argument to do not mis-interpret any keywords
-	# as choices
-	$currentargument = "";
+    } elsif (m!^\*JCL(Begin|ToPSInterpreter|End):\s*\"(.*)$!) {
+	# "*JCL(Begin|ToPSInterpreter|End): <code>"
+	# The printer supports PJL/JCL when there is such a line 
+	$dat->{'jcl'} = 1;
+	$item = $1;
+	$line = $2;
+	# Store the value
+	# Code string can have multiple lines, read all of them
+	my $code = "";
+	while ($line !~ m!\"!) {
+	    if ($line =~ m!&&$!) {
+		# line continues in next line
+		$code .= substr($line, 0, -2);
+	    } else {
+		# line ends here
+		$code .= "$line\n";
+	    }
+	    # Read next line
+	    $line = <PPD>;
+	    chomp $line;
+	}
+	$line =~ m!^([^\"]*)\"!;
+	$code .= $1;
+	if ($item eq 'Begin') {
+	    $jclbegin = unhexify($code);
+	} elsif ($item eq 'ToPSInterpreter') {
+	    $jcltointerpreter = unhexify($code);
+	} elsif ($item eq 'End') {
+	    $jclend = unhexify($code);
+	}
     }
 }
 close PPD;
 
 
 
-## Only for debugging
-if (0) {
-    use Data::Dumper;
-    local $Data::Dumper::Purity=1;
-    local $Data::Dumper::Indent=1;
-    print $logh Dumper($dat);
-    exit 1;
-}
-
-
-
-## Remove PostScript options, they do not need to be treated by this
-## program, they are treated by the spooler-specific filter or by the
-## spooler itself.
-
-#removepsargs($dat);
+## We do not need to parse the PostScript job when we don't have
+## any options. If we have options, we must check whether the
+## default settings from the PPD file are valid and correct them
+## if nexessary.
 
 my $dontparse = 0;
 if ((!defined(@{$dat->{'args'}})) ||
@@ -1038,6 +1060,18 @@ if ((!defined(@{$dat->{'args'}})) ||
 # PostScript printer and do not render/translate the input data
 if (!defined($dat->{'cmd'})) {
     $dat->{'cmd'} = "cat%A%B%C%D%E%F%G%H%I%J%K%L%M%Z";
+}
+
+
+
+## Only for debugging
+if (0) {
+    print $logh "|$jclbegin|\n|$jcltointerpreter|\n|$jclend|\n";
+    use Data::Dumper;
+    local $Data::Dumper::Purity=1;
+    local $Data::Dumper::Indent=1;
+    print $logh Dumper($dat);
+    exit 1;
 }
 
 
@@ -1126,9 +1160,21 @@ for (@opts) {
                     $val=valbyname($dat->{'args_byname'}{'PageSize'},$_)) {
                     $dat->{'args_byname'}{'PageSize'}{'default'} = 
                         $val->{'value'};
+		    # Keep "PageRegion" in sync
+		    if ($dat->{'args_byname'}{'PageRegion'} and
+			$val=valbyname($dat->{'args_byname'}{'PageRegion'},
+				       $_)) {
+			$dat->{'args_byname'}{'PageRegion'}{'default'} = 
+			    $val->{'value'};
+		    }
                 } elsif ($dat->{'args_byname'}{'PageSize'} 
-		    and /^Custom/) {
+			 and /^Custom/) {
 		    $dat->{'args_byname'}{'PageSize'}{'default'} = $_;
+		    # Keep "PageRegion" in sync
+		    if ($dat->{'args_byname'}{'PageRegion'}) {
+			$dat->{'args_byname'}{'PageRegion'}{'default'} = 
+			    $_;
+		    }
                 } elsif ($dat->{'args_byname'}{'MediaType'} and
                          $val=valbyname($dat->{'args_byname'}{'MediaType'},
 					$_)) {
@@ -1196,6 +1242,9 @@ for (@opts) {
 		    # If the choice is valid, use it, otherwise
 		    # ignore it.
 		    $arg->{'default'} = $newvalue;
+		    # If this argument is PageSize or PageRegion,
+		    # also set the other
+		    syncpagesize($dat, $aname, $avalue, 'default');
 		} else {
 		    # Invalid choice, make log entry
 		    print $logh "Invalid choice $aname=$avalue.\n";
@@ -1215,6 +1264,11 @@ for (@opts) {
 	    ($arg=argbyname("PageSize")) &&
 	    (defined($arg->{'vals_byname'}{'Custom'}))) {
             $arg->{'default'} = "Custom.${w}x${h}${u}";
+	    # Keep "PageRegion" in sync
+	    if ($dat->{'args_byname'}{'PageRegion'}) {
+		$dat->{'args_byname'}{'PageRegion'}{'default'} = 
+		    $arg->{'default'};
+	    }
 	}
     } elsif ((m!^\s*no(.+)\s*$!i) and ($arg=argbyname($1))) {
         # standard bool args:
@@ -1320,9 +1374,11 @@ File: $file
 
 
     ## Next, examine the PostScript job for traces of command-line and
-    ## PJL options. PPD-aware applications and spoolers stuff option
+    ## JCL options. PPD-aware applications and spoolers stuff option
     ## settings directly into the file, they do not necessarily send
-    ## PPD options by the command line.
+    ## PPD options by the command line. Also stuff in PostScript code
+    ## to apply option settings given by the command line and to set
+    ## the defaults given in the PPD file.
 
     # Examination strategy: read lines from STDIN until the first
     # %%Page: comment appears and save them as $psheader. This is the
@@ -1360,6 +1416,30 @@ File: $file
     # Non DSC-conforming documents will be read until a certain line
     # number is reached. Command line or JCL options inserted later
     # will be ignored.
+
+    # If options are implemented by PostScript code supposed to be
+    # stuffed into the job's PostScript data we stuff the code for all
+    # these options into our job data, So all default settings made in
+    # the PPD file (the user can have edited the PPD file to change
+    # them) are taken care of and command line options get also
+    # applied. To give priority to settings made by applications we
+    # insert the options's code in the beginnings of their respective
+    # sections, so that sommething, which is already inserted, gets
+    # executed after our code. Missing sections are automatically
+    # created. In non-DSC-conforming files we insert the option code
+    # in the beginning of the file. This is the same policy as used by
+    # the "pstops" filter of CUPS.
+
+    # If CUPS is the spooler, the option settings were already
+    # inserted by the "pstops" filter, so we don't insert them
+    # again. The only thing we do is correcting settings of numerical
+    # options when they were set to a value not available as choice in
+    # the PPD file, As "pstops" does not support "real" numerical
+    # options, it sees these settings as an invalid choice and stays
+    # with the default setting. In this case we correct the setting in
+    # the first occurence of the option's code, as this one is the one
+    # added by CUPS, later occurences come from applications and
+    # should not be touched.
 
     print $logh "Reading PostScript input ...\n";
     my $maxlines = 1000;            # Maximum number of lines to be read
@@ -1496,6 +1576,22 @@ File: $file
                                     # option ("%%BeginFeature...
                                     # %%EndFeature") which we have replaced.
 
+    $jobhasjcl = 0;                 # When the job does not start with
+                                    # PostScript directly, but is a
+                                    # PostScript job, we set this to 1
+                                    # to avoid adding the JCL options
+                                    # for the second time.
+
+    my $insertoptions = 1;          # If we find out that a file with
+                                    # a DSC magic string
+                                    # ("%!PS-Adobe-") is not really
+                                    # DSC-conforming, we insert the
+                                    # options directly after the line
+                                    # with the magic string. We use
+                                    # this variable to store the
+                                    # number of the line with the
+                                    # magic string.
+
     if ($dontparse) {
 	# We do not parse the PostScript to find Foomatic options, we check
 	# only whether we have PostScript.
@@ -1524,7 +1620,9 @@ File: $file
 		    if ($maxlines == $nonpslines) {
 			$maxlines ++;
 		    }
+		    $jobhasjcl = 1;
 		    if ($nonpslines > $maxlinestopsstart) {
+			$jobhasjcl = 0;
 			rip_die
 			    ('Job does not start with "%!", ' . 
 			     'is it PostScript?',
@@ -1538,6 +1636,7 @@ File: $file
 			if (!$dontparse) {
 			    $maxlines = 0;
 			    $isdscjob = 1;
+			    $insertoptions = $linect + 1;
 			}
 			print $logh 
 			    "--> This document is DSC-conforming!\n";
@@ -1567,6 +1666,13 @@ File: $file
 			"nesting level now: $nestinglevel\n";
 		} elsif (($line =~ m/\%\%BeginProlog/) &&
 			 ($nestinglevel == 0)) {
+		    # Note: Below is another place where a "Prolog"
+		    # section start will be considered. There we assume
+		    # start of the "Prolog" if the job is DSC-Conformimg,
+		    # but an arbitrary comment starting with "%%Begin", but
+		    # not a comment explicitly treated here, is found. This
+		    # is done because many "dvips" (TeX/LaTeX) files miss
+		    # the "%%BeginProlog" comment.
 		    # Beginning of Prolog
 		    $inprolog = 1;
 		    $nondsclines = 0;
@@ -1715,7 +1821,7 @@ File: $file
 		    
 		    # OK, we have an option.  If it's not a
 		    # *ostscript-style option (ie, it's command-line or
-		    # PJL) then we should note that fact, since the
+		    # JCL) then we should note that fact, since the
 		    # attribute-to-filteroption passing in CUPS is kind of
 		    # funky, especially wrt boolean options.  
 
@@ -1756,7 +1862,7 @@ File: $file
 						 $arg->{$optionset}) .
 					 "\n");
 				} else {
-				    # Cmmand line or PJL option
+				    # Cmmand line or JCL option
 				    push(@{$dest},
 					 "%% FoomaticRIPOptionSetting: " .
 					 "$option=$arg->{$optionset}\n");
@@ -1793,10 +1899,14 @@ File: $file
 					my ($w, $h) = ($1, $2);
 					if (($w) && ($h) && 
 					    ($w != 0) && ($h != 0)) {
-					    $arg->{$optionset} =
-						"$newvalue.$wx$h";
+					    $newvalue = "$newvalue.$wx$h";
+					    $arg->{$optionset} = $newvalue;
 					}
 				    }
+				    # If this argument is PageSize or 
+				    # PageRegion, also set the other
+				    syncpagesize($dat, $option, $newvalue, 
+						 $optionset);
 				} else {
 				    # Invalid option, log it.
 				    print $logh " --> Invalid option " .
@@ -1822,6 +1932,30 @@ File: $file
 		    # If the option setting was replaced, it ends here, too,
 		    # end the next option is not necessarily also replaced.
 		    $optionreplaced = 0;
+		} elsif (($line =~ m/\%\%Begin/) &&
+			 ($isdscjob) &&
+			 (!$prologfound) &&
+			 ($nestinglevel == 0)) {
+		    # In some PostScript files (especially when generated
+		    # by "dvips" of TeX/LaTeX) the "%%BeginProlog" is
+		    # missing, so assume that it was before the current
+		    # line (the first line starting with "%%Begin".
+		    print $logh "Job claims to be DSC-conforming, but " . 
+			"\"%%BeginProlog\" was missing before first " .
+			"line with another \"%%Begin...\" comment " .
+			"(is this a TeX/LaTeX/dvips-generated PostScript " .
+			"file?). Assuming start of \"Prolog\" here.\n";
+		    # Beginning of Prolog
+		    $inprolog = 1;
+		    $nondsclines = 0;
+		    # Insert options for "Prolog" before the current line
+		    if (!$prologfound) {
+			$line =
+			    "%%BeginProlog\n" .
+			    makeprologsection($dat, $optionset, 0) .
+			    $line;
+		    }
+		    $prologfound = 1;
 		} elsif (($line =~ m/^\s*\%/) || ($line =~ m/^\s*$/)) {
 		    # This is an unknown PostScript comment or a blank line,
 		    # no active code
@@ -1846,6 +1980,15 @@ File: $file
 				# Stop scanning for further option settings
 				$maxlines = 1;
 				$isdscjob = 0;
+				# Insert defaults and command line settings
+				# in the beginning of the job
+				splice(@psheader, $insertoptions, 0,
+				       makeprologsection($dat, $optionset, 
+							 1),
+				       makesetupsection($dat, $optionset,
+							1),
+				       makepagesetupsection($dat,
+							    $optionset, 1));
 			    }
 			}
 		    } else {
@@ -2065,11 +2208,11 @@ sub getrendererhandle {
     $kid3finished = 0;
     $kid4finished = 0;
 
-    # Build the command line and get the PJL commands
+    # Build the command line and get the JCL commands
     buildcommandline($dat, 'currentpage');
     $commandline = $dat->{'currentcmd'};
-    @pjlprepend = @{$dat->{'pjlprepend'}};
-    @pjlappend = @{$dat->{'pjlappend'}};
+    @jclprepend = @{$dat->{'jclprepend'}};
+    @jclappend = @{$dat->{'jclappend'}};
 
     use IO::Handle;
     pipe KID3_IN, KID3;
@@ -2231,7 +2374,7 @@ sub getrendererhandle {
 	    print $logh "KID3 finished\n";
 	    exit $EXIT_PRINTED;
         } else {
-            # child, trailing task on the pipe; we write pjl stuff
+            # child, trailing task on the pipe; we write jcl stuff
             close KID4;
 	    close KID3_IN;
 
@@ -2251,19 +2394,19 @@ sub getrendererhandle {
             }
 
 	    # Debug output
-	    print $logh "PJL: " . join("", @pjlprepend) . "<job data>\n" .
-		join("", @pjlappend) . "\n";
+	    print $logh "JCL: " . join("", @jclprepend) . "<job data>\n" .
+		join("", @jclappend) . "\n";
 
-            # wrap the PJL around the job data, if there are any
+            # wrap the JCL around the job data, if there are any
             # options specified...
-	    if ( @pjlprepend > 1 ) {
-		print $fileh @pjlprepend;
+	    if ( @jclprepend > 1 ) {
+		print $fileh @jclprepend;
 	    }
             while (<KID4_IN>) {
                 print $fileh $_;
             }
-	    if ( @pjlprepend > 1 ) {
-		print $fileh @pjlappend;
+	    if ( @jclprepend > 1 ) {
+		print $fileh @jclappend;
 	    }
             
             if (!close $fileh) {
@@ -2403,6 +2546,8 @@ sub set_exit_engaged {
     $retval = $EXIT_ENGAGED;
 }
 
+# Read the config file
+
 sub readConfFile {
     my ($file) = @_;
 
@@ -2428,6 +2573,41 @@ sub unhtmlify {
     $str =~ s/\&lt;/\</g;
     $str =~ s/\&amp;/\&/g;
     return $str;
+}
+
+sub unhexify {
+    # Replace hex notation for unprintable characters in PPD files
+    # by the actual characters ex: "<0A>" --> chr(hex("0A"))
+    my ($input) = @_;
+    my $output = "";
+    my $hexmode = 0;
+    my $firstdigit = "";
+    for (my $i = 0; $i < length($input); $i ++) {
+	my $c = substr($input, $i, 1);
+	if ($hexmode) {
+	    if ($c eq ">") {
+		# End of hex string
+		$hexmode = 0;
+	    } elsif ($c =~ /^[0-9a-fA-F]$/) {
+		# Hexadecimal digit, two of them give a character
+		if ($firstdigit ne "") {
+		    $output .= chr(hex("$firstdigit$c"));
+		    $firstdigit = "";
+		} else {
+		    $firstdigit = $c;
+		}
+	    }
+	} else {
+	    if ($c eq "<") {
+		# Beginning of hex string
+		$hexmode = 1;
+	    } else {
+		# Normal character
+		$output .= $c;
+	    }
+	}
+    }
+    return $output;
 }
 
 sub undossify {
@@ -2587,7 +2767,6 @@ sub checkoptionvalue {
     return undef;
 }
 
-
 sub checkoptions {
 
     ## Let the values of a boolean option being 0 or 1 instead of
@@ -2603,6 +2782,61 @@ sub checkoptions {
 		checkoptionvalue
 		($dat, $arg->{'name'}, $arg->{$optionset}, 1);
 	}
+    }
+
+    # If the settings for "PageSize" and "PageRegion" are different,
+    # set the one for "PageRegion" to the one for "PageSize" and issue
+    # a warning.
+    if ($dat->{'args_byname'}{'PageSize'}{$optionset} ne
+	$dat->{'args_byname'}{'PageRegion'}{$optionset}) {
+	print $logh "Seetings for \"PageSize\" and \"PageRegion\" are " .
+	    "different:\n" .
+	    "   PageSize: $dat->{'args_byname'}{'PageSize'}{$optionset}\n" .
+	    "   PageRegion: ".
+	    "$dat->{'args_byname'}{'PageRegion'}{$optionset}\n" .
+	    "Using the \"PageSize\" value " .
+	    "\"$dat->{'args_byname'}{'PageSize'}{$optionset}\"," .
+	    " for both.\n";
+	$dat->{'args_byname'}{'PageRegion'}{$optionset} =
+	    $dat->{'args_byname'}{'PageSize'}{$optionset};
+    }
+}
+
+# If the PageSize or PageRegion was changed, also change the other
+
+sub syncpagesize {
+    
+    # Name and value of the option we set, and the option set where we
+    # did the change
+    my ($dat, $name, $value, $optionset) = @_;
+
+    # Don't do anything if we were called with an option other than
+    # "PageSize" or "PageRegion"
+    return if (($name ne "PageSize") && ($name ne "PageRegion"));
+    
+    # Don't do anything if not both "PageSize" and "PageRegion" exist
+    return if ((!defined($dat->{'args_byname'}{'PageSize'})) ||
+	       (!defined($dat->{'args_byname'}{'PageRegion'})));
+    
+    my $dest;
+    
+    # "PageSize" --> "PageRegion"
+    if ($name eq "PageSize") {
+	$dest = "PageRegion";
+    }
+    
+    # "PageRegion" --> "PageSize"
+    if ($name eq "PageRegion") {
+	$dest = "PageSize";
+    }
+    
+    # Do it!
+    if (my $val=valbyname($dat->{'args_byname'}{$dest}, $value)) {
+	# Standard paper size
+	$dat->{'args_byname'}{$dest}{$optionset} = $val->{'value'};
+    } elsif (my $val=valbyname($dat->{'args_byname'}{$dest}, "Custom")) {
+	# Custom paper size
+	$dat->{'args_byname'}{$dest}{$optionset} = $value;
     }
 }
 
@@ -2764,8 +2998,8 @@ sub buildcommandline {
     my @prologprepend;
     my @setupprepend;
     my @pagesetupprepend;
-    my @pjlprepend;
-    my @pjlappend;
+    my @jclprepend;
+    my @jclappend;
     my $arg;
 
     for $arg (sort { $a->{'order'} <=> $b->{'order'} } 
@@ -2774,17 +3008,29 @@ sub buildcommandline {
 	my $name = $arg->{'name'};
 	my $spot = $arg->{'spot'};
 	my $cmd = $arg->{'proto'};
+	my $cmdf = $arg->{'protof'};
 	my $type = $arg->{'type'};
 	my $section = $arg->{'section'};
 	my $userval = $arg->{$optionset};
         
 	my $cmdvar = "";
 
+	# If we have both "PageSize" and "PageRegion" options, we kept
+	# them all the time in sync, so we don't need to insert the settings
+	# of both options. So skip "PageRegion".
+	next if (($name eq "PageRegion") &&
+		 (defined($dat->{'args_byname'}{'PageSize'})) &&
+		 (defined($dat->{'args_byname'}{'PageRegion'})));
+
+	# Build the command line snippet/PostScript/JCL code for the current
+	# option
 	if ($type eq 'bool') {
 
 	    # If true, stick the proto into the command line
 	    if (defined($userval) && $userval == 1) {
 		$cmdvar = $cmd;
+	    } else {
+		$cmdvar = $cmdf;
 	    }
 
 	} elsif ($type eq 'int' or $type eq 'float') {
@@ -2803,7 +3049,7 @@ sub buildcommandline {
 				       : sprintf("%f", $userval)));
 		} else {
 		    print $logh "Value $userval for $name is out of " .
-			"range $min<=x<=$max.\n";
+			"range $min <= x <= $max.\n";
 		}
 	    }
 
@@ -2912,15 +3158,13 @@ sub buildcommandline {
 	    }
 
 	} else {
-            
-	    # Ignore unknown options silently
-	    # print $logh "unknown type for argument $name!?\n";
-	    # die "evil type!?";
-                    
+	    # Ignore unknown option types silently
 	}
         
+	# Insert the built snippet at the correct place
 	if ($arg->{'style'} eq 'G') {
-	    # Place this Postscript command onto the prepend queue.
+	    # Place this Postscript command onto the prepend queue
+	    # for the appropriate section.
 	    my $open = "[{\n%%BeginFeature: *$name $userval\n";
 	    my $close = "\n%%EndFeature\n} stopped cleartomark\n";
 	    if ($section eq "Prolog") {
@@ -2930,16 +3174,18 @@ sub buildcommandline {
 		push (@setupprepend, "$open$cmdvar$close") if $cmdvar;
 	    } elsif ($section eq "PageSetup") {
 		push (@pagesetupprepend, "$open$cmdvar$close") if $cmdvar;
+	    } elsif ($section eq "JCLSetup") {
+		# PJL/JCL argument
+		$dat->{'jcl'} = 1;
+		push (@jclprepend, unhexify($cmdvar)) if $cmdvar;
 	    } else {
 		push (@setupprepend, "$open$cmdvar$close") if $cmdvar;
 	    }
 	} elsif ($arg->{'style'} eq 'J') {
-
-	    if (defined($dat->{'pjl'})) {
-		# put PJL commands onto PJL stack...
-		push (@pjlprepend, "\@PJL $cmdvar\n") if $cmdvar;
-	    }
-
+	    # JCL argument
+	    $dat->{'jcl'} = 1;
+	    # put JCL commands onto JCL stack...
+	    push (@jclprepend, "\@PJL $cmdvar\n") if $cmdvar;
 	} elsif ($arg->{'style'} eq 'C') {
 	    # command-line argument
 
@@ -2965,33 +3211,23 @@ sub buildcommandline {
     ## J type finishing
     # Compute the proper stuff to say around the job
 
-    if (defined($dat->{'pjl'})) {
+    if ((defined($dat->{'jcl'})) && (!$jobhasjcl)) {
 
-	# PJL "frame" with "JOB" and "EOJ" commands
+	# Stick beginning of job cruft on the front of the jcl stuff...
+	unshift (@jclprepend, $jclbegin);
 
-	# Stick beginning of job cruft on the front of the pjl stuff...
-	#unshift (@pjlprepend,
-	#         "\033%-12345X\@PJL JOB NAME=\"FOOMATIC-RIP\"\n");
+	# Command to switch to the interpreter
+	push (@jclprepend, $jcltointerpreter);
+	
+	# Arrange for JCL RESET command at end of job
+	push (@jclappend, $jclend);
 
-	# Arrange for PJL EOJ command at end of job
-	#push (@pjlappend,
-	#      "\33%-12345X\@PJL RESET\n\@PJL EOJ\n");
-
-	# PJL "frame" without "JOB" and "EOJ" commands. We use this because
-	# some printers do not support these commands
-
-	# Stick beginning of job cruft on the front of the pjl stuff...
-	unshift (@pjlprepend,
-             "\033%-12345X\@PJL\n");
-
-	# Arrange for PJL RESET command at end of job
-	push (@pjlappend,
-	      "\33%-12345X\@PJL RESET\n");
-
-	# Put the PJL stuff into the data structure
-	@{$dat->{'pjlprepend'}} = @pjlprepend;
-	@{$dat->{'pjlappend'}} = @pjlappend;
+	# Put the JCL stuff into the data structure
+	@{$dat->{'jclprepend'}} = @jclprepend;
+	@{$dat->{'jclappend'}} = @jclappend;
     }
+
+    ## G type finishing
     # Save PostScript options
     @{$dat->{'prologprepend'}} = @prologprepend;
     @{$dat->{'setupprepend'}} = @setupprepend;

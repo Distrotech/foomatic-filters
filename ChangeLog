@@ -1,3 +1,44 @@
+2002-11-11  Till Kamppeter <till.kamppeter@gmx.net>
+
+	* foomatic-rip.in: Now it should be possible not only to use the
+	  new (Perl-free, version 2.9.x) Foomatic PPD files with
+	  foomatic-rip, but also manufacturer-supplied PPD files of
+	  PostScript printers. This way one can use these PPD files with
+	  every spooler and also spooler-less.
+
+	  The settings of "PageSize" and "PageRegion" are kept in sync
+	  now, so on does not need to take care whether "PageSize" or
+	  "PageRegion" is used to set the paper size.
+
+	  The "*JCL..." keywords in PostScript files of PostScript
+	  printers are recognized, so the JCL options of the files are
+	  taken into account and the user can adjust them.
+
+	  Remove "dossy" ("\r\n") line ends from the lines read from the
+	  PPD file, so also PPD files downloaded under Windows should be
+	  correctly parsed.
+
+	  Bugfix: Allow trailing whitespace in "*OrderDependency" lines of
+	  the PPD file, for all other keywords trailing whitespace was
+	  already allowed.
+
+	  Added more comments about the PostScript parsing, especially
+	  about stuffing in PostScript code from command line options
+	  and default settings.
+
+	  Workaround for "dvips" bug that it misses inserting a
+	  "%%BeginProlog" comment. This will now be handled correctly.
+
+	  Make sure that code for default and command line option settings
+	  get also inserted in the job when it has the DSC magic string
+	  ("%!PS-Adobe-..") but is not DSC-conforming in reality.
+	
+	  To be more general, use the expression "JCL" (Job Control
+	  Language) instead of "PJL" (Print Job Language) for variable
+	  names and comments.
+
+	  Some minor clean-ups.
+
 2002-11-10  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* foomatic-rip.in: Now it should be possible to print with all
