@@ -1,3 +1,27 @@
+2002-11-10  Till Kamppeter <till.kamppeter@gmx.net>
+
+	* foomatic-rip.in: Now it should be possible to print with all
+	  spoolers, but only PostScript, no plain text or help pages.
+
+	  Added code to parse the command line options,
+	  now one can control jobs also by command line options and not
+	  only by stuffing settings into the PostScript file.
+
+	  Insert code of PostScript options into the appropriate sections
+	  of the PostScript job. This is not done for CUPS as there the
+	  "pstops" filter does it already.
+
+	  Correct option settings for numerical options which the "pstops"
+	  already inserts. "pstops" inserts the default setting when the
+	  user-supplied value is not one of the choices in the PPD file.
+	  Now foomatic-rip replaces the default value by the correct value
+	  from the command line (or from "/.lpoptions).
+
+	  Inserted page accounting code for CUPS.
+
+	  If an enumerated choice option has only one choice, set this as
+	  the default choice,
+	
 2002-11-09  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* foomatic-rip.in: foomatic-rip is one filter to be used with
