@@ -402,8 +402,29 @@ if ($argstr =~ s/\x01-P(\x01|)([^\x01]+)\x01/\x01/) {
     $printer = $2;
 }
 
-# Were we called from a PDQ wrapper
+# Were we called from a PDQ wrapper?
 if ($argstr =~ s/\x01--pdq\x01/\x01/) {
+    # We have PDQ
+    $spooler = 'pdq';
+}
+
+# Were we called to build the PDQ driver declaration file?
+# "--appendpdq=<file>" appends the data to the <file>,
+# "--genpdq=<file>" creates/overwrites <file> for the data, and
+# "--genpdq" writes to standard output
+my $genpdqfile = "";
+if (($argstr =~ s/\x01--(gen)pdq(\x01|=|)([^\x01]*)\x01/\x01/) ||
+    ($argstr =~ s/\x01--(append)pdq(\x01|=|)([^\x01]+)\x01/\x01/)) {
+    # Determine output file name
+    if (!$3) {
+	$genpdqfile = ">&STDOUT";
+    } else {
+	if ($1 eq 'gen') {
+	    $genpdqfile = "> $3";
+	} else {
+	    $genpdqfile = ">> $3";
+	}
+    }
     # We have PDQ
     $spooler = 'pdq';
 }
@@ -529,8 +550,8 @@ if (($spooler eq 'lpd') ||
 
 }
 
-# No spooler
-if ($spooler eq 'direct') {
+# No spooler or PDQ
+if (($spooler eq 'direct') || ($spooler eq 'pdq')) {
     # Which files do we want to print?
     @filelist = @rargs;
 }
@@ -1392,6 +1413,19 @@ for (@opts) {
 
 
 
+## Were we called to build the PDQ driver declaration file?
+if ($genpdqfile) {
+    @pdqfile = buildpdqdriver($dat, 'userval');
+    open PDQFILE, $genpdqfile or
+	rip_die("Cannot write PDQ driver declaration file",
+		$EXIT_PRNERR_NORETRY_BAD_SETTINGS);
+    print PDQFILE join('', @pdqfile);
+    close PDQFILE;
+    exit $EXIT_PRINTED;
+}
+
+
+
 ## Set the $postpipe
 
 # $postpipe when running as a PPR RIP
@@ -1430,9 +1464,9 @@ if ($spooler eq 'ppr_int') {
 
 }
 
-# CUPS has its own backends, it does not need a $postpipe
-if ($spooler eq 'cups') {
-    # No $postpipe for CUPS, even if one is defined in the PPD file
+# CUPS and PDQ have their own backends, they do not need a $postpipe
+if (($spooler eq 'cups') || ($spooler eq 'pdq')) {
+    # No $postpipe for CUPS or PDQ, even if one is defined in the PPD file
     $postpipe = "";
 }
 
@@ -3253,18 +3287,20 @@ sub getdocgeneratorhandle {
     # Spooler-specific differences
     my ($command,
 	$enumopt, $enumoptleft, $enumoptequal, $enumoptright,
-	$boolopt, $booloptleft, $booloptequal, $booloptright,
+	$boolopt, $booloptfalseprefix, $booloptleft, $booloptequal,
+	$booloptright,
 	$numopt, $numoptleft, $numoptequal, $numoptright,
 	$optsep, $trailer, $custompagesize);
     if ($spooler eq 'cups') {
 	($command,
 	 $enumopt, $enumoptleft, $enumoptequal, $enumoptright,
-	 $boolopt, $booloptleft, $booloptequal, $booloptright,
+	 $boolopt, $booloptfalseprefix, $booloptleft, $booloptequal,
+	 $booloptright,
 	 $numopt, $numoptleft, $numoptequal, $numoptright,
 	 $optsep, $trailer, $custompagesize) =
 	     ("lpr -P $printerstr ",
 	      "-o ", "", "=", "",
-	      "-o ", "", "=", "",
+	      "-o ", "no", "", "=", "",
 	      "-o ", "", "=", "",
 	      " "," <file>",
 	      "\n  Custom size: -o PageSize=Custom." .
@@ -3274,7 +3310,8 @@ sub getdocgeneratorhandle {
     } elsif ($spooler eq 'lpd') {
 	($command,
 	 $enumopt, $enumoptleft, $enumoptequal, $enumoptright,
-	 $boolopt, $booloptleft, $booloptequal, $booloptright,
+	 $boolopt, $booloptfalseprefix, $booloptleft, $booloptequal,
+	 $booloptright,
 	 $numopt, $numoptleft, $numoptequal, $numoptright,
 	 $optsep, $trailer, $custompagesize) =
 	     ("lpr -P $printerstr -J \"",
@@ -3289,7 +3326,8 @@ sub getdocgeneratorhandle {
     } elsif ($spooler eq 'gnulpr') {
 	($command,
 	 $enumopt, $enumoptleft, $enumoptequal, $enumoptright,
-	 $boolopt, $booloptleft, $booloptequal, $booloptright,
+	 $boolopt, $booloptfalseprefix, $booloptleft, $booloptequal,
+	 $booloptright,
 	 $numopt, $numoptleft, $numoptequal, $numoptright,
 	 $optsep, $trailer, $custompagesize) =
 	     ("lpr -P $printerstr ",
@@ -3304,7 +3342,8 @@ sub getdocgeneratorhandle {
     } elsif ($spooler eq 'lprng') {
 	($command,
 	 $enumopt, $enumoptleft, $enumoptequal, $enumoptright,
-	 $boolopt, $booloptleft, $booloptequal, $booloptright,
+	 $boolopt, $booloptfalseprefix, $booloptleft, $booloptequal,
+	 $booloptright,
 	 $numopt, $numoptleft, $numoptequal, $numoptright,
 	 $optsep, $trailer, $custompagesize) =
 	     ("lpr -P $printerstr ",
@@ -3319,7 +3358,8 @@ sub getdocgeneratorhandle {
     } elsif ($spooler eq 'ppr') {
 	($command,
 	 $enumopt, $enumoptleft, $enumoptequal, $enumoptright,
-	 $boolopt, $booloptleft, $booloptequal, $booloptright,
+	 $boolopt, $booloptfalseprefix, $booloptleft, $booloptequal,
+	 $booloptright,
 	 $numopt, $numoptleft, $numoptequal, $numoptright,
 	 $optsep, $trailer, $custompagesize) =
 	     ("ppr -d $printerstr ",
@@ -3331,7 +3371,8 @@ sub getdocgeneratorhandle {
     } elsif ($spooler eq 'ppr-int') {
 	($command,
 	 $enumopt, $enumoptleft, $enumoptequal, $enumoptright,
-	 $boolopt, $booloptleft, $booloptequal, $booloptright,
+	 $boolopt, $booloptfalseprefix, $booloptleft, $booloptequal,
+	 $booloptright,
 	 $numopt, $numoptleft, $numoptequal, $numoptright,
 	 $optsep, $trailer, $custompagesize) =
 	     ("ppr -d $printerstr ",
@@ -3346,7 +3387,8 @@ sub getdocgeneratorhandle {
     } elsif ($spooler eq 'direct') {
 	($command,
 	 $enumopt, $enumoptleft, $enumoptequal, $enumoptright,
-	 $boolopt, $booloptleft, $booloptequal, $booloptright,
+	 $boolopt, $booloptfalseprefix, $booloptleft, $booloptequal,
+	 $booloptright,
 	 $numopt, $numoptleft, $numoptequal, $numoptright,
 	 $optsep, $trailer, $custompagesize) =
 	     ("$programname -P $printerstr ",
@@ -3361,12 +3403,13 @@ sub getdocgeneratorhandle {
     } elsif ($spooler eq 'pdq') {
 	($command,
 	 $enumopt, $enumoptleft, $enumoptequal, $enumoptright,
-	 $boolopt, $booloptleft, $booloptequal, $booloptright,
+	 $boolopt, $booloptfalseprefix, $booloptleft, $booloptequal,
+	 $booloptright,
 	 $numopt, $numoptleft, $numoptequal, $numoptright,
 	 $optsep, $trailer, $custompagesize) =
 	     ("pdq -P $printerstr ",
 	      "-o", "", "_", "",
-	      "-o", "", "_", "",
+	      "-o", "no", "", "_", "",
 	      "-a", "", "=", "",
 	      " "," <file>",
 	      "\n" .
@@ -3374,14 +3417,12 @@ sub getdocgeneratorhandle {
 	      "  Page Width (for \"Custom\" page size)\n" .
 	      "  A floating point number argument\n" .
 	      "  Range: 0 <= x <= 100000\n" .
-	      "  Default: -aPageWidth=612\n" .
 	      "  Example: -aPageWidth=123.4\n" .
 	      "\n" .
 	      "Option 'PageHeight':\n" .
 	      "  Page Height (for \"Custom\" page size)\n" .
 	      "  A floating point number argument\n" .
 	      "  Range: 0 <= x <= 100000\n" .
-	      "  Default: -aPageHeight=792\n" .
 	      "  Example: -aPageHeight=234.5\n" .
 	      "\n" .
 	      "Option 'PageSizeUnit':\n" .
@@ -3392,7 +3433,6 @@ sub getdocgeneratorhandle {
 	      "   o -oPageSizeUnit_in: Inches\n" .
 	      "   o -oPageSizeUnit_cm: cm\n" .
 	      "   o -oPageSizeUnit_mm: mm\n" .
-	      "  Default: -oPageSizeUnit_pt\n" .
 	      "  Example: -oPageSizeUnit_mm\n");
     }
 
@@ -3442,11 +3482,24 @@ sub getdocgeneratorhandle {
 
     print "\nInvokation summary for the $model\n\n";
     print "Use the following command line:\n\n";
-    print "   ${command}${enumopt}${enumoptleft}<option>${enumoptequal}" .
-	"<choice>${enumoptright}${optsep}${boolopt}${booloptleft}<switch>" .
-	"${booloptequal}<True/False>${booloptright}${optsep}${numopt}" .
-	"${numoptleft}<num. option>${numoptequal}<value>${numoptright}" .
-	"${trailer}\n\n";
+    if ($booloptfalseprefix) {
+	print "   ${command}${enumopt}${enumoptleft}<option>" .
+	    "${enumoptequal}<choice>${enumoptright}${optsep}" .
+	    "${boolopt}${booloptleft}[${booloptfalseprefix}]<switch>" .
+	    "${booloptright}${optsep}" .
+	    "${numopt}${numoptleft}<num. option>${numoptequal}" .
+	    "<value>${numoptright}" .
+	    "${trailer}\n\n";
+    } else {
+	print "   ${command}${enumopt}${enumoptleft}<option>" .
+	    "${enumoptequal}<choice>${enumoptright}${optsep}" .
+	    "${boolopt}${booloptleft}<switch>${booloptequal}" .
+	    "<True/False>${booloptright}${optsep}" .
+	    "${numopt}${numoptleft}<num. option>${numoptequal}" .
+	    "<value>${numoptright}" .
+	    "${trailer}\n\n";
+    }
+	
     print "The following options are available for this printer:\n\n";
 
     for $arg (@{$dat->{'args'}}) {
@@ -3463,7 +3516,15 @@ sub getdocgeneratorhandle {
 	# Is this really an option? Otherwise skip it.
 	next if (!$type);
 
-	my $tpestr;
+	# We don't need "PageRegion", we have "PageSize"
+	next if ($name eq "PageRegion");
+
+	my $commentstr = "";
+	if ($comment) {
+	    $commentstr = "  $comment\n";
+	}
+
+	my $typestr;
         if ($type eq "enum") {
 	    $typestr = "An enumerated choice";
 	} elsif ($type eq "bool") {
@@ -3474,19 +3535,31 @@ sub getdocgeneratorhandle {
 	    $typestr = "A floating point number";
 	}
 
-        print "Option '$name':\n  $comment\n  $typestr argument\n";
+        print "Option '$name':\n$commentstr  $typestr argument\n";
         print "  This options corresponds to a PJL command\n" if ($arg->{'style'} eq 'J');
         
         if ($type eq 'bool') {
             print "  Possible choices:\n";
-	    print "   o True: $arg->{'comment_true'}\n";
-	    print "   o False: $arg->{'comment_false'}\n";
-            if (defined($default)) {
-                my $defstr = ($default ? "True" : "False");
-                print "  Default: $defstr\n";
-            }
-            print "  Example: ${boolopt}${booloptleft}${name}" .
-		"${booloptequal}True${booloptright}\n";
+	    if ($booloptfalseprefix) {
+		print "   o $name: $arg->{'comment_true'}\n";
+		print "   o $booloptfalseprefix$name: " .
+		    "$arg->{'comment_false'}\n";
+		if (defined($default)) {
+		    my $defstr = ($default ? "" : "$booloptfalseprefix");
+		    print "  Default: $defstr$name\n";
+		}
+		print "  Example: ${boolopt}${booloptleft}${name}" .
+		    "${booloptright}\n";
+	    } else {
+		print "   o True: $arg->{'comment_true'}\n";
+		print "   o False: $arg->{'comment_false'}\n";
+		if (defined($default)) {
+		    my $defstr = ($default ? "True" : "False");
+		    print "  Default: $defstr\n";
+		}
+		print "  Example: ${boolopt}${booloptleft}${name}" .
+		    "${booloptequal}True${booloptright}\n";
+	    }
         } elsif ($type eq 'enum') {
             print "  Possible choices:\n";
             my $exarg;
@@ -4377,6 +4450,348 @@ sub buildcommandline {
     @{$dat->{'prologprepend'}} = @prologprepend;
     @{$dat->{'setupprepend'}} = @setupprepend;
     @{$dat->{'pagesetupprepend'}} = @pagesetupprepend;
+}
+
+sub buildpdqdriver {
+
+    # Build a PDQ driver description file to use the given PPD file
+    # together with foomatic-rip with the PDQ printing system
+
+    # Foomatic data and name of the option set for the default settings
+    my ($dat, $optionset) = @_;
+
+    # Construct structure with driver information
+    my @pdqdriver = ();
+
+    # Construct option list
+    my @driveropts = ();
+
+    # Do we have a "Custom" setting for the page size?
+    # Then we have to insert the following into the "filter_exec" script.
+    my @setcustompagesize = ();
+
+    # Fata for a custom page size, to allow a custom size as default
+    my $pagewidth = 612;
+    my $pageheight = 792;
+    my $pageunit = "pt";
+
+
+
+    ## First, compute the various option/value clauses
+    for $arg (@{$dat->{'args'}}) {
+
+	if ($arg->{'type'} eq 'enum') {
+	    
+	    # Option with only one choice, omit it, foomatic-rip will
+	    # set this choice anyway.
+	    next if ($#{$arg->{'vals'}} == 0);
+
+	    my $nam = $arg->{'name'};
+
+	    # Omit "PageRegion" option, it does the same as "PageSize".
+	    next if $nam eq "PageRegion";
+
+	    my $com = $arg->{'comment'};
+
+	    # Assure that the comment is not empty
+	    if (!$com) {
+		$com = $nam;
+	    }
+
+	    my $def = $arg->{$optionset};
+	    $arg->{'varname'} = "$nam";
+	    $arg->{'varname'} =~ s![\-\/\.]!\_!g;
+	    my $varn = $arg->{'varname'};
+
+	    # 1, if setting "PageSize=Custom" was found
+	    # Then we must add options for page width and height
+	    my $custompagesize = 0;
+
+	    # If the default is a custom size we have to set also
+	    # defaults for the width, height, and units of the page
+	    if (($nam eq "PageSize") &&
+		($def =~ /^Custom\.([\d\.]+)x([\d\.]+)([A-Za-z]*)$/)) {
+		$def = "Custom";
+		$pagewidth = $1;
+		$pageheight = $2;
+		$pageunit = $3;
+	    }
+
+	    # No quotes, thank you.
+	    $com =~ s!\"!\\\"!g;
+	    
+	    push(@driveropts,
+		 "  option {\n",
+		 "    var = \"$varn\"\n",
+		 "    desc = \"$com\"\n");
+	    
+	    # get enumeration values for each enum arg
+	    my ($ev, @vals, @valstmp);
+	    for $ev (@{$arg->{'vals'}}) {
+		my $choiceshortname = $ev->{'value'};
+		my $choicename = "${nam}_${choiceshortname}";
+		my $val = " -o ${nam}=${choiceshortname}";
+		my $com = $ev->{'comment'};
+
+		# Assure that the comment is not empty
+		if (!$com) {
+		    $com = $choiceshortname;
+		}
+
+		# stick another choice on driveropts
+		push(@valstmp,
+		     "    choice \"$choicename\" {\n",
+		     "      desc = \"$com\"\n",
+		     "      value = \"$val\"\n",
+		     "    }\n");
+		if (($nam eq "PageSize") && 
+		    ($choiceshortname eq "Custom")) {
+		    $custompagesize = 1;
+		    if ($#setcustompagesize < 0) {
+			push(@setcustompagesize,
+			     "      # Custom page size settings\n",
+			     "      # We aren't really checking for " .
+			     "legal vals.\n",
+			     "      if [ \"x\${$varn}\" == 'x$val' ]; " .
+			     "then\n",
+			     "          $varn=\"\${$varn}.\${PageWidth}" .
+			     "x\${PageHeight}\${PageSizeUnit}\"\n",
+			     "      fi\n\n");
+		    }
+		}
+	    }
+
+	    push(@driveropts,
+		 "    default_choice \"" . $nam . "_" . $def . "\"\n",
+		 @valstmp,
+		 "  }\n\n");
+
+	    if ($custompagesize) {
+		# Add options to set the custom page size
+		push(@driveropts,
+		     "  argument {\n",
+		     "    var = \"PageWidth\"\n",
+		     "    desc = \"Page Width (for \\\"Custom\\\" page " .
+		     "size)\"\n",
+		     "    def_value \"$pagewidth\"\n",
+		     "    help = \"Minimum value: 0, Maximum value: " .
+		     "100000\"\n",
+		     "  }\n\n",
+		     "  argument {\n",
+		     "    var = \"PageHeight\"\n",
+		     "    desc = \"Page Height (for \\\"Custom\\\" page " .
+		     "size)\"\n",
+		     "    def_value \"$pageheight\"\n",
+		     "    help = \"Minimum value: 0, Maximum value: " .
+		     "100000\"\n",
+		     "  }\n\n",
+		     "  option {\n",
+		     "    var = \"PageSizeUnit\"\n",
+		     "    desc = \"Unit (for \\\"Custom\\\" page size)\"\n",
+		     "    default_choice \"PageSizeUnit_$pageunit\"\n",
+		     "    choice \"PageSizeUnit_pt\" {\n",
+		     "      desc = \"Points (1/72 inch)\"\n",
+		     "      value = \"pt\"\n",
+		     "    }\n",
+		     "    choice \"PageSizeUnit_in\" {\n",
+		     "      desc = \"Inches\"\n",
+		     "      value = \"in\"\n",
+		     "    }\n",
+		     "    choice \"PageSizeUnit_cm\" {\n",
+		     "      desc = \"cm\"\n",
+		     "      value = \"cm\"\n",
+		     "    }\n",
+		     "    choice \"PageSizeUnit_mm\" {\n",
+		     "      desc = \"mm\"\n",
+		     "      value = \"mm\"\n",
+		     "    }\n",
+		     "  }\n\n");		
+	    }
+	    
+	} elsif ($arg->{'type'} eq 'int' or $arg->{'type'} eq 'float') {
+	    
+	    my $nam = $arg->{'name'};
+	    my $com = $arg->{'comment'};
+
+	    # Assure that the comment is not empty
+	    if (!$com) {
+		$com = $nam;
+	    }
+
+	    my $def = $arg->{$optionset};
+	    my $max = $arg->{'max'};
+	    my $min = $arg->{'min'};
+	    $arg->{'varname'} = "$nam";
+	    $arg->{'varname'} =~ s![\-\/\.]!\_!g;
+	    my $varn = $arg->{'varname'};
+	    my $legal = $arg->{'legal'} = 
+		"Minimum value: $min, Maximum value: $max";
+	    
+	    my $defstr = "";
+	    if ($def) {
+		$defstr = sprintf("    def_value \"%s\"\n", $def);
+	    }
+	    
+	    push(@driveropts,
+		 "  argument {\n",
+		 "    var = \"$varn\"\n",
+		 "    desc = \"$com\"\n",
+		 $defstr,
+		 "    help = \"$legal\"\n",
+		 "  }\n\n");
+	    
+	} elsif ($arg->{'type'} eq 'bool') {
+	    
+	    my $nam = $arg->{'name'};
+	    my $com = $arg->{'comment'};
+
+	    # Assure that the comment is not empty
+	    if (!$com) {
+		$com = $nam;
+	    }
+
+	    my $tcom = $arg->{'comment_true'};
+	    my $fcom = $arg->{'comment_false'};
+	    my $def = $arg->{$optionset};
+	    $arg->{'legal'} = "Value is a boolean flag";
+	    $arg->{'varname'} = "$nam";
+	    $arg->{'varname'} =~ s![\-\/\.]!\_!g;
+	    my $varn = $arg->{'varname'};
+	    
+	    my $defstr = "";
+	    if ($def) {
+		$defstr = sprintf("    default_choice \"%s\"\n", 
+				  $def ? "$nam" : "no$nam");
+	    } else {
+		$defstr = sprintf("    default_choice \"%s\"\n", "no$nam");
+	    }
+	    push(@driveropts,
+		 "  option {\n",
+		 "    var = \"$varn\"\n",
+		 "    desc = \"$com\"\n",
+		 $defstr,
+		 "    choice \"$nam\" {\n",
+		 "      desc = \"$tcom\"\n",
+		 "      value = \" -o $nam=True\"\n",
+		 "    }\n",
+		 "    choice \"no$nam\" {\n",
+		 "      desc = \"$fcom\"\n",
+		 "      value = \" -o $nam=False\"\n",
+		 "    }\n",
+		 "  }\n\n");
+
+	}
+	
+    }
+    
+
+
+    ## Define the "docs" option to print the driver documentation page
+
+    push(@driveropts,
+	 "  option {\n",
+	 "    var = \"DRIVERDOCS\"\n",
+	 "    desc = \"Print driver usage information\"\n",
+	 "    default_choice \"nodocs\"\n", 
+	 "    choice \"docs\" {\n",
+	 "      desc = \"Yes\"\n",
+	 "      value = \" -o docs\"\n",
+	 "    }\n",
+	 "    choice \"nodocs\" {\n",
+	 "      desc = \"No\"\n",
+	 "      value = \"\"\n",
+	 "    }\n",
+	 "  }\n\n");
+    
+
+
+    ## Build the "foomatic-rip" command line
+    my $commandline = "foomatic-rip --pdq";
+    if ($printer) {
+	$commandline .= " -P $printer";
+    } else {
+	$commandline .= " --ppd=$ppdfile";
+    }
+    for $arg (@{$dat->{'args'}}) {
+	if ($arg->{'varname'}) {
+	    $commandline .= "\${$prefix$arg->{'varname'}}";
+	}
+    }
+    $commandline .= "\${DRIVERDOCS} \$INPUT > \$OUTPUT";
+
+
+        
+    ## Now we generate code to build the command line snippets for the
+    ## numerical options
+
+    for $arg (@{$dat->{'args'}}) {
+		
+	# Only numerical options need to be treated here
+	next if (($arg->{'type'} ne 'int') && 
+		 ($arg->{'type'} ne 'float'));
+
+	my $comment = $arg->{'comment'};
+	my $name = $arg->{'name'};
+	my $varname = $arg->{'varname'};
+		    
+	# If the option's variable is non-null, put in the
+	# argument.  Otherwise this option is the empty
+	# string.  Error checking?
+		    
+	push(@psfilter,
+	     "      # $comment\n",
+	     "      # We aren't really checking for max/min.\n",
+	     "      if [ \"x\${$varname}\" != 'x' ]; then\n",
+	     "         $varname=\" -o $name=\${$varname}\"\n",
+	     "      fi\n\n");
+    }
+
+    # Command execution
+
+    push(@psfilter,
+	 "      if ! test -e \$INPUT.ok; then\n",
+	 "        $commandline\n",
+	 "        if ! test -e \$OUTPUT; then \n",
+	 "           echo 'Error running foomatic-rip; no output!'\n",
+	 "           exit 1\n",
+	 "        fi\n",
+	 "      else\n",
+	 "        ln -s \$INPUT \$OUTPUT\n",
+	 "      fi\n\n");
+    
+    my $version = time();
+    my $name = "$model-$version";
+    $name =~ s/\W/\-/g;
+    $name =~ s/\-+/\-/g;
+    
+    my $pname = $model;
+    
+    push (@pdqdriver,
+	  "driver \"$name\" {\n\n",
+	  "  # This PDQ driver declaration file was generated " .
+	  "automatically by\n",
+	  "  # foomatic-rip from information in the file $ppdfile.\n",
+	  "  # It allows printing with PDQ on the $pname.\n",
+	  "\n",
+	  "  requires \"foomatic-rip\"\n\n",
+	  @driveropts,
+	  "  language_driver all {\n",
+	  "    # We accept all file types and pass them to foomatic-rip\n",
+	  "    # (invoked in \"filter_exec {}\" section) without\n", 
+          "    # pre-filtering\n",
+	  "    filetype_regx \"\"\n",
+	  "    convert_exec {\n",
+	  "      ln -s \$INPUT \$OUTPUT\n",
+	  "    }\n",
+	  "  }\n\n",
+	  "  filter_exec {\n",
+	  @setcustompagesize,
+	  @psfilter,
+	  "  }\n",
+	  "}\n");
+    
+    return @pdqdriver;
+
 }
 
 

@@ -1,3 +1,35 @@
+2002-11-15  Till Kamppeter <till.kamppeter@gmx.net>
+
+	* foomatic-rip.in: Now all spoolers, including PDQ, are supported
+	  and tested successfully. With foomatic-rip all spoolers can be
+	  used with PPD files now, either PPD files supplied by printer
+	  manufacturers for their PostScript printers or Foomatic (2.9.x)
+	  PPD files.
+
+	  Added "buildpdqdriver()" function and "--genpdq"/"--appendpdq"
+	  command line options to build PDQ driver declaration files which
+	  call foomatic-rip for the dirty work and offer all options
+	  available in the PPD file to the PDQ user. They accept all file
+	  types, so PostScript and all, what the file conversion filter in
+	  use ("a2ps", "enscript", "mpage") understands, can be printed.
+
+	  Setup of a printer under PDQ as follows:
+
+             cp foomatic-rip /usr/bin
+	     cp myprinter.ppd /etc/foomatic (or ~/.foomatic/)
+	     chmod 666 /dev/lp* (or /dev/usb/lp*)
+	     foomatic-rip -P myprinter \
+	        --genpdq /usr/lib/pdq/drivers/misc/myprinter.pdq
+	     xpdq (set up the printer, right-click -> "Add Printer")
+
+	  The first three lines are the same as for spooler-less printing.
+	  In The "foomatic-rip" line one can add options (with "-o") to
+	  change the defaults in the PDQ driver declaration file.
+
+	  Improvements on documentation page generation: Support for "-o
+	  switch"/"-o noswitch" for boolean options. Minor text
+	  corrections.
+
 2002-11-14  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* foomatic-rip.in: Now all spoolers (except PDQ) are tested
