@@ -1,3 +1,14 @@
+2004-11-18  Till Kamppeter <till.kamppeter@gmx.net>
+
+	* foomatic-rip.in: Fixed problem of foomatic-rip crashing with
+	  erroro 29 (ESPIPE = "Illegal seek") on "close STDIN;" on some
+	  non-Linux platforms as Unixware 7.1.0, fixed problem of CUPS
+	  page accounting PostScript code in foomatic-rip overriding
+	  already exisiting /EndPage procedures. Added output of error
+	  code when foomatic-rip dies. Thanks to Helge Blischke
+	  (h dot blischke at srz dot de) for all
+	  these fixes and enhancements.
+
 2004-09-14  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* *: Tagged CVS for the release of foomatic-filters 3.0.2. 

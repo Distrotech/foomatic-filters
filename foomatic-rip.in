@@ -105,8 +105,9 @@ my $logfile = "/tmp/foomatic-rip";
 #
 # foomatic-rip spooler-independent PS->Printer filter (RIP) of Foomatic
 #
-# Copyright 2002 Grant Taylor <gtaylor@picante.com>
+# Copyright 2002 - 2004 Grant Taylor <gtaylor@picante.com>
 #		 & Till Kamppeter <till.kamppeter@gmx.net>
+#                & Helge Blischke <h.blischke@srz.de>
 #
 #  This program is free software; you can redistribute it and/or modify it
 #  under the terms of the GNU General Public License as published by the
@@ -168,6 +169,8 @@ my $EXIT_INCAPABLE = 50;                       # printer wants (lacks) features
 #my SIGUSR2 = 12;
 #my SIGTTIN = 21;
 #my SIGTTOU = 22;
+
+my $ESPIPE = 29;	# the errno value when seeking a pipe or socket
 
 
 
@@ -713,6 +716,21 @@ if ($spooler eq 'cups') {
     # improved by Till Kamppeter in 2002) lets GhostScript output
     # the page accounting information which CUPS needs on standard
     # error.
+    # Redesign by Helge Blischke (2004-11-17):
+    # - As the PostScript job itself may define BeginPage and/or EndPage
+    #   procedures, or the alternate pstops filter may have inserted
+    #   such procedures, we make sure that the accounting routine 
+    #   will safely coexist with those. To achieve this, we force
+    #   - the accountint stuff to be inserted at the very end of the
+    #     PostScript job's setup section,
+    #   - the accounting stuff just using the return value of the 
+    #     existing EndPage procedure, if any (and providing a default one
+    #     if not).
+    # - As PostScript jobs may contain calls to setpagedevice "between"
+    #   pages, e.g. to change media type, do in-job stapling, etc.,
+    #   we cannot rely on the "showpage count since last pagedevice
+    #   activation" but instead count the physical pages by ourselves
+    #   (in a global dictionary).
 
     if (defined $conf{ps_accounting}) {
 	$ps_accounting = $conf{ps_accounting};
@@ -724,6 +742,18 @@ if ($spooler eq 'cups') {
     systemdict/languagelevel 2 copy
     known{get exec}{pop pop 1}ifelse 2 ge
 def
+
+cupsPSLevel2
+{					% in case of level 2 or higher
+	currentglobal true setglobal	% define a dictioary foomaticDict
+	globaldict begin		% in global VM and establish a
+	/foomaticDict			% pages count key there
+	<<
+		/PhysPages 0
+	>>def
+	end
+	setglobal
+}if
 
 /cupsGetNumCopies { % Read the number of Copies requested for the current
 		    % page
@@ -755,40 +785,47 @@ def
     exch writestring
 } bind def
 
-/cupsEndPage { % write page log info when we were invoked by \"showpage\"
-	       % or \"copypage\" return \"true\" or \"false\" as we had no
-	       % redefinition of \"EndPage\"
+/cupsFlush	% flush standard error to make it sort of unbuffered
+{
+	(%stderr)(w)file flushfile
+}bind def
 
-    2 ne % If the reason code is 0 or 1, we have finshed a page
-	 % (we were invoked by \"showpage\" or \"copypage\"), 
-         % write log info and exit with \"true\" to push out the page.
-	 % In case of reason code 2, we are invoked during device
-	 % deactivation (happens also at a \"setpagedevice\" call),
-	 % here we should not log and return \"false\"
-    {
-	% write \"Page <# of page> <# of copies><LF>\" to stderr
-	(PAGE: ) cupsWrite
-	% we must add 1 here, the number on the stack is the number
-	% of \"showpage\" already executed during this job
-	1 add 40 string cvs cupsWrite
-	% space
-	( ) cupsWrite
-	% get the number of copies for this page
-	cupsGetNumCopies 40 string cvs cupsWrite
-	% line feed
-	(\\n) cupsWrite
-	% page should be ejected
-	true
-    }
-    {
-	pop % ignore the number of pages already printed
-	% do not eject paper
-	false
-    }
-    ifelse
-} bind def
+cupsPSLevel2
+{				% In language level 2, we try to do something reasonable
+  <<
+    /EndPage
+    [					% start the array that becomes the procedure
+      currentpagedevice/EndPage 2 copy known
+      {get}					% get the existing EndPage procedure
+      {pop pop {exch pop 2 ne}bind}ifelse	% there is none, define the default
+      /exec load				% make sure it will be executed, whatever it is
+      /dup load					% duplicate the result value
+      {					% true: a sheet gets printed, do accounting
+        currentglobal true setglobal		% switch to global VM ...
+        foomaticDict begin			% ... and access our special dictionary
+        PhysPages 1 add			% count the sheets printed (including this one)
+        dup /PhysPages exch def		% and save the value
+        end					% leave our dict
+        exch setglobal				% return to previous VM
+        (PAGE: )cupsWrite 			% assemble and print the accounting string ...
+        16 string cvs cupsWrite			% ... the sheet count ...
+        ( )cupsWrite				% ... a space ...
+        cupsGetNumCopies 			% ... the number of copies ...
+        16 string cvs cupsWrite			% ...
+        (\\n)cupsWrite				% ... a newline
+        cupsFlush
+      }/if load
+					% false: current page gets discarded; do nothing	
+    ]cvx bind				% make the array executable and apply bind
+  >>setpagedevice
+}
+{
+    % In language level 1, we do no accounting currently, as there is no global VM
+    % the contents of which are undesturbed by save and restore. 
+    % If we may be sure that showpage never gets called inside a page related save / restore pair
+    % we might implement an hack with showpage similar to the one above.
+}ifelse
 
-<</EndPage{cupsEndPage}>>setpagedevice
 } stopped cleartomark
 " : "";
 
@@ -1965,7 +2002,7 @@ if ($do_docs) {
     }
     # Read the further data from the documentation page generator and
     # not from STDIN
-    if (!close STDIN) {
+    if (!close STDIN && $! != $ESPIPE) {
 	rip_die ("Couldn't close STDIN",
 		 $EXIT_PRNERR_NORETRY_BAD_SETTINGS);
     }
@@ -2369,7 +2406,7 @@ for $file (@filelist) {
 			}
 			# Read the further data from the file converter and
 			# not from STDIN
-			if (!close STDIN) {
+			if (!close STDIN && $! != $ESPIPE) {
 			    rip_die ("Couldn't close STDIN",
 				     $EXIT_PRNERR_NORETRY_BAD_SETTINGS);
 			}
@@ -2483,10 +2520,14 @@ for $file (@filelist) {
 			    $prologfound = 1;
 			}
 			# Insert options for "DocumentSetup" or "AnySetup"
-			if (!$setupfound) {
-			    $line .= makesetupsection($dat, $optionset, 0);
+			if ($spooler ne 'cups') {
+				# For non-CUPS spoolers or no spooler at all, we leave
+				# everything as it is.
+				if (!$setupfound) {
+				    $line .= makesetupsection($dat, $optionset, 0);
+				}
+				$setupfound = 1;
 			}
-			$setupfound = 1;
 		    } else {
 			# Found option settings must be stuffed into both
 			# the header and the currrent page now. They will
@@ -2507,6 +2548,21 @@ for $file (@filelist) {
 		    print $logh "Found: \%\%EndSetup\n";
 		    $insetup = 0;
 		    if ($inheader) {
+		        if ($spooler eq 'cups') {
+			    # In case of CUPS, we must insert the
+			    # accounting stuff just before the
+			    # %%EndSetup comment in order to leave any
+			    # EndPage procedures that have been
+			    # defined by either the pstops filter or
+			    # the PostScript job itself fully
+			    # functional.
+			    if (!$setupfound) {
+				$line = makesetupsection($dat, 
+				                         $optionset, 0) . 
+	                                $line;	 
+			    }
+			    $setupfound = 1;
+		        }
 			$insertoptions = $linect + 1;
 		    } else {
 			# The "%%BeginSetup...%%EndSetup" which
@@ -3106,7 +3162,7 @@ for $file (@filelist) {
 		}
 		# Read the further data from the file converter and
 		# not from STDIN
-		if (!close STDIN) {
+		if (!close STDIN && $! != $ESPIPE) {
 		    rip_die ("Couldn't close STDIN",
 			     $EXIT_PRNERR_NORETRY_BAD_SETTINGS);
 		}
@@ -3376,7 +3432,7 @@ sub getrendererhandle {
             print $logh "renderer PID kid4=$kid4\n";
 	    print $logh "renderer command: $commandline\n";
             
-            if (!close STDIN) {
+            if (!close STDIN && $! != $ESPIPE) {
 		close KID3_IN;
 		close KID4;
 		close KID_MESSAGE;
@@ -3906,7 +3962,7 @@ sub getfileconverterhandle {
 		print $logh "file converter command: $fileconverter\n";
 	    }
             
-            if (!close STDIN) {
+            if (!close STDIN && $! != $ESPIPE) {
 		close KID1;
 		close KID2_IN;
 		close KID_MESSAGE_CONV;
@@ -4033,7 +4089,7 @@ sub getfileconverterhandle {
 		print KID2 $_; 
 	    }
 
-            if (!close STDIN) {
+            if (!close STDIN && $! != $ESPIPE) {
 		close KID2;
 		close KID_MESSAGE_CONV;
 		print KID_MESSAGE_CONV_IN
@@ -4629,6 +4685,8 @@ sub valbyname {
 
 sub rip_die {
     my ($message, $exitstat) = @_;
+    my $errmsg = "$!";
+    my $errcod = $! + 0;
 
     # Close the documentation page generator (if it was used)
     if ($docgeneratorpid) {
@@ -4665,7 +4723,7 @@ sub rip_die {
 	$rendererpid = 0;
     }
 
-    print $logh "Process dying with \"$message\", exit stat: $exitstat\n";
+    print $logh "Process dying with \"$message\", exit stat: $exitstat\n\terror: $errmsg ($errcod)\n";
     if ($spooler eq 'ppr_int') {
 	# Special error handling for PPR intefaces
 	$message =~ s/\\/\\\\/;
@@ -5052,7 +5110,7 @@ sub checkoptions {
     # a warning.
     if ($dat->{'args_byname'}{'PageSize'}{$optionset} ne
 	$dat->{'args_byname'}{'PageRegion'}{$optionset}) {
-	print $logh "Seetings for \"PageSize\" and \"PageRegion\" are " .
+	print $logh "Settings for \"PageSize\" and \"PageRegion\" are " .
 	    "different:\n" .
 	    "   PageSize: $dat->{'args_byname'}{'PageSize'}{$optionset}\n" .
 	    "   PageRegion: ".
