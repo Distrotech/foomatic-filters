@@ -284,45 +284,23 @@ if (defined($ENV{'LPOPTS'})) {
 
 ## Named command line options
 
-# Save the options for logging
-my $origoptions = join("','",@ARGV);
+# We do not use Getopt::Long because it does not work when between the
+# option and the argument is no space ("-w80" instead of "-w 80"). This
+# happens in the command line of LPRng, but also users could type in
+# options this way when printing without spooler.
 
-# Read the options
-use Getopt::Long;
-Getopt::Long::Configure("no_ignore_case");
-
-#          # General
-GetOptions("q"        => \$opt_q,         # Quiet
-           "v"        => \$opt_v,         # Verbose
-	   "debug"    => \$opt_debug,     # Debug mode
-	   "p=s"      => \$opt_p,         # PPD file
-	   "ppd=s"    => \$opt_ppd,       # PPD file
-	   # LPD, LPRng, GNUlpr 
-	   "lprng"    => \$opt_lprng,     # Were we called from LPRng?
-	   "c"        => \$opt_c,         # (raw printing, not used)
-	   "w=s"      => \$opt_w,         # (text width, not used)
-	   "l=s"      => \$opt_l,         # (text length, not used)
-	   "i=s"      => \$opt_i,         # (indent, not used)
-	   "n=s"      => \$opt_n,         # (login, not used)
-	   "h=s"      => \$opt_h,         # (host, not used)
-	   "j=s"      => \$opt_j,         # Job title (with options stuffed
-	                                  # in when LPD is the spooler)_
-	   "z=s"      => \$opt_z,         # (not used)
-	   "Z=s"      => \$opt_Z,         # Options when LPRng is the
-	                                  # spooler
-	   # PDQ
-	   "pdq"      => \$opt_pdq,       # Were we called from PDQ?
-	   # Spooler-less printing
-	   "P=s"      => \$opt_P,         # Printer
-	   "d=s"      => \$opr_d,         # Printer
-	   "o=s"      => \@opt_o,         # Options
-	   "J=s"      => \$opt_J,         # Job title
-	   );
+# Make one option string with a non-printable character as separator,
+# So we can parse it more easily
+my $argstr = "\x01" . join("\x01",@ARGV) . "\x01";
 
 # Debug mode activated via command line
-if ($opt_debug) {
+if ($argstr =~ s/\x01--debug\x01/\x01/) {
     $debug = 1;
 }
+
+# Command line options for verbosity
+$verbose = ($argstr =~ s/\x01-v\x01/\x01/);
+$quiet = ($argstr =~ s/\x01-q\x01/\x01/);
 
 # Where to send debugging log output to
 if ($debug) {
@@ -332,7 +310,7 @@ if ($debug) {
 
     use IO::Handle;
     $logh->autoflush(1);
-} elsif (($opt_q) && (!$opt_v)) {
+} elsif (($quiet) && (!$verbose)) {
     # Quiet mode, do not log
     close $logh;
     open LOG, "> /dev/null";
@@ -346,16 +324,25 @@ if ($debug) {
 }
 
 # PPD file name given via the command line
-if ($opt_p) {
-    $ppdfile = $opt_p;
+if ($argstr =~ s/\x01-p(\x01|)([^\x01]+)\x01/\x01/) {
+    $ppdfile = $2;
 }
-if ($opt_ppd) {
-    $ppdfile = $opt_ppd;
+if ($argstr =~ s/\x01--ppd(\x01|=|)([^\x01]+)\x01/\x01/) {
+    $ppdfile = $2;
 }
 
-# Check for LPD/GNUlpr
-if ((defined($opt_h)) || (defined($opt_n)) || (defined($opt_w)) ||
-    (defined($opt_l)) || (defined($opt_i))) {
+# Check for LPD/GNUlpr by typical options which the spooler puts onto
+# the filter's command line (options "-w": text width, "-l": text
+# length, "-i": indent, "-x", "-y": graphics size, "-c": raw printing,
+# "-n": user name, "-h": host name)
+if (($argstr =~ s/\x01-w(\x01|)\d+\x01/\x01/) ||
+    ($argstr =~ s/\x01-l(\x01|)\d+\x01/\x01/) || 
+    ($argstr =~ s/\x01-x(\x01|)\d+\x01/\x01/) ||
+    ($argstr =~ s/\x01-y(\x01|)\d+\x01/\x01/) || 
+    ($argstr =~ s/\x01-i(\x01|)\d+\x01/\x01/) ||
+    ($argstr =~ s/\x01-c\x01/\x01/) ||
+    ($argstr =~ s/\x01-n(\x01|)[^\x01]+\x01/\x01/) ||
+    ($argstr =~ s/\x01-h(\x01|)[^\x01]+\x01/\x01/)) {
     # We have LPD or GNUlpr
     if (($spooler ne 'lpd') && ($spooler ne 'gnulpr')) {
 	$spooler = 'lpd';
@@ -363,14 +350,14 @@ if ((defined($opt_h)) || (defined($opt_n)) || (defined($opt_w)) ||
 }
 
 # Check for LPRng
-if ($opt_lprng) {
+if ($argstr =~ s/\x01--lprng\x01/\x01/) {
     # We have LPRng
     $spooler = 'lprng';
 }
 
 # LPRng delivers the option settings via the "-Z" argument
-if (defined($opt_Z)) {
-    my @lpopts = split(/,/, $opt_Z);
+if ($argstr =~ s/\x01-Z(\x01|)([^\x01]+)\x01/\x01/) {
+    my @lpopts = split(/,/, $2);
     foreach $opt (@lpopts) {
 	$opt =~ s/^\s+//;
 	$opt =~ s/\s+$//;
@@ -384,46 +371,39 @@ if (defined($opt_Z)) {
 }
 
 # Job title and options for stock LPD
-if (defined($opt_j)) {
+if ($argstr =~ s/\x01-[jJ](\x01|)([^\x01]+)\x01/\x01/) {
     # An LPD
-    $jobtitle = $opt_j;
+    $jobtitle = $2;
     # Classic LPD hack
-    $optstr .= "$opt_j ";
-}
-
-# Job title
-if (defined($opt_J)) {
-    # Spooler-less, perhaps also LPD
-    $jobtitle = $opt_J;
+    if ($spooler eq "lpd") {
+	$optstr .= "$jobtitle ";
+    }
 }
 
 # Options for spooler-less printing or PDQ
-if ((defined(@opt_o)) && ($#opt_o >= 0)) {
-    foreach $opt (@opt_o) {
-	$opt =~ s/^\s+//;
-	$opt =~ s/\s+$//;
-	if ($opt =~ /\s+/) {
-	    $opt = "\"$opt\"";
-	}
-	$optstr .= "$opt ";
+while ($argstr =~ s/\x01-o(\x01|)([^\x01]+)\x01/\x01/) {
+    my $opt = $2;
+    $opt =~ s/^\s+//;
+    $opt =~ s/\s+$//;
+    if ($opt =~ /\s+/) {
+	$opt = "\"$opt\"";
     }
+    $optstr .= "$opt ";
     # We print without spooler (we check for PDQ later)
     $spooler = 'direct';
 }
 
 # Printer for spooler-less printing or PDQ
-if (!defined($opt_P) && (defined($opt_d))) {
-    $opt_P = $opt_d;
+if ($argstr =~ s/\x01-d(\x01|)([^\x01]+)\x01/\x01/) {
+    $printer = $2;
 }
-if (defined($opt_P)) {
-    $direct_printer = $opt_P;
-    $printer = $direct_printer;
-    # We print without spooler (we check for PDQ later)
-    $spooler = 'direct';
+# Printer for spooler-less printing, PDQ, or LPRng
+if ($argstr =~ s/\x01-P(\x01|)([^\x01]+)\x01/\x01/) {
+    $printer = $2;
 }
 
 # Were we called from a PDQ wrapper
-if ($opt_pdq) {
+if ($argstr =~ s/\x01--pdq\x01/\x01/) {
     # We have PDQ
     $spooler = 'pdq';
 }
@@ -431,6 +411,10 @@ if ($opt_pdq) {
 
 
 ## Command line arguments without name
+
+# Remaining arguments
+@rargs = split(/\x01/, $argstr);
+shift @rargs;
 
 # Load definitions for PPR error messages, check whether we run as
 # PPR interface or as PPR RIP
@@ -467,9 +451,9 @@ if ($spooler eq 'ppr') {
     }
 
     # Check whether we run as a PPR interface (if not, we run as a PPR RIP)
-    if (($ARGV[3] =~ /^\s*\d\d?\s*$/) &&
-	($ARGV[5] =~ /^\s*\d\d?\s*$/) &&
-	(($#ARGV == 10) || ($#ARGV == 9) || ($#ARGV == 7))) {
+    if (($rargs[3] =~ /^\s*\d\d?\s*$/) &&
+	($rargs[5] =~ /^\s*\d\d?\s*$/) &&
+	(($#rargs == 10) || ($#rargs == 9) || ($#rargs == 7))) {
 	# PPR calls interfaces with many command line parameters,
 	# where the forth and the sixth is a small integer
 	# number. In addition, we have 8 (PPR <= 1.31), 10
@@ -478,17 +462,17 @@ if ($spooler eq 'ppr') {
 	# PPR directory.
 	
 	# Get all command line parameters
-	$ppr_printer = $ARGV[0];
-	$ppr_address = $ARGV[1];
-	$ppr_options = $ARGV[2];
-	$ppr_jobbreak = $ARGV[3];
-	$ppr_feedback = $ARGV[4];
-	$ppr_codes = $ARGV[5];
-	$ppr_jobname = $ARGV[6];
-	$ppr_routing = $ARGV[7];
-	$ppr_for = $ARGV[8];
-	$ppr_filetype = $ARGV[9];
-	$ppr_filetoprint = $ARGV[10];
+	$ppr_printer = $rargs[0];
+	$ppr_address = $rargs[1];
+	$ppr_options = $rargs[2];
+	$ppr_jobbreak = $rargs[3];
+	$ppr_feedback = $rargs[4];
+	$ppr_codes = $rargs[5];
+	$ppr_jobname = $rargs[6];
+	$ppr_routing = $rargs[7];
+	$ppr_for = $rargs[8];
+	$ppr_filetype = $rargs[9];
+	$ppr_filetoprint = $rargs[10];
 	
 	# Common job parameters
 	$printer = $ppr_printer;
@@ -514,12 +498,12 @@ if ($spooler eq 'ppr') {
 # CUPS
 if ($spooler eq 'cups') {
     # Get all command line parameters
-    $cups_jobid = $ARGV[0];
-    $cups_user = $ARGV[1];
-    $cups_jobtitle = $ARGV[2];
-    $cups_copies = $ARGV[3];
-    $cups_options = $ARGV[4];
-    $cups_filename = $ARGV[5];
+    $cups_jobid = $rargs[0];
+    $cups_user = $rargs[1];
+    $cups_jobtitle = $rargs[2];
+    $cups_copies = $rargs[3];
+    $cups_options = $rargs[4];
+    $cups_filename = $rargs[5];
 
     # Common job parameters
     #$printer = $cups_printer;
@@ -541,14 +525,14 @@ if (($spooler eq 'lpd') ||
     ($spooler eq 'gnulpr')) {
 
     # Get PPD file name as the last command line argument
-    $ppdfile = $ARGV[$#ARGV];
+    $ppdfile = $rargs[$#rargs];
 
 }
 
 # No spooler
 if ($spooler eq 'direct') {
     # Which files do we want to print?
-    @filelist = @ARGV;
+    @filelist = @rargs;
 }
 
 
@@ -686,7 +670,7 @@ if (($spooler eq 'direct') || ($spooler eq 'pdq')) {
 
 	# Neither in a config file nor on the command line a printer was
 	# selected.
-	if (!defined($opt_P)) {
+	if (!defined($printer)) {
 	    rip_die("No printer definition (option \"-P <name>\") " .
 		    "specified!", $EXIT_PRNERR_NORETRY_BAD_SETTINGS);
 	}
@@ -750,7 +734,7 @@ for $file (@filelist) {
 
 ## When we print without spooler do not log onto STDERR unless the "-v"
 ## ('Verbose') is set or the debug mode is used
-if (($spooler eq 'direct') && (!$opt_v) && (!$debug)) {
+if (($spooler eq 'direct') && (!$verbose) && (!$debug)) {
     close $logh;
     open LOG, "> /dev/null";
     $logh = *LOG;
@@ -768,7 +752,7 @@ print $logh "foomatic-rip version $ripversion running...\n";
 # in its log files. If CUPS encounters a line with more than 1024 characters
 # sent into its log files, it aborts the job with an error.
 if (($debug) || ($spooler ne 'cups')) {
-    print $logh "called with arguments: '", $origoptions, "'\n";
+    print $logh "called with arguments: '", join("', '",@ARGV), "'\n";
 }
 
 
@@ -2983,8 +2967,8 @@ sub getfileconverterhandle {
     # already converted to PostScript by CUPS.
     if ($spooler eq 'cups') {
 	$fileconverter .=
-	    " | ${programdir}pstops '$ARGV[0]' '$ARGV[1]' '$ARGV[2]' " .
-	    "'$ARGV[3]' '$ARGV[4]'";
+	    " | ${programdir}pstops '$rargs[0]' '$rargs[1]' '$rargs[2]' " .
+	    "'$rargs[3]' '$rargs[4]'";
     }
 
     # Variables for the kid processes reporting their state

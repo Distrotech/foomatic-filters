@@ -1,6 +1,9 @@
 2002-11-14  Till Kamppeter <till.kamppeter@gmx.net>
 
-	* foomatic-rip.in: Added support for foomatic-rip running as a PPR
+	* foomatic-rip.in: Now all spoolers (except PDQ) are tested
+	  successfully.
+
+	  Added support for foomatic-rip running as a PPR
 	  RIP (PPR 1.5x), before it could only run as a PPR interface. To
 	  use it as a PPR RIP one sets up the print queue as follows:
 
@@ -15,10 +18,17 @@
 	  Use "PPR_VERSION" environment variable to auto-detect whether
 	  PPR is the spooler.
 	
+	  The parsing of the command line options did not work with the
+	  Getopt::Long Perl library when using LPRng as the spooler.  The
+	  problem is that LPRng uses short options (one hyphen and one
+	  letter) and lets the argument follow without space
+	  ("-ZPageSize=A4"), on this Getopt::Long chokes.  Replaced
+	  Getopt::Long by a self-made method to parse the options.
+
 	  Prepared foomatic-rip for PDQ support.
 
 	  Added comment about the supported spoolers.
-	
+
 2002-11-13  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* foomatic-rip.in: The basic functionality of foomatic-rip is now
