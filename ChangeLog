@@ -1,3 +1,12 @@
+2003-04-29  Till Kamppeter <till.kamppeter@gmx.net>
+
+	* *: Tagged CVS for the release of foomatic-filters 3.0.0. 
+	  Tag name: "foomatic-filters-3_0_0".
+
+	* README, USAGE: Updated for version 3.0.0.
+
+	* foomatic-rip.1.in: Updated linuxprinting.org link for 3.0.0.
+	
 2003-04-22  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* *: Tagged CVS for the release of foomatic-filters 3.0.0rc2. 

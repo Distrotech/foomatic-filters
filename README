@@ -1,6 +1,6 @@
 
-Foomatic 3.0.0rc2
-=================
+Foomatic 3.0.0
+==============
 
 
 foomatic-filters
@@ -36,24 +36,22 @@ www.linuxprinting.org.
 Intro
 -----
 
-This is the development version of Foomatic. See
+This is the stable version of Foomatic. See
 
 http://www.linuxprinting.org/contribute.html#programming
 http://www.linuxprinting.org/pipermail/foomatic-devel/2002q3/thread.html
 http://www.linuxprinting.org/pipermail/foomatic-devel/2002q4/thread.html
 http://www.linuxprinting.org/kpfeifle/LinuxKongress2002/Tutorial/IV.Foomatic-Developer/IV.tutorial-handout-foomatic-development.html
 
+to know more about its development.
+
 Your suggestions, bug reports, patches, ... are welcome on
 
 http://www.linuxprinting.org/newsportal/thread.php3?name=linuxprinting.foomatic.devel
 
-For getting Foomatic PPD files for this version, and for testing the
-ongoing development of our web interface, go to
+For getting Foomatic PPD files for this version, go to
 
-http://www.linuxprinting.org/foomatic2.9/
-
-Do not use this package in production environments, it can contain
-severe bugs or even be non-functional.
+http://www.linuxprinting.org/
 
 See the README file of "foomatic-db-engine" for a (more or less)
 complete overview of Foomatic.
@@ -67,7 +65,7 @@ LPD      - Line Printer Daemon (Does this have a home page anywhere?)
 LPRng    - LPR - New Generation (http://www.lprng.org/)
 GNUlpr   - An enhanced LPD (http://sf.net/projects/lpr, development stopped)
 PPR      - Page PRinter spooler (http://ppr.sourceforge.net/)
-PDQ      - Print, Don't Queue (http://pdq.sourceforge.net/)
+PDQ      - Print, Don't Queue (http://pdq.sf.net/, development stopped)
 CPS      - Coherent Printing System (http://www.tww.cx/cps.php)
 ---      - Direct, spooler-less printing (http://www.linuxprinting.org/)
 

@@ -281,7 +281,7 @@ immediately after the data is tranferred to the printer.
 directs your jobs to the LPD printer queue \fBlp\fR on the machine
 named \fBprintserver\fR.
 
-See also http://www.linuxprinting.org/foomatic2.9/direct-doc.html
+See also http://www.linuxprinting.org/direct-doc.html
 
 .SH PRINTING WITH SPOOLER
 

@@ -1,6 +1,6 @@
 
-Foomatic 3.0.0rc2
-=================
+Foomatic 3.0.0
+==============
 
 foomatic-filters
 ----------------
@@ -217,19 +217,19 @@ If not, see, depending on your spooler:
 
 CUPS:
 
-   http://www.linuxprinting.org/foomatic-2.9/cups-doc.html
+   http://www.linuxprinting.org/cups-doc.html
 
 LPD, LPRng, GNUlpr:
 
-   http://www.linuxprinting.org/foomatic-2.9/lpd-doc.html
+   http://www.linuxprinting.org/lpd-doc.html
 
 PPR:
 
-   http://www.linuxprinting.org/foomatic-2.9/ppr-doc.html
+   http://www.linuxprinting.org/ppr-doc.html
 
 PDQ:
 
-   http://www.linuxprinting.org/foomatic-2.9/pdq-doc.html
+   http://www.linuxprinting.org/pdq-doc.html
 
 CPS:
 
@@ -237,9 +237,9 @@ CPS:
 
 Direct, spooler-less printing:
 
-   http://www.linuxprinting.org/foomatic-2.9/direct-doc.html
+   http://www.linuxprinting.org/direct-doc.html
 
 Usage of PPD files (for all spoolers):
 
-   http://www.linuxprinting.org/foomatic-2.9/ppd-doc.html
+   http://www.linuxprinting.org/ppd-doc.html
 
