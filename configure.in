@@ -69,7 +69,7 @@ if test "${NOCONVERTERCHECK}" = "" -a "${A2PS}" = "" -a "${ENSCRIPT}" = "" -a "$
 fi
 
 dnl AC_OUTPUT(Makefile src/Makefile)
-AC_OUTPUT(Makefile makeMan foomatic-gswrapper foomatic-rip tests/Makefile)
+AC_OUTPUT(Makefile makeMan foomatic-gswrapper foomatic-rip)
 
 dnl Finished
 echo "Finished configuring."

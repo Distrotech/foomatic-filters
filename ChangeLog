@@ -1,5 +1,15 @@
 2003-01-24  Till Kamppeter <till.kamppeter@gmx.net>
 
+	* *: Tagged CVS for the release of foomatic-filters 3.0.1rc3. 
+	  Tag name: "foomatic-filters-3_0_1rc3".
+
+	* README, USAGE: Updated for version 3.0.1rc3.
+
+	* configure.in: Removed the AC_OUTPUT() entry to create a Makefile
+	  in the tests directory.
+
+2003-01-24  Till Kamppeter <till.kamppeter@gmx.net>
+
 	* *: Tagged CVS for the release of foomatic-filters 3.0.1rc2. 
 	  Tag name: "foomatic-filters-3_0_1rc2".
 
