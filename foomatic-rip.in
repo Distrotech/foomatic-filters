@@ -1111,6 +1111,61 @@ while(<PPD>) {
 	checkarg ($dat, $argname);
 	# Store the value
 	$dat->{'args_byname'}{$argname}{'maxlength'} = $maxlength;
+    } elsif (m!^\*FoomaticRIPOptionAllowedChars\s+([^/:\s]+):\s*\"(.*)$!) {
+	# "*FoomaticRIPOptionAllowedChars <option>: <code>"
+	# Used for string options only
+	my $argname = $1;
+	my $line = $2;
+	# Store the value
+	# Code string can have multiple lines, read all of them
+	my $code = "";
+	while ($line !~ m!\"!) {
+	    if ($line =~ m!&&$!) {
+		# line continues in next line
+		$code .= substr($line, 0, -2);
+	    } else {
+		# line ends here
+		$code .= "$line\n";
+	    }
+	    # Read next line
+	    $i ++;
+	    $line = $ppd[$i];
+	    chomp $line;
+	}
+	$line =~ m!^([^\"]*)\"!;
+	$code .= $1;
+	# Make sure that the argument is in the data structure
+	checkarg ($dat, $argname);
+	# Store the value
+	$dat->{'args_byname'}{$argname}{'allowedchars'} = unhtmlify($code);
+    } elsif (m!^\*FoomaticRIPOptionAllowedRegExp\s+([^/:\s]+):\s*\"(.*)$!) {
+	# "*FoomaticRIPOptionAllowedRegExp <option>: <code>"
+	# Used for string options only
+	my $argname = $1;
+	my $line = $2;
+	# Store the value
+	# Code string can have multiple lines, read all of them
+	my $code = "";
+	while ($line !~ m!\"!) {
+	    if ($line =~ m!&&$!) {
+		# line continues in next line
+		$code .= substr($line, 0, -2);
+	    } else {
+		# line ends here
+		$code .= "$line\n";
+	    }
+	    # Read next line
+	    $i ++;
+	    $line = $ppd[$i];
+	    chomp $line;
+	}
+	$line =~ m!^([^\"]*)\"!;
+	$code .= $1;
+	# Make sure that the argument is in the data structure
+	checkarg ($dat, $argname);
+	# Store the value
+	$dat->{'args_byname'}{$argname}{'allowedregexp'} =
+	    unhtmlify($code);
     } elsif (m!^\*OrderDependency:\s*(\S+)\s+(\S+)\s+\*([^:/\s]+)\s*$!) {
 	# "*OrderDependency: <order> <section> *<option>"
 	my $order = $1;
@@ -2429,7 +2484,7 @@ File: $file
 			if (($spooler eq 'cups') &&
 			    ($linetype eq 'BeginFeature') &&
 			    (!defined($arg->{'notfirst'})) &&
-			    ($arg->{$optionset} != $value) &&
+			    ($arg->{$optionset} ne $value) &&
 			    (($inheader) ||
 			     ($arg->{section} eq 'PageSetup'))) {
 			    # We have the first occurence of an
@@ -2441,9 +2496,9 @@ File: $file
 			    # Possible reasons:
 			    #
 			    # - "pstops" ignores settings of numerical
-			    #   options which are not one of the choices
-			    #   in the PPD file, and inserts the default
-			    #   value instead.
+			    #   or string options which are not one of 
+			    #   the choices in the PPD file, and inserts
+			    #   the default value instead.
 			    #
 			    # - On the command line an option was applied
 			    #   only to selected pages:
@@ -2465,19 +2520,47 @@ File: $file
 				 "*$option $arg->{$optionset}\n");
 			    if ($arg->{'style'} eq 'G') {
 				# PostScript option, insert the code
-				my $sprintfproto = $arg->{'proto'};
-				$sprintfproto =~ s/\%(?!s)/\%\%/g;
-				push(@{$dest},
-				     sprintf($sprintfproto,
-					     $arg->{$optionset}) .
-				     "\n");
+				if ($arg->{'type'} eq 'bool') {
+				    # Boolean option
+				    if (defined($arg->{$optionset}) && 
+					$arg->{$optionset} == 1) {
+					push(@{$dest}, $arg->{'proto'} . "\n");
+				    } elsif ($arg->{'protof'}) {
+					push(@{$dest}, $arg->{'protof'}. "\n");
+				    }
+				} elsif ((($arg->{'type'} eq 'enum') ||
+				     ($arg->{'type'} eq 'string') ||
+				     ($arg->{'type'} eq 'password')) &&
+				    (defined($val =
+					     $arg->{'vals_byname'}{$arg->{$optionset}}))) {
+				    # Enumerated choice of string or enum 
+				    # option
+				    push(@{$dest}, $val->{'driverval'} . "\n");
+				} elsif ((($arg->{'type'} eq 'string') ||
+				     ($arg->{'type'} eq 'password')) &&
+				    ($arg->{$optionset} eq 'None')) {
+				    # 'None' is mapped to the empty string in
+				    # string options
+				    my $driverval = $arg->{'proto'};
+				    $driverval =~ s/\%s//g;
+				    push(@{$dest}, $driverval . "\n");
+				} else {
+				    # Setting for numerical or string option
+				    # which is not under the enumerated choices
+				    my $sprintfproto = $arg->{'proto'};
+				    $sprintfproto =~ s/\%(?!s)/\%\%/g;
+				    push(@{$dest},
+					 sprintf($sprintfproto,
+						 $arg->{$optionset}) .
+					 "\n");
+				}
 			    } else {
 				# Command line or JCL option
 				push(@{$dest},
 				     "%% FoomaticRIPOptionSetting: " .
 				     "$option=$arg->{$optionset}\n");
 			    }
-			    print $logh " --> Correcting numerical " .
+			    print $logh " --> Correcting numerical/string " .
 				"option to $option=$arg->{$optionset}" .
 				" (Command line argument)\n";
 			    # We have replaced this option on the 
@@ -4517,19 +4600,89 @@ sub checkoptionvalue {
 	    print $logh 
 		"The value $value for $name is a predefined choice\n";
 	    return $value;
-	} elsif ((!defined($arg->{'maxlength'})) ||
-		 (length($value) <= $arg->{'maxlength'})) {
+	} elsif (stringvalid($dat, $argname, $value)) {
+	    # Check whether the string is one of the enumerated choices
+	    my $sprintfproto = $arg->{'proto'};
+	    $sprintfproto =~ s/\%(?!s)/\%\%/g;
+	    my $driverval = sprintf($sprintfproto, $value);
+	    for $val (@{$arg->{'vals'}}) {
+		if (($val->{'driverval'} eq $driverval) ||
+		    ($val->{'driverval'} eq $value)) {
+		    my $name = $arg->{'name'};
+		    print $logh 
+			"The string $value for $name is the predefined " .
+			"choice $val->{value}\n";
+		    return $val->{value};
+		}
+	    }
+	    # "None" is mapped to the empty string
+	    if ($value eq 'None') {
+		my $name = $arg->{'name'};
+		print $logh 
+		    "Option $name: 'None' is the mapped to the " .
+		    "empty string\n";
+		return '';
+	    }
+	    # No matching choice? Return the original string
 	    return $value;
 	} elsif ($forcevalue) {
 	    my $name = $arg->{'name'};
-	    my $newvalue = substr($value, 0, $arg->{'maxlength'});
-	    print $logh 
-		"The value $value for $name is too long\n" .
-		" --> Using $newvalue instead!\n";
-	    return $newvalue;
+	    my $str = substr($value, 0, $arg->{'maxlength'});
+	    if (stringvalid($dat, $argname, $str)) {
+		print $logh 
+		    "The string $value for $name is longer than " .
+		    "$arg->{'maxlength'}, string shortened to $str\n";
+		return $str;
+	    } elsif ($#{$arg->{'vals'}} >= 0) {
+		# First list item
+		my $firstentry = $arg->{'vals'}[0]{'value'};
+		print $logh 
+		    "The string $value for $name contains forbidden " .
+		    "characters or does not match the regular expression " .
+		    "defined for this option, using predefined choice " .
+		    "$firstentry instead\n";
+		return $firstentry;
+	    } else {
+		# We should not get here
+		rip_die("Option $name incorrectly defined in the " .
+			"PPD file!\n", $EXIT_PRNERR_NORETRY_BAD_SETTINGS);
+	    }
 	}
     }
     return undef;
+}
+
+sub stringvalid {
+
+    ## Checks whether a user-supplied value for a string option is valid
+    ## It must be within the length limit, should only contain allowed
+    ## characters and match the given regexp
+
+    # Option and string
+    my ($dat, $argname, $value) = @_;
+
+    my $arg = $dat->{'args_byname'}{$argname};
+
+    # Maximum length
+    return 0 if (defined($arg->{'maxlength'}) &&
+		 (length($value) > $arg->{'maxlength'}));
+
+    # Allowed characters
+    if ($arg->{'allowedchars'}) {
+	my $chars = $arg->{'allowedchars'};
+	$chars =~ s/(?<!\\)((\\\\)*)\//$2\\\//g;
+	return 0 if $value !~ /^[$chars]*$/;
+    }
+
+    # Regular expression
+    if ($arg->{'allowedregexp'}) {
+	my $regexp = $arg->{'allowedregexp'};
+	$regexp =~ s/(?<!\\)((\\\\)*)\//$2\\\//g;
+	return 0 if $value !~ /$regexp/;
+    }
+
+    # All checks passed
+    return 1;
 }
 
 sub checkoptions {

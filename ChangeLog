@@ -1,3 +1,23 @@
+2003-04-21  Till Kamppeter <till.kamppeter@gmx.net>
+
+	* foomatic-rip.in: added restriction for allowed strings by means
+	  of lists of allowed characters (PPD keyword:
+	  '*FoomaticRIPOptionAllowedChars <option>: "..."') and Perl
+	  regular expressions (PPD: '*FoomaticRIPOptionAllowedRegExp
+	  <option>: "..."'). The allowed characters are checked by a
+	  '/^[...]*$/' expression in the Perl scripts, so ranges with '-',
+	  forbidden characters with a leading '^', or special characters
+	  as '\w', '\d', '\x07', ...  are allowed. Regular expressions are
+	  applied via a '/.../' expression. These restrictions are done
+	  for security reasons, to avoid for example a string like "|| rm
+	  -rf * ||" in a command line option.
+
+	  The string 'None' is always mapped to the empty string,
+	  as PPD files and the command of some spoolers do not accept an
+	  empty string as argument value.
+
+	  Several bug fixes done for the string options.
+	
 2003-04-13  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* *: Tagged CVS for the release of foomatic-filters 3.0.0rc1. 
