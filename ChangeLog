@@ -1,3 +1,9 @@
+2003-03-05  Till Kamppeter <till.kamppeter@gmx.net>
+
+	* foomatic-rip.in: Fixed bug of settings for composite options
+	  stuffed into the PostScript job data by applications (as
+	  OpenOffice.org) being ignored.
+
 2003-02-22  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* foomatic-rip.in: Introduced mode for the spooler CPS (Coherent

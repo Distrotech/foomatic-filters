@@ -1929,6 +1929,9 @@ File: $file
     my $infeature = 0;              # We are between "%%BeginFeature" and
                                     # "%%EndFeature".
 
+    my $postscriptsection = 'jclsetup'; # In which section of the PostScript
+                                    # file are we currently?
+
     my $nondsclines = 0;            # Number of subsequent lines found which
                                     # are at a non-DSC-conforming place,
                                     # between the sections of the header.
@@ -1989,7 +1992,7 @@ File: $file
 			$nonpslines = 1; # Take into account that the line
 			                 # of this run of the loop will be
 			                 # put into @psheader, so the
-			                 # first line read by the filr
+			                 # first line read by the file
 			                 # converter is already the second
 			                 # line.
 			$maxlines = 1001;
@@ -2077,7 +2080,9 @@ File: $file
 		    # is done because many "dvips" (TeX/LaTeX) files miss
 		    # the "%%BeginProlog" comment.
 		    # Beginning of Prolog
+		    print $logh "\n-----------\nFound: \%\%BeginProlog\n";
 		    $inprolog = 1;
+		    $postscriptsection = 'prolog' if $inheader;
 		    $nondsclines = 0;
 		    # Insert options for "Prolog"
 		    if (!$prologfound) {
@@ -2087,12 +2092,15 @@ File: $file
 		} elsif (($line =~ m/^\%\%EndProlog/) &&
 			 ($nestinglevel == 0)) {
 		    # End of Prolog
+		    print $logh "Found: \%\%EndProlog\n";
 		    $inprolog = 0;
 		    $insertoptions = $linect + 1;
 		} elsif (($line =~ m/^\%\%BeginSetup/) &&
 			 ($nestinglevel == 0)) {
 		    # Beginning of Setup
+		    print $logh "\n-----------\nFound: \%\%BeginSetup\n";
 		    $insetup = 1;
+		    $postscriptsection = 'setup' if $inheader;
 		    $nondsclines = 0;
 		    # If there was no "Prolog" but there are options for
 		    # the "Prolog", push a "Prolog" with these options onto
@@ -2112,6 +2120,7 @@ File: $file
 		} elsif (($line =~ m/^\%\%EndSetup/) &&
 			 ($nestinglevel == 0)) {
 		    # End of Setup
+		    print $logh "Found: \%\%EndSetup\n";
 		    $insetup = 0;
 		    $insertoptions = $linect + 1;
 		} elsif (($line =~ m/^\%\%Page:(.*)$/) &&
@@ -2130,6 +2139,10 @@ File: $file
 			# the current one
 			$printprevpage = 0;
 			print $logh "\n-----------\nNew page: $1\n";
+			# We consider the beginning of the page already as
+			# page setup section, as some apps do not use
+			# "%%PageSetup" tags.
+			$postscriptsection = 'pagesetup';
 			# Here begins a new page
 			if ($inheader) {
 			    # If there was no "Setup" but there are
@@ -2204,13 +2217,16 @@ File: $file
 		    # nothing of the page will be drawn, page-specific
 		    # option settngs (as letter-head paper for page 1)
 		    # go here
+		    print $logh "\nFound: \%\%BeginPageSetup\n";
 		    $passthru = 0;
 		    $inpageheader = 1;		
+		    $postscriptsection = 'pagesetup';
 		} elsif (($line =~ m/^\%\%EndPageSetup/) &&
 			 ($nestinglevel == 0) &&
 			 (!$ignorepageheader)) {
 		    # End of the page header, the page is ready to be
 		    # printed
+		    print $logh "Found: \%\%EndPageSetup\n";
 		    print $logh "End of page header\n";
 		    $passthru = 1;
 		    $inpageheader = 0;
@@ -2316,6 +2332,18 @@ File: $file
 					    $newvalue = "$newvalue.${w}x$h";
 					    $arg->{$optionset} = $newvalue;
 					}
+				    }
+				    # For a composite option insert the
+				    # code from the member options with
+				    # current setting "From<composite>"
+				    # The code from the member options
+				    # is chosen according to the setting 
+				    # of the composite option.
+				    if (($arg->{'style'} eq 'X') &&
+					($linetype eq 
+					 'FoomaticRIPOptionSetting')) {
+					buildcommandline($dat, $optionset);
+					$line .= $arg->{$postscriptsection};
 				    }
 				    # If this argument is PageSize or 
 				    # PageRegion, also set the other
@@ -4463,10 +4491,19 @@ sub buildcommandline {
 		# We must set this option according to the
 		# composite option
 		$a->{'fromcomposite'} = $value;
+		# Mark the option telling by which composite option
+		# it is controlled
+		$a->{'controlledby'} = $name;
 	    } else {
 		$a->{'fromcomposite'} = "";
 	    }
 	}
+	# Remove PostScript code to be inserted after an appearance of the
+	# Composite option in the PostScript code.
+	undef $arg->{'jclsetup'};
+	undef $arg->{'prolog'};
+	undef $arg->{'setup'};
+	undef $arg->{'pagesetup'};
     }
 
     for $arg (sort { $a->{'order'} <=> $b->{'order'} } 
@@ -4651,17 +4688,54 @@ sub buildcommandline {
 	    my $close = "\n%%EndFeature\n} stopped cleartomark\n";
 	    if ($section eq "Prolog") {
 		push (@prologprepend, "$open$cmdvar$close") if $cmdvar;
+		if ($cmdvar && $arg->{'controlledby'}) {
+		    # Collect option PostScript code to be inserted when
+		    # the composite option which controls this option
+		    # is found in the PostScript code
+		    $dat->{'args_byname'}{$arg->{'controlledby'}}{'prolog'}
+		    .= "$cmdvar\n";
+		}
 	    } elsif (($section eq "AnySetup") ||
 		     ($section eq "DocumentSetup")) {
 		push (@setupprepend, "$open$cmdvar$close") if $cmdvar;
+		if ($cmdvar && $arg->{'controlledby'}) {
+		    # Collect option PostScript code to be inserted when
+		    # the composite option which controls this option
+		    # is found in the PostScript code
+		    $dat->{'args_byname'}{$arg->{'controlledby'}}{'setup'}
+		    .= "$cmdvar\n";
+		    $dat->{'args_byname'}{$arg->{'controlledby'}}{'pagesetup'}
+		    .= "$cmdvar\n";
+		}
 	    } elsif ($section eq "PageSetup") {
 		push (@pagesetupprepend, "$open$cmdvar$close") if $cmdvar;
+		if ($cmdvar && $arg->{'controlledby'}) {
+		    # Collect option PostScript code to be inserted when
+		    # the composite option which controls this option
+		    # is found in the PostScript code
+		    $dat->{'args_byname'}{$arg->{'controlledby'}}{'pagesetup'}
+		    .= "$cmdvar\n";
+		}
 	    } elsif ($section eq "JCLSetup") {
 		# PJL/JCL argument
 		$dat->{'jcl'} = 1;
 		push (@jclprepend, unhexify($cmdvar)) if $cmdvar;
+		if ($cmdvar && $arg->{'controlledby'}) {
+		    # Collect option PostScript code to be inserted when
+		    # the composite option which controls this option
+		    # is found in the PostScript code
+		    $dat->{'args_byname'}{$arg->{'controlledby'}}{'jclsetup'}
+		    .= "$cmdvar\n";
+		}
 	    } else {
 		push (@setupprepend, "$open$cmdvar$close") if $cmdvar;
+		if ($cmdvar && $arg->{'controlledby'}) {
+		    # Collect option PostScript code to be inserted when
+		    # the composite option which controls this option
+		    # is found in the PostScript code
+		    $dat->{'args_byname'}{$arg->{'controlledby'}}{'setup'}
+		    .= "$cmdvar\n";
+		}
 	    }
 	    # Do we have an option which is set to "Controlled by 
 	    # '<Composite>'"? Then make PostScript code available
@@ -4681,7 +4755,10 @@ sub buildcommandline {
 	    # just before every occurance of the spot marker.
 	    $dat->{'currentcmd'} =~ s!\%$spot!$cmdvar\%$spot!g;
 	}
-        
+	# Remove the marks telling that this option is currently controlled
+	# by a composite option (setting "From<composite>")
+        undef $arg->{'fromcomposite'};
+	undef $arg->{'controlledby'};
     }
     
 
