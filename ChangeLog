@@ -1,5 +1,8 @@
 2004-01-21  Grant Taylor  <gtaylor@linuxprinting.org>
 
+	* Secondary checkin, to remove/add files that changed between
+       	  branches.
+
 	* Reverted snafu unstable code checkin introduced onto the stable
 	  3.0 branch on Jan 16, and present until Jan 21.
 
