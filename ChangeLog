@@ -1,3 +1,8 @@
+2002-12-04  Till Kamppeter <till.kamppeter@gmx.net>
+
+	* *: Tagged CVS for the release of foomatic-filters 2.9.0. 
+	  Tag name: "foomatic-filters-2_9_0".
+	
 2002-12-01  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* foomatic-gswrapper.in: If there is no /dev/fd/0, don't use
