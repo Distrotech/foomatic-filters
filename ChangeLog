@@ -1,3 +1,9 @@
+2004-06-15  Till Kamppeter <till.kamppeter@gmx.net>
+
+	* foomatic-rip.in: Made workaround for OpenOffice.org 1.1.0 bug
+	  being applied to all OpenOffice.org 1.1.x versions (Thanks to
+	  Nigel Tamplin, nigel at metica dot com).
+
 2004-03-28  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* USAGE, foomatic-rip.in: Replaced "GIMP-Print" by "Gimp-Print".

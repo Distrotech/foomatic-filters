@@ -2409,13 +2409,13 @@ for $file (@filelist) {
 		    # Here we set flags to treat particular bugs of the
 		    # PostScript produced by certain applications
 		    my $creator = $1;
-		    if ($creator =~ /^\s*OpenOffice.org\s+1.1.0\s*$/) {
-			# OpenOffice.org 1.1.0
+		    if ($creator =~ /^\s*OpenOffice.org\s+1.1.\d+\s*$/) {
+			# OpenOffice.org 1.1.x
 			# The option settings supposed to affect the
 			# whole document are put into the "%%PageSetup"
 			# section of the first page
 			print $logh "Document created with " .
-			    "OpenOffice.org 1.1.0\n";
+			    "OpenOffice.org 1.1.x\n";
 			$ooo110 = 1;
 		    }
 		} elsif (($line =~ m/^\%\%BeginProlog/) &&
