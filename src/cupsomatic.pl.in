@@ -413,11 +413,14 @@ for (@opts) {
         if ($aname =~ m!^media$!i) {
             my @values = split(',',$avalue);
             for (@values) {
-                if ($dat->{'args_byname'}{'PageSize'}
-                    and $val=valbyname($dat->{'args_byname'}{'PageSize'},$_)) {
+                if ($dat->{'args_byname'}{'PageSize'} 
+		    and $val=valbyname($dat->{'args_byname'}{'PageSize'},$_)) {
                     $dat->{'args_byname'}{'PageSize'}{'userval'} = 
                         $val->{'value'};
-                } elsif ($dat->{'args_byname'}{'MediaType'}
+                } elsif ($dat->{'args_byname'}{'PageSize'} 
+		    and /^Custom/) {
+		    $dat->{'args_byname'}{'PageSize'}{'userval'} = $_;
+		} elsif ($dat->{'args_byname'}{'MediaType'}
                          and $val=valbyname($dat->{'args_byname'}{'MediaType'},$_)) {
                     $dat->{'args_byname'}{'MediaType'}{'userval'} =
                         $val->{'value'};
@@ -534,6 +537,8 @@ my $inheader = 1;               # Are we still in the header formed by the
                                 # option PostScript code inserted by CUPS?
 my $infeature = 0;              # Are we in a "[{ %%BeginFeature ... } stopped
                                 # cleartomark" structure?
+my $onelinebefore = "";         # The line before the current line
+my $twolinesbefore = "";        # The line two lines before the current line
 
 do {
     my $line;
@@ -547,9 +552,9 @@ do {
 	    # PostScript data stream
 	    $line .= $accounting_prolog;
         } else {
-            if (($line =~ m/\%\%BeginFeature:\s+\*?([^\s=]+)\s+(\S.*)$/) ||
-		($line =~ m/\%\%\s*FoomaticOpt:\s*([^\s=]+)\s*=\s*(\S.*)$/)) {
-                my ($option, $value) = ($1, $2);
+            if (($line =~ m/\%\%(BeginFeature):\s+\*?([^\s=]+)\s+(\S.*)$/) ||
+		($line =~ m/\%\%\s*(FoomaticOpt):\s*([^\s=]+)\s*=\s*(\S.*)$/)) {
+                my ($linetype, $option, $value) = ($1, $2, $3);
 
                 # OK, we have an option.  If it's not a
                 # *ostscript-style option (ie, it's command-line or
@@ -584,7 +589,16 @@ do {
                             if (lc($value) eq 'unknown') {
                                 $arg->{'userval'} = undef;
                             } else {
-                                $arg->{'userval'} = $value;
+				if (($option eq 'PageSize') &&
+				    ($value =~ /^Custom/)) {
+				    if ($linetype eq 'FoomaticOpt') {
+					$twolinesbefore =~
+					    /^\s*([\d\.]+)\s+([\d\.]+)\s+([\d\.]+)\s+([\d\.]+)\s+([\d\.]+)\s*$/;
+					$arg->{'userval'} = "$value.$1x$2";
+				    }
+				} else {
+				    $arg->{'userval'} = $value;
+				}
                             }
                         }
                     } else {
@@ -626,6 +640,10 @@ do {
     if (($linect >= $maxlines) && ($inheader)) {
 	$maxlines += 200;
     }
+
+    $twolinesbefore = $onelinebefore;
+    $onelinebefore = $line;
+
 } while (($linect < $maxlines) and ($more_stuff != 0));
 
 #### Everything below here ought to be generic for any printing
@@ -707,6 +725,10 @@ my $arg;
 		    my $val;
 		    if ($val=valbyname($arg,$userval)) {
 			$found = 1;
+		    } elsif ($userval =~ /^Custom\.[\d\.]+x[\d\.]+[A-Za-z]*$/) {
+			# Custom paper size
+			$val = valbyname($arg,"Custom");
+			$found = 1;
 		    } elsif ($userval eq '0') {
 			foreach (qw(No Off False None)) {
 			    if ($val=valbyname($arg,$_)) {
@@ -753,6 +775,39 @@ my $arg;
                                           (defined($val->{'driverval'})
                                            ? $val->{'driverval'}
                                            : $val->{'value'}));
+			# Custom paper size
+			if ($userval =~ /^Custom\.([\d\.]+)x([\d\.]+)([A-Za-z]*)$/) {
+			    my $width = $1;
+			    my $height = $2;
+			    my $unit = $3;
+			    # convert width and height to PostScript points
+			    if (lc($unit) eq "in") {
+				$width *= 72.0;
+				$height *= 72.0;
+			    } elsif (lc($unit) eq "cm") {
+				$width *= (72.0/2.54);
+				$height *= (72.0/2.54);
+			    } elsif (lc($unit) eq "mm") {
+				$width *= (72.0/25.4);
+				$height *= (72.0/25.4);
+			    }
+			    # Round width and height
+			    $width =~ s/\.[0-4].*$// or
+			    $width =~ s/\.[5-9].*$// and $width += 1;
+			    $height =~ s/\.[0-4].*$// or
+			    $height =~ s/\.[5-9].*$// and $height += 1;
+			    # Insert width and height into the prototype
+			    $cmdvar =~ s/\%0/$width/ or
+			    $cmdvar =~ s/(\W)0(\W)/$1$width$2/ or
+			    $cmdvar =~ s/^0(\W)/$width$1/m or
+			    $cmdvar =~ s/(\W)0$/$1$width/m or
+			    $cmdvar =~ s/^0$/$width/m;
+			    $cmdvar =~ s/\%1/$height/ or
+			    $cmdvar =~ s/(\W)0(\W)/$1$height$2/ or
+			    $cmdvar =~ s/^0(\W)/$height$1/m or
+			    $cmdvar =~ s/(\W)0$/$1$height/m or
+			    $cmdvar =~ s/^0$/$height/m;
+			}
                     } else {
                         # User gave unknown value?
                         print $logh "Value $userval for $name is not a valid choice.\n";
@@ -846,6 +901,9 @@ if ($enscriptcommand =~ /\@\@([^@]+)\@\@PAGESIZE\@\@/) {
     my $optstr = ((($arg = argbyname('PageSize')))
 		  ? $1 . $arg->{'userval'}
 		  : "");
+    if ($optstr eq "$1") {
+	$optstr = "";
+    }
     $enscriptcommand =~ s/\@\@([^@]+)\@\@PAGESIZE\@\@/$optstr/;
 }
 
@@ -990,15 +1048,24 @@ The following options are available for this printer:
         } elsif ($type eq 'enum') {
             print "  Possible choices:\n";
             my $exarg;
+	    my $havecustomsize = 0;
             for (@{$arg->{'vals'}}) {
                 my ($choice, $comment) = ($_->{'value'}, $_->{'comment'});
                 print "   o $choice: $comment\n";
+ 		if (($name eq "PageSize") && ($choice eq "Custom")) {
+		    $havecustomsize = 1;
+		}
                 $exarg=$choice;
             }
             if (defined($default)) {
                 print "  Default: $default\n";
             }
             print "  Example: $name=$exarg\n";
+	    if ($havecustomsize) {
+		print "\n  Custom size: $name=Custom.<width>x<height>[<unit>]\n";
+		print "               Units: pt (default), in, cm, mm\n";
+		print "  Example: $name=Custom.4.0x6.0in\n";
+	    }
         } elsif ($type eq 'int' or $type eq 'float') {
             my ($max, $min) = ($arg->{'max'}, $arg->{'min'});
             my $exarg;

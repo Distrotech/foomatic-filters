@@ -283,14 +283,21 @@ for $arg (@{$dat->{'args'}}) {
     }
 }
 
-## We get various options as argument 3. These options are defined in the
-## config file of the queue. Parse them out and modify the defaults
-## appropriately, so that the user can set defaults with "ppad options
-## option1=value1 option2=value2 ...", also options for the "real" backend
-## interface (parallel, tcpip, atalk, ...) are allowed here, and the backend
-## interface choice is required here.
+## We get various options as argument 3. These options are defined in
+## the config file of the queue. Parse them out and modify the
+## defaults appropriately, so that the user can set defaults with
+## "ppad options option1=value1 option2=value2 ...", also options for
+## the "real" backend interface (parallel, tcpip, atalk, ...) are
+## allowed here, and the backend interface choice is required here. In
+## addition, the user can give options along with a print jobs by
+## using '-i "option1=value1 option2"' with the "ppr" command. Since
+## the "-F" argument only allows setting printer features described in
+## the PPD file, the "-i" option can be used for anything, as printing
+## the help page with "ppr -d <printer> -i docs <file>" or defining a
+## custom page size with "ppr -d <printer> -i PageSize=Custom.4x6in
+## <file>"
 
-my $optstr = $ppr_options;
+my $optstr = "$ppr_options $ppr_routing";
 
 print $logh "options: ->$optstr<-\n";
 
@@ -368,6 +375,9 @@ for (@opts) {
                     and $val=valbyname($dat->{'args_byname'}{'PageSize'},$_)) {
                     $dat->{'args_byname'}{'PageSize'}{'userval'} = 
                         $val->{'value'};
+                } elsif ($dat->{'args_byname'}{'PageSize'} 
+		    and /^Custom/) {
+		    $dat->{'args_byname'}{'PageSize'}{'userval'} = $_;
                 } elsif ($dat->{'args_byname'}{'MediaType'}
                          and $val=valbyname($dat->{'args_byname'}{'MediaType'},$_)) {
                     $dat->{'args_byname'}{'MediaType'}{'userval'} =
@@ -441,6 +451,12 @@ for (@opts) {
 		push (@backendoptions, "$aname=$avalue");
             }
         }
+    } elsif (m!^([\d\.]+)x([\d\.]+)([A-Za-z]*)$!) {
+	my ($w, $h, $u) = ($1, $2, $3);
+	# Custom paper size
+	if (($w != 0) && ($h != 0) && ($arg=argbyname("PageSize"))) {
+            $arg->{'userval'} = "Custom.${w}x${h}${u}";
+	}
     } elsif (m!no(.+)!i) {
         # standard bool args:
         # landscape; what to do here?
@@ -512,6 +528,8 @@ print $logh "Searching job for option settings ...\n";
 my $maxlines = 1000;            # how many lines to examine?
 my $more_stuff = 1;             # there is more stuff in stdin.
 my $linect = 0;                 # how many lines have we examined?
+my $onelinebefore = "";         # The line before the current line
+my $twolinesbefore = "";        # The line two lines before the current line
 do {
     my $line;
     if ($line=<STDIN>) {
@@ -524,9 +542,9 @@ do {
 	                              # before "%!"
 
         } else {
-            if (($line =~ m/\%\%BeginFeature:\s+\*?([^\s=]+)\s+(\S.*)$/) ||
-		($line =~ m/\%\%\s*FoomaticOpt:\s*([^\s=]+)\s*=\s*(\S.*)$/)) {
-                my ($option, $value) = ($1, $2);
+            if (($line =~ m/\%\%(BeginFeature):\s+\*?([^\s=]+)\s+(\S.*)$/) ||
+		($line =~ m/\%\%\s*(FoomaticOpt):\s*([^\s=]+)\s*=\s*(\S.*)$/)) {
+                my ($linetype, $option, $value) = ($1, $2, $3);
 
                 # OK, we have an option.  If it's not a
                 # *ostscript-style option (ie, it's command-line or
@@ -561,7 +579,21 @@ do {
                             if (lc($value) eq 'unknown') {
                                 $arg->{'userval'} = undef;
                             } else {
-                                $arg->{'userval'} = $value;
+				if (($option eq 'PageSize') &&
+				    ($value =~ /^Custom/)) {
+				    if ($linetype eq 'FoomaticOpt') {
+					$twolinesbefore =~
+					    /^\s*([\d\.]+)\s+([\d\.]+)\s+([\d\.]+)\s+([\d\.]+)\s+([\d\.]+)\s*$/;
+					my ($w, $h) = ($1, $2);
+					if (($w) && ($h) && 
+					    ($w != 0) && ($h != 0)) {
+					    $arg->{'userval'} =
+					        "$value.$wx$h";
+					}
+				    }
+				} else {
+				    $arg->{'userval'} = $value;
+				}
                             }
                         }
                     } else {
@@ -576,7 +608,20 @@ do {
 			(lc($value) ne 'unknown')) {
 			if ($arg->{'style'} ne 'G') {
 			    print $logh " --> Setting option\n";
-			    $arg->{'userval'} = $value;
+			    if ($value =~ /^Custom/) {
+				if ($linetype eq 'FoomaticOpt') {
+				    $twolinesbefore =~
+					/^\s*([\d\.]+)\s+([\d\.]+)\s+([\d\.]+)\s+([\d\.]+)\s+([\d\.]+)\s*$/;
+				    my ($w, $h) = ($1, $2);
+				    if (($w) && ($h) && 
+					($w != 0) && ($h != 0)) {
+					$arg->{'userval'} =
+					    "$value.$wx$h";
+				    }
+				}
+			    } else {
+				$arg->{'userval'} = $value;
+			    }
 			} else { 
 			    print $logh " --> Option will be set by PostScript interpreter\n";
 			}
@@ -598,12 +643,10 @@ do {
         $more_stuff = 0;
     }
 
-} while (($linect < $maxlines) and ($more_stuff != 0));
+    $twolinesbefore = $onelinebefore;
+    $onelinebefore = $line;
 
-# When the user does "ppr -d <printer> -i docs <file>" print the help page
-if ($ppr_routing eq "docs") {
-    $do_docs = 1;
-}
+} while (($linect < $maxlines) and ($more_stuff != 0));
 
 #### Everything below here ought to be generic for any printing
 #### system?  It just uses the $dat structure, with user values filled
@@ -674,6 +717,10 @@ my $arg;
 		my $val;
 		if ($val=valbyname($arg,$userval)) {
 		    $found = 1;
+		} elsif ($userval =~ /^Custom\.[\d\.]+x[\d\.]+[A-Za-z]*$/) {
+		    # Custom paper size
+		    $val = valbyname($arg,"Custom");
+		    $found = 1;
 		} elsif ($userval eq '0') {
 		    foreach (qw(No Off False None)) {
 			if ($val=valbyname($arg,$_)) {
@@ -720,6 +767,39 @@ my $arg;
 				      (defined($val->{'driverval'})
 				       ? $val->{'driverval'}
 				       : $val->{'value'}));
+		    # Custom paper size
+		    if ($userval =~ /^Custom\.([\d\.]+)x([\d\.]+)([A-Za-z]*)$/) {
+			my $width = $1;
+			my $height = $2;
+			my $unit = $3;
+			# convert width and height to PostScript points
+			if (lc($unit) eq "in") {
+			    $width *= 72.0;
+			    $height *= 72.0;
+			} elsif (lc($unit) eq "cm") {
+			    $width *= (72.0/2.54);
+			    $height *= (72.0/2.54);
+			} elsif (lc($unit) eq "mm") {
+			    $width *= (72.0/25.4);
+			    $height *= (72.0/25.4);
+			}
+			# Round width and height
+			$width =~ s/\.[0-4].*$// or
+			$width =~ s/\.[5-9].*$// and $width += 1;
+			$height =~ s/\.[0-4].*$// or
+			$height =~ s/\.[5-9].*$// and $height += 1;
+			# Insert width and height into the prototype
+			$cmdvar =~ s/\%0/$width/ or
+			$cmdvar =~ s/(\W)0(\W)/$1$width$2/ or
+			$cmdvar =~ s/^0(\W)/$width$1/m or
+			$cmdvar =~ s/(\W)0$/$1$width/m or
+			$cmdvar =~ s/^0$/$width/m;
+			$cmdvar =~ s/\%1/$height/ or
+			$cmdvar =~ s/(\W)0(\W)/$1$height$2/ or
+			$cmdvar =~ s/^0(\W)/$height$1/m or
+			$cmdvar =~ s/(\W)0$/$1$height/m or
+			$cmdvar =~ s/^0$/$height/m;
+		    }
 		} else {
 		    # User gave unknown value?
 		    print $logh "Value $userval for $name is not a valid choice.\n";
@@ -799,6 +879,9 @@ if ($enscriptcommand =~ /\@\@([^@]+)\@\@PAGESIZE\@\@/) {
     my $optstr = ((($arg = argbyname('PageSize')))
 		  ? $1 . $arg->{'userval'}
 		  : "");
+    if ($optstr eq "$1") {
+	$optstr = "";
+    }
     $enscriptcommand =~ s/\@\@([^@]+)\@\@PAGESIZE\@\@/$optstr/;
 }
 
@@ -994,15 +1077,24 @@ The following options are available for this printer:
         } elsif ($type eq 'enum') {
             print "  Possible choices:\n";
             my $exarg;
+	    my $havecustomsize = 0;
             for (@{$arg->{'vals'}}) {
                 my ($choice, $comment) = ($_->{'value'}, $_->{'comment'});
                 print "   o $choice: $comment\n";
+		if (($name eq "PageSize") && ($choice eq "Custom")) {
+		    $havecustomsize = 1;
+		}
                 $exarg=$choice;
             }
             if (defined($default)) {
                 print "  Default: $default\n";
             }
             print "  Example: -F \"*$name $exarg\"\n";
+	    if ($havecustomsize) {
+		print "\n  Custom size: -F \"*$name Custom\" -i <width>x<height>[<unit>]\n";
+		print "               Units: pt (default), in, cm, mm\n";
+		print "  Example: -F \"*$name Custom\" -i 4.0x6.0in\n";
+	    }
         } elsif ($type eq 'int' or $type eq 'float') {
             my ($max, $min) = ($arg->{'max'}, $arg->{'min'});
             my $exarg;

@@ -365,6 +365,9 @@ File: $file
 			and $val=valbyname($dat->{'args_byname'}{'PageSize'},$_)) {
 			$dat->{'args_byname'}{'PageSize'}{'userval'} =
 			    $val->{'value'};
+                    } elsif ($dat->{'args_byname'}{'PageSize'} 
+		        and /^Custom/) {
+		        $dat->{'args_byname'}{'PageSize'}{'userval'} = $_;
 		    } elsif ($dat->{'args_byname'}{'MediaType'}
 			     and $val=valbyname($dat->{'args_byname'}{'MediaType'},$_)) {
 			$dat->{'args_byname'}{'MediaType'}{'userval'} =
@@ -441,12 +444,16 @@ File: $file
     # Ghostscript/whatever later on.
 
     print $logh "Seaerching job for option settings ...\n";
-    my $maxlines = 1000;            # how many lines to examine?
-    my $more_stuff = 1;             # there is more stuff in stdin.
-    my $linect = 0;                 # how many lines have we examined?
+    my $maxlines = 1000;	    # how many lines to examine?
+    my $more_stuff = 1;		    # there is more stuff in stdin.
+    my $linect = 0;		    # how many lines have we examined?
     @examined_stuff = ();           # Make sure that there does not
                                     # remain anything from the previous
                                     # file.
+    my $onelinebefore = "";         # The line before the current line
+    my $twolinesbefore = "";        # The line two lines before the current
+				    # line
+
     do {
 	my $line;
 	if ($line=<STDIN>) {
@@ -458,9 +465,9 @@ File: $file
 		    $maxlines = 1; # Bail out of the option search loop
 		}
 	    } else {
-		if (($line =~ m/\%\%BeginFeature:\s+\*?([^\s=]+)\s+(\S.*)$/) ||
-		    ($line =~ m/\%\%\s*FoomaticOpt:\s*([^\s=]+)\s*=\s*(\S.*)$/)) {
-		    my ($option, $value) = ($1, $2);
+                if (($line =~ m/\%\%(BeginFeature):\s+\*?([^\s=]+)\s+(\S.*)$/) ||
+		    ($line =~ m/\%\%\s*(FoomaticOpt):\s*([^\s=]+)\s*=\s*(\S.*)$/)) {
+                    my ($linetype, $option, $value) = ($1, $2, $3);
 
 		    # OK, we have an option.  If it's not a
 		    # *ostscript-style option (ie, it's command-line or
@@ -495,13 +502,27 @@ File: $file
 				if (lc($value) eq 'unknown') {
 				    $arg->{'userval'} = undef;
 				} else {
-				    $arg->{'userval'} = $value;
+				    if (($option eq 'PageSize') &&
+					($value =~ /^Custom/)) {
+					if ($linetype eq 'FoomaticOpt') {
+					    $twolinesbefore =~
+						/^\s*([\d\.]+)\s+([\d\.]+)\s+([\d\.]+)\s+([\d\.]+)\s+([\d\.]+)\s*$/;
+					    $arg->{'userval'} =
+						"$value.$1x$2";
+					}
+				    } else {
+					$arg->{'userval'} = $value;
+				    }
 				}
 			    }
 			} else {
 			    # it is a postscript style option, presuemably
 			    # all applied for us and such...
 			    print $logh " --> Option will be set by PostScript interpreter\n";
+			    # Invalidate the default setting to avoid it
+			    # being inserted into the PostScript
+			    # additionally
+			    $arg->{'userval'} = undef;
 			}
 		    } else {
 			# This option is unknown to us.  WTF?
@@ -519,6 +540,9 @@ File: $file
 	    # EOF!
 	    $more_stuff = 0;
 	}
+
+	$twolinesbefore = $onelinebefore;
+	$onelinebefore = $line;
 
     } while (($linect < $maxlines) and ($more_stuff != 0));
 
@@ -576,13 +600,48 @@ File: $file
             # thence into the commandline
             if (defined($userval)) {
                 my $val;
-                if ($val=valbyname($arg,$userval)) {
+	        if (($val=valbyname($arg,$userval)) ||
+		    (($userval =~ /^Custom\.[\d\.]+x[\d\.]+[A-Za-z]*$/) &&
+		     ($val=valbyname($arg,"Custom")))) {
 		    my $sprintfcmd = $cmd;
 		    $sprintfcmd =~ s!\%([^s])!\%\%$1!g;
 		    $cmdvar = sprintf($sprintfcmd,
                                       (defined($val->{'driverval'})
                                        ? $val->{'driverval'}
                                        : $val->{'value'}));
+		  # Custom paper size
+		  if ($userval =~ /^Custom\.([\d\.]+)x([\d\.]+)([A-Za-z]*)$/) {
+		        my $width = $1;
+		        my $height = $2;
+		        my $unit = $3;
+		        # convert width and height to PostScript points
+		        if (lc($unit) eq "in") {
+			    $width *= 72.0;
+			    $height *= 72.0;
+		        } elsif (lc($unit) eq "cm") {
+			    $width *= (72.0/2.54);
+			    $height *= (72.0/2.54);
+		        } elsif (lc($unit) eq "mm") {
+			    $width *= (72.0/25.4);
+			    $height *= (72.0/25.4);
+		        }
+		        # Round width and height
+		        $width =~ s/\.[0-4].*$// or
+		        $width =~ s/\.[5-9].*$// and $width += 1;
+		        $height =~ s/\.[0-4].*$// or
+		        $height =~ s/\.[5-9].*$// and $height += 1;
+		        # Insert width and height into the prototype
+		        $cmdvar =~ s/\%0/$width/ or
+		        $cmdvar =~ s/(\W)0(\W)/$1$width$2/ or
+		        $cmdvar =~ s/^0(\W)/$width$1/m or
+		        $cmdvar =~ s/(\W)0$/$1$width/m or
+		        $cmdvar =~ s/^0$/$width/m;
+		        $cmdvar =~ s/\%1/$height/ or
+		        $cmdvar =~ s/(\W)0(\W)/$1$height$2/ or
+		        $cmdvar =~ s/^0(\W)/$height$1/m or
+		        $cmdvar =~ s/(\W)0$/$1$height/m or
+		        $cmdvar =~ s/^0$/$height/m;
+		    }
                 } else {
                     # User gave unknown value?
                     print $logh "Value $userval for $name is not a valid choice.\n";
@@ -598,8 +657,10 @@ File: $file
 
         if ($arg->{'style'} eq 'G') {
             # Place this Postscript command onto the prepend queue.
-            push (@prepend, "$cmdvar\n") if $cmdvar;
-            print $logh "prepending: $cmdvar\n";
+	    if ($cmdvar =~ /S/) {
+                push (@prepend, "$cmdvar\n");
+                print $logh "prepending: $cmdvar\n";
+	    }
 
         } elsif ($arg->{'style'} eq 'J') {
 	    # put PJL commands onto PJL stack...
@@ -662,6 +723,9 @@ File: $file
 	my $optstr = ((($arg = argbyname('PageSize')))
 		      ? $1 . $arg->{'userval'}
 		      : "");
+	if ($optstr eq "$1") {
+	    $optstr = "";
+	}
 	$enscriptcommand =~ s/\@\@([^@]+)\@\@PAGESIZE\@\@/$optstr/;
     }
 
@@ -854,15 +918,24 @@ The following options are available for this printer:
 	    } elsif ($type eq 'enum') {
 		print "  Possible choices:\n";
 		my $exarg;
+		my $havecustomsize = 0;
 		for (@{$arg->{'vals'}}) {
 		    my ($choice, $comment) = ($_->{'value'}, $_->{'comment'});
 		    print "   o $choice: $comment\n";
+	 	    if (($name eq "PageSize") && ($choice eq "Custom")) {
+			$havecustomsize = 1;
+		    }
 		    $exarg=$choice;
 		}
 		if (defined($default)) {
 		    print "  Default: $default\n";
 		}
 		print "  Example: $name=$exarg\n";
+		if ($havecustomsize) {
+		    print "\n  Custom size: $name=Custom.<width>x<height>[<unit>]\n";
+		    print "               Units: pt (default), in, cm, mm\n";
+		    print "  Example: $name=Custom.4.0x6.0in\n";
+		}
 	    } elsif ($type eq 'int' or $type eq 'float') {
 		my ($max, $min) = ($arg->{'max'}, $arg->{'min'});
 		my $exarg;
