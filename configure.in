@@ -75,4 +75,3 @@ dnl Finished
 echo "Finished configuring."
 echo "Type 'make' to build the package"
 echo "then 'make install' to install it."
-echo "Use 'make tests' to run some simple tests."

@@ -3,8 +3,8 @@
 	* Removed some more files which do not belong into the stable
 	  release.
 
-	* Makefile.in, tests/*: Removed Patrick Powells "make test"
-	  facility, it did not work.
+	* Makefile.in, configure.in, tests/*: Removed Patrick Powells
+	  "make test" facility, it did not work.
 
 2004-01-21  Grant Taylor  <gtaylor@linuxprinting.org>
 
