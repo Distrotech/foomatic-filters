@@ -61,7 +61,9 @@ TRASHFILES:="*~" "*\#*" ".??*" "*.rej"
 all: build
 
 # The install rule should check for kitloads and avoid stomping.  It doesn't
-install: install-bin install-man
+install: install-main install-cups install-ppr
+
+install-main: install-bin install-man install-etc
 
 check-config:
 	@if [ -f .testing-stamp ] ; then \
@@ -70,18 +72,23 @@ check-config:
 	  exit 1 ;\
 	fi
 
-install-bin: check-config
-	${SRC}/mkinstalldirs $(DESTDIR)$(BINDIR)
-	${SRC}/mkinstalldirs $(DESTDIR)$(ETCDIR)/direct
+install-cups: check-config
 	${SRC}/mkinstalldirs $(DESTDIR)$(CUPS_FILTERS)
+	ln -sf $(BINDIR)/foomatic-rip $(DESTDIR)$(CUPS_FILTERS)
+
+install-ppr: check-config
 	${SRC}/mkinstalldirs $(DESTDIR)$(PPR_INTERFACES)
 	${SRC}/mkinstalldirs $(DESTDIR)$(PPR_LIB)
-	${INSTALL} -m 755 $(BINFILES) $(DESTDIR)$(BINDIR)
-#	${INSTALL} -m 755 $(SBINFILES) $(DESTDIR)$(SBINDIR)
-#	Make foomatic-rip being found by CUPS and PPR
-	ln -sf $(BINDIR)/foomatic-rip $(DESTDIR)$(CUPS_FILTERS)
 	ln -sf $(BINDIR)/foomatic-rip $(DESTDIR)$(PPR_INTERFACES)
 	ln -sf $(BINDIR)/foomatic-rip $(DESTDIR)$(PPR_LIB)
+
+install-bin: check-config
+	${SRC}/mkinstalldirs $(DESTDIR)$(BINDIR)
+	${INSTALL} -m 755 $(BINFILES) $(DESTDIR)$(BINDIR)
+#	${INSTALL} -m 755 $(SBINFILES) $(DESTDIR)$(SBINDIR)
+
+install-etc: check-config
+	${SRC}/mkinstalldirs $(DESTDIR)$(ETCDIR)/direct
 	${INSTALL} -m 644 ${SRC}/filter.conf $(DESTDIR)$(ETCDIR)/filter.conf.sample
 	if [ ! -f  $(DESTDIR)$(ETCDIR)/filter.conf ] ; then ${INSTALL} -m 644 ${SRC}/filter.conf $(DESTDIR)$(ETCDIR); fi;
 
@@ -127,7 +134,10 @@ remove-trash:
 	done
 
 # Uninstall an installed Foomatic
-uninstall: uninstall-bin uninstall-man
+
+uninstall: uninstall-cups uninstall-ppr uninstall-main
+
+uninstall-main: uninstall-bin uninstall-man
 
 uninstall-bin: check-config
 	( cd $(DESTDIR)$(BINDIR) && \
@@ -136,17 +146,24 @@ uninstall-bin: check-config
 #	( cd $(DESTDIR)$(SBINDIR) && \
 #	  rm -f $(SBINFILES) \
 #	)
+
+uninstall-etc: check-config
+	rm -f $(DESTDIR)$(ETCDIR)/filter.conf
+	rm -f $(DESTDIR)$(ETCDIR)/filter.conf.sample
+	rmdir $(DESTDIR)$(ETCDIR)/direct || :
+	rmdir $(DESTDIR)$(ETCDIR) || :
+
+uninstall-cups: check-config
 	rm -f $(DESTDIR)$(CUPS_FILTERS)/foomatic-rip
 	rmdir $(DESTDIR)$(CUPS_FILTERS) || :
 	rmdir $(DESTDIR)$(CUPS) || :
+
+uninstall-ppr: check-config
 	rm -f $(DESTDIR)$(PPR_INTERFACES)/foomatic-rip
 	rmdir $(DESTDIR)$(PPR_INTERFACES) || :
 	rm -f $(DESTDIR)$(PPR_LIB)/foomatic-rip
 	rmdir $(DESTDIR)$(PPR_LIB) || :
 	rmdir $(DESTDIR)$(PPR) || :
-	rm -f $(DESTDIR)$(ETCDIR)/filter.conf
-	rmdir $(DESTDIR)$(ETCDIR)/direct || :
-	rmdir $(DESTDIR)$(ETCDIR) || :
 
 uninstall-man: check-config
 	for m in $(BINFILES); do \

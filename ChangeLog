@@ -1,3 +1,9 @@
+2003-12-01  Till Kamppeter <till.kamppeter@gmx.net>
+
+	* configure.in, Makefile.in: Added fixes and improvements for
+	  NetBSD compatibility. Thanks to Bruce J.A. Nourish
+	  (bjan+foomatic-devel at bjan dot net) for this contribution.
+
 2003-11-22  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* *: Tagged all files of the repository with "foomatic-3_0-bp",
