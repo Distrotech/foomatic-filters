@@ -89,7 +89,7 @@ because the path for the Perl interpreter is inserted by the
 "configure" script. The "configure" script makes the final files from
 them with the inserted path of the Perl interpreter.
 
-configure.ac
+configure.in
 
   The source from which GNU autoconf generates the "configure" script
 
