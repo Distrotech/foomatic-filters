@@ -2,6 +2,9 @@
 
 # The above Perl path may vary on your system; fix it!!!
 
+my $ripversion='$Revision$';
+#'# Fix emacs syntax highlighting
+
 # foomatic-rip is a spooler-independent filter script which takes
 # PostScript as standard input and generates the printer's page
 # description language (PDL)/raster format as standard output. This
@@ -9,9 +12,15 @@
 # therefore the name "foomatic-rip".
 
 # Save it in one of the directories of your $PATH, so that it gets
-# found by the spooler-specific filter, and mark it world-executable
-# (note that most spoolers run the print filters as a special user, as
-# "lp", not as "root" or as the user who sent the job.
+# found when called from the command line (for spooler-less printing),
+# link it to spooler-specific directories when you use CUPS or PPR:
+
+#    ln -s /usr/bin/foomatic-rip /usr/lib/cups/filter/
+#    ln -s /usr/bin/foomatic-rip /usr/lib/ppr/interfaces/
+
+# Mark this filter world-readable and world-executable (note that most
+# spoolers run the print filters as a special user, as "lp", not as
+# "root" or as the user who sent the job).
 
 # See http://www.linuxprinting.org/<NOT WRITTEN YET>.html
 
@@ -90,11 +99,18 @@ my $logfile = "/tmp/foomatic-rip.log";
 #  USA.
 #
 
+# Flush everything immediately.
+$|=1;
+
+
+
+## Costants used by this filter
 
 # Error codes, as some spooles behave different depending on the reason why
 # the RIP failed, we return an error code. As I have only found a table of
-# error codes for the PPR spooler, I have used these codes, the filter
-# should translate them if the spooler uses other numbers.
+# error codes for the PPR spooler. If our spooler is really PPR, these
+# definitions get overwritten by the ones of the PPR version currently in
+# use.
 
 $EXIT_PRINTED = 0;         # file was printed normally
 $EXIT_PRNERR = 1;          # printer error occured
@@ -115,8 +131,7 @@ $EXIT_PRNERR_NORETRY_NO_SUCH_ADDRESS = 11;  # address lookup failed, not
                                             # transient
 $EXIT_INCAPABLE = 50;                       # printer wants (lacks) features
                                             # or resources
-
-# Unix signal names
+# Standard Unix signal names
 $SIGHUP = 1;
 $SIGINT = 2;
 $SIGQUIT = 3;
@@ -127,6 +142,10 @@ $SIGUSR2 = 12;
 $SIGTTIN = 21;
 $SIGTTOU = 22;
 
+
+
+## Config file
+
 # Read config file if present
 %conf = readConfFile("$configpath/filter.conf");
 
@@ -136,17 +155,95 @@ if ($execpath) {$ENV{'PATH'} = $execpath;}
 # Set debug mode
 $debug = $conf{debug} if defined(%conf) and defined $conf{debug};
 
-# Flush everything immediately.
-$|=1;
 
-# Read the command line options
+
+## Some important variables
+
+# We don't know yet, which spooler will be used. If we don't detect one.
+# we assume that we do spooler-less printing.
+$spooler = 'direct';
+
+# PPD file name
+$ppdfile = "";
+
+# Printer queue name
+$printer = "";
+
+# Printing options
+$optstr = "";
+
+# Job title
+$jobtitle = "";
+
+# Post pipe (command into which the output of this filter should be piped)
+$postpipe = "";
+
+# Files to be printed
+@filelist = ();
+
+
+
+## Environment variables;
+
+# "PPD": PPD file name for CUPS
+if (defined($ENV{'PPD'})) {
+    $ppdfile = $ENV{'PPD'};
+    # CUPS uses the "PPD" environment variable to make the PPD file name
+    # available
+    $spooler = 'cups';
+}
+
+# "LPOPTS": Option settings for some LPD implementations (ex: GNUlpr)
+if (defined($ENV{'LPOPTS'})) {
+    my @lpopts = split(/,/, $ENV{'LPOPTS'});
+    foreach $opt (@lpopts) {
+	$opt =~ s/^\s+//;
+	$opt =~ s/\s+$//;
+	if ($opt =~ /\s+/) {
+	    $opt = "\"$opt\"";
+	}
+	$optstr .= "$opt ";
+    }
+    # We have an LPD which accepts "-o" for options
+    $spooler = 'gnulpr';
+}
+
+
+
+## Named command line options
+
+# Save the options for logging
+my $origoptions = join("','",@ARGV);
+
+# Read the options
 use Getopt::Long;
 Getopt::Long::Configure("no_ignore_case");
+
+#          # General
 GetOptions("q"        => \$opt_q,         # Quiet
            "v"        => \$opt_v,         # Verbose
 	   "debug"    => \$opt_debug,     # Debug mode
-	   "p"        => \$opt_p,         # PPD file
-	   "ppd"      => \$opt_p);
+	   "p=s"      => \$opt_p,         # PPD file
+	   "ppd=s"    => \$opt_ppd,       # PPD file
+	   # LPD, LPRng, GNUlpr 
+	   "lprng"    => \$opt_lprng,     # Were we called from LPRng?
+	   "c"        => \$opt_c,         # (raw printing, not used)
+	   "w=s"      => \$opt_w,         # (text width, not used)
+	   "l=s"      => \$opt_l,         # (text length, not used)
+	   "i=s"      => \$opt_i,         # (indent, not used)
+	   "n=s"      => \$opt_n,         # (login, not used)
+	   "h=s"      => \$opt_h,         # (host, not used)
+	   "j=s"      => \$opt_j,         # Job title (with options stuffed
+	                                  # in when LPD is the spooler)_
+	   "z=s"      => \$opt_z,         # (not used)
+	   "Z=s"      => \$opt_Z,         # Options when LPRng is the
+	                                  # spooler
+	   # Spooler-less printing
+	   "P=s"      => \$opt_P,         # Printer
+	   "d=s"      => \$opr_d,         # Printer
+	   "o=s"      => \@opt_o,         # Options
+	   "J=s"      => \$opt_J,         # Job title
+	   );
 
 # Quiet mode, do not log
 if (($opt_q) && (!$debug)) {
@@ -157,16 +254,9 @@ if (($opt_q) && (!$debug)) {
     $logh->autoflush(1);
 }
 
-
 # Debug mode activated via command line
 if ($opt_debug) {
     $debug = 1;
-}
-
-# Get the PPD file name
-my $ppdfile = $ENV{'PPD'};
-if ($opt_p) {
-    $ppdfile = $opt_p;
 }
 
 # Where to send debugging log output to
@@ -181,12 +271,322 @@ if ($debug) {
     $logh=*STDERR;
 }
 
-my $ripversion='$Revision$';
-#'# Fix emacs syntax highlighting
+# Start logging
 print $logh "foomatic-rip version $ripversion running...\n";
-print $logh "called with arguments: '",join("','",@ARGV),"'\n";
+print $logh "called with arguments: '", $origoptions, "'\n";
 
-print $logh "ppd=$ppdfile\n";
+# PPD file name given via the command line
+if ($opt_p) {
+    $ppdfile = $opt_p;
+}
+if ($opt_ppd) {
+    $ppdfile = $opt_ppd;
+}
+
+# Check for LPD/GNUlpr
+if ((defined($opt_h)) || (defined($opt_n)) || (defined($opt_w)) ||
+    (defined($opt_l)) || (defined($opt_i))) {
+    # We have LPD or GNUlpr
+    if (($spooler ne 'lpd') && ($spooler ne 'gnulpr')) {
+	$spooler = 'lpd';
+    }
+}
+
+# Check for LPRng
+if ($opt_lprng) {
+    # We have LPRng
+    $spooler = 'lprng';
+}
+
+# LPRng delivers the option settings via the "-Z" argument
+if (defined($opt_Z)) {
+    my @lpopts = split(/,/, $opt_Z);
+    foreach $opt (@lpopts) {
+	$opt =~ s/^\s+//;
+	$opt =~ s/\s+$//;
+	if ($opt =~ /\s+/) {
+	    $opt = "\"$opt\"";
+	}
+	$optstr .= "$opt ";
+    }
+    # We have LPRng
+    $spooler = 'lprng';
+}
+
+# Job title and options for stock LPD
+if (defined($opt_j)) {
+    # An LPD
+    $jobtitle = $opt_j;
+    # Classic LPD hack
+    $optstr .= "$opt_j ";
+}
+
+# Job title
+if (defined($opt_J)) {
+    # Spooler-less, perhaps also LPD
+    $jobtitle = $opt_J;
+}
+
+# Options for spooler-less printing
+if ((defined(@opt_o)) && ($#opt_o >= 0)) {
+    foreach $opt (@opt_o) {
+	$opt =~ s/^\s+//;
+	$opt =~ s/\s+$//;
+	if ($opt =~ /\s+/) {
+	    $opt = "\"$opt\"";
+	}
+	$optstr .= "$opt ";
+    }
+    # We print without spooler
+    $spooler = 'direct';
+}
+
+# Printer for spooler-less printing
+if (!defined($opt_P) && (defined($opt_d))) {
+    $opt_P = $opt_d;
+}
+if (defined($opt_P)) {
+    $direct_printer = $opt_P;
+    $printer = $direct_printer;
+    # We print without spooler
+    $spooler = 'direct';
+}
+
+
+
+## Command line options without name
+
+# Check for PPR
+if (($ARGV[3] =~ /^\s*\d\d?\s*$/) &&
+    ($ARGV[5] =~ /^\s*\d\d?\s*$/) &&
+    (($#ARGV == 9) || ($#ARGV == 7)) &&
+    ("`pwd`" =~ m!/ppr/?$!)) {
+    # PPR calls interfaces with many command line parameters, where
+    # the forth and the sixth is a small integer number. In addition,
+    # we have 8 (PPR <= 1.31) or 10 (PPR>=1.32) command line parameters.
+    # We also check whether the current working directory is a PPR
+    # directory.
+
+    # Read interface.sh so we will know the correct exit codes and
+    # also signal.sh for the signal codes
+    my $pprinstalled = 1; # When one of the files is missing, we assume
+                          # that PPR is not installed and our guess
+                          # that PPR is the spooler is wrong.
+    my @definitions;
+    for my $file (("lib/interface.sh", "lib/signal.sh")) {
+	
+	open FILE, "$file" || do {
+	    print $logh "error opening $file.\n";
+	    $pprinstalled = 0;
+	};
+	
+	while(my $line = <FILE>) {
+	    # Translate the shell script to Perl
+	    if (($line !~ m/^\s*$/) && ($line !~ m/^\s*\#/)) {
+		$line =~ s/^\s*([^\#\s]*)/\$$1;/;
+		push (@definitions, $line);
+	    }
+	}
+	close FILE;
+    }
+
+    if ($pprinstalled) {
+
+	# Get all command line parameters
+	$ppr_printer = $ARGV[0];
+	$ppr_address = $ARGV[1];
+	$ppr_options = $ARGV[2];
+	$ppr_jobbreak = $ARGV[3];
+	$ppr_feedback = $ARGV[4];
+	$ppr_codes = $ARGV[5];
+	$ppr_jobname = $ARGV[6];
+	$ppr_routing = $ARGV[7];
+	$ppr_for = $ARGV[8];
+	$ppr_filetype = $ARGV[9];
+
+	# Common job parameters
+	$printer = $ppr_printer;
+	$jobtitle = $ppr_jobname;
+	$optstr = "$ppr_options $ppr_routing";
+
+	# Apply  the definitions loaded from PPR
+	eval join('',@definitions) || do {
+	    print $logh "unable to evaluate definitions\n";
+	    rip_die ("Error in definitions evaluation",
+		     $EXIT_PRNERR_NORETRY_BAD_SETTINGS);
+	};
+
+	# Get the path of the PPD file from the queue configuration
+	$ppdfile = `LANG=en_US; ppad show $ppr_printer | grep PPDFile`;
+	$ppdfile =~ s/PPDFile:\s+//;
+	if ($ppdfile !~ m!^/!) {
+	    $ppdfile = "../../share/ppr/PPDFiles/$ppdfile";
+	}
+
+	# We have PPR
+	$spooler = 'ppr';
+    }
+}   
+
+# CUPS
+if ($spooler eq 'cups') {
+    # Get all command line parameters
+    $cups_jobid = $ARGV[0];
+    $cups_usr = $ARGV[1];
+    $cups_jobtitle = $ARGV[2];
+    $cups_copies = $ARGV[3];
+    $cups_options = $ARGV[4];
+    $cups_filename = $ARGV[5];
+
+    # Common job parameters
+    #$printer = $cups_printer;
+    $jobtitle = $cups_jobtitle;
+    $optstr = $cups_options;
+
+    # Check for and handle inputfile vs stdin
+    if ((defined($cups_filename)) && ($cups_filename) &&
+	($cups_filename ne '-')) {
+	# We get the input from a file
+	@filelist = ($cups_filename);
+	#print $logh "Getting input from file $cups_filename\n";
+	#close STDIN;
+	#open STDIN, "< $cups_filename" or
+	#    rip_die ("Error opening input file $cups_filename",
+	#	     $EXIT_JOBERR);
+    }
+}
+
+# LPD/LPRng/GNUlpr
+if (($spooler eq 'lpd') ||
+    ($spooler eq 'lprng') || 
+    ($spooler eq 'gnulpr')) {
+
+    # Get PPD file name as the last command line argument
+    $ppdfile = $ARGV[$#ARGV];
+
+}
+
+# No spooler
+if ($spooler eq 'direct') {
+    # Which files do we want to print?
+    @filelist = @ARGV;
+}
+
+
+
+## Additional spooler-specific preparations
+
+# No spooler
+
+if ($spooler eq 'direct') {
+
+    # Path for personal Foomatic configuration
+    my $user_default_path = "$ENV{'HOME'}/.foomatic";
+
+    if (!$ppdfile) {
+	if (!$printer) {
+	    # No printer definition file selected, check whether we have a
+	    # default printer defined.
+	    for my $conf_file (("./.directconfig",
+				"./directconfig",
+				"./.config",
+				"$user_default_path/directconfig",
+				"$user_default_path/direct/.config",
+				"$configpath/directconfig",
+				"$configpath/direct/.config")) {
+		if (open CONFIG, "< $conf_file") {
+		    while (my $line = <CONFIG>) {
+			chomp $line;
+			if ($line =~ /^default\s*:\s*([^:\s]+)\s*$/) {
+			    $printer = $1;
+			    last;
+			}
+		    }
+		    close CONFIG;
+		}
+		if (defined($printer)) {
+		    last;
+		}
+	    }
+	}
+
+	# Neither in a config file nor on the command line a printer was
+	# selected.
+	if (!defined($opt_P)) {
+	    rip_die("No printer definition (option \"-P <name>\") " .
+		    "specified!", $EXIT_PRNERR_NORETRY_BAD_SETTINGS);
+	}
+	
+	# Search the PPD file
+	
+	# Search also common spooler-specific locations, this way a printer
+	# configured under a certain spooler can also be used without
+	# spooler
+	if (-r $printer) {
+	    $ppdfile = $printer;
+	} elsif (-r "${printer}.ppd") { # current dir
+	    $ppdfile = "${printer}.ppd";
+	} elsif (-r "$user_default_path/${printer}.ppd") { # user dir
+	    $ppdfile = "$user_default_path/${printer}.ppd";
+	} elsif (-r "$configpath/${printer}.ppd") { # system dir
+	    $ppdfile = "$configpath/${printer}.ppd";
+	} elsif (-r "/etc/cups/ppd/${printer}.ppd") { # CUPS config dir
+	    $ppdfile = "/etc/cups/ppd/${printer}.ppd";
+	} elsif (-r "/usr/local/etc/cups/ppd/${printer}.ppd") {
+	    $ppdfile = "/usr/local/etc/cups/ppd/${printer}.ppd";
+	} elsif (-r "/usr/share/ppr/PPDFiles/${printer}.ppd") { # PPR PPDs
+	    $ppdfile = "/usr/share/ppr/PPDFiles/${printer}.ppd";
+	} elsif (-r "/usr/local/share/ppr/PPDFiles/${printer}.ppd") {
+	    $ppdfile = "/usr/local/share/ppr/PPDFiles/${printer}.ppd";
+	} else {
+	    rip_die ("There is no readable PPD file for the printer " .
+		     "$printer, is it configured?",
+		     $EXIT_PRNERR_NORETRY_BAD_SETTINGS);
+	}
+    }
+}
+
+
+
+## Files to be printed (can be more than one for spooler-less printing)
+
+# Empty file list -> print STDIN
+if ($#filelist < 0) {
+    @filelist = ("<STDIN>");
+}
+
+# Check file list
+my $file;
+my $filecnt = 0;
+for $file (@filelist) {
+    if ($file ne "<STDIN>") {
+	if ($file =~ /^-/) {
+	    rip_die ("Invalid argument: $file",
+		     $EXIT_PRNERR_NORETRY_BAD_SETTINGS);
+	} elsif (! -r $file) {
+	    print $logh "File $file does not exist/is not readable\n";
+	    splice(@{$dat->{'args'}}, $filecnt, 1);
+	    $filecnt --;
+	}
+    }
+    $filecnt ++;
+}
+
+
+
+## Summary for debugging
+print $logh "\nParameter Summary\n";
+print $logh "-----------------\n\n";
+print $logh "Spooler: $spooler\n";
+print $logh "Printer: $printer\n";
+print $logh "PPD file: $ppdfile\n";
+print $logh "Options: $optstr\n";
+print $logh "Job title: $jobtitle\n";
+print $logh "File(s) to be printed:\n @filelist\n\n";
+
+
+
+## PPD file
 
 # Load the PPD file and build a data structure for the renderer's
 # command line and the options
@@ -204,7 +604,28 @@ my $currentargument = "";  # We are currently reading this argument
 # Parse the PPD file
 while(<PPD>) {
     # Parse keywords
-    if (m!^\*FoomaticRIPCommandLine:\s*\"(.*)$!) {
+    if (m!^\*FoomaticRIPPostPipe:\s*\"(.*)$!) {
+	# "*FoomaticRIPPostPipe: <code>"
+	my $line = $1;
+	# Store the value
+	# Code string can have multiple lines, read all of them
+	my $cmd = "";
+	while ($line !~ m!\"!) {
+	    if ($line =~ m!&&$!) {
+		# line continues in next line
+		$cmd .= substr($line, 0, -2);
+	    } else {
+		# line ends here
+		$cmd .= "$line\n";
+	    }
+	    # Read next line
+	    $line = <PPD>;
+	    chomp $line;
+	}
+	$line =~ m!^([^\"]*)\"!;
+	$cmd .= $1;
+	$postpipe = unhtmlify($cmd);
+    } elsif (m!^\*FoomaticRIPCommandLine:\s*\"(.*)$!) {
 	# "*FoomaticRIPCommandLine: <code>"
 	my $line = $1;
 	# Store the value
@@ -480,6 +901,8 @@ while(<PPD>) {
 }
 close PPD;
 
+
+
 ## Remove PostScript options, they do not need to be treated by this
 ## program, they are treated by the spooler-specific filter or by the
 ## spooler itself.
@@ -494,563 +917,685 @@ if ((!defined(@{$dat->{'args'}})) ||
     $dontparse = 1;
 }
 
-## First, for arguments with a default, stick the default in as the
-## initial value for the "header" option set, this option set consists
-## of the PPD defaults and the options set in the header part of the
-## PostScript file (all before the first page begins). Let the default
-## value of a boolean option being 0 or 1 instead of "True" or
-## "False", range-check the defaults of all options and issue warnings
-## if the values are not valid
-
-checkoptions($dat, 'default');
-copyoptions($dat, 'default', 'header');
-
 # Was the RIP command line defined in the PPD file? If not, we assume a
 # PostScript printer and do not render/translate the input data
 if (!defined($dat->{'cmd'})) {
     $dat->{'cmd'} = "cat%A%B%C%D%E%F%G%H%I%J%K%L%M%Z";
 }
 
-## Next, examine the PostScript job for traces of command-line and PJL
-## options. The spooler-specific Foomatic filter and filters of the
-## spooler stuff the settings directly into the file, they do not send
-## PPD options by the command line.
 
-# Examination strategy: read lines from STDIN until the first %%Page:
-# comment appears and save them as $psheader. This is the
-# page-independent header part of thr PostScript file. The PostScript
-# interpreter (renderer) must execute this part once before rendering
-# any assortment of pages. Then pages can be printed in any arbitrary
-# selection or order. All option settings we find here will be
-# collected in the default option set for the RIP command line.
 
-# Now the pages will be read and sent to the renderer, one after the
-# other. Every page is read into memory until the %%EndPageSetup
-# comment appears. So we can get option settings only valid for this
-# page. If we have such settings we set them in the modified command
-# set for this page.
+## Let the default value of a boolean option being 0 or 1 instead of
+## "True" or "False", range-check the defaults of all options and
+## issue warnings if the values are not valid
 
-# If the renderer is not running yet (first page) we start it with the
-# command line built from the current modified command set and send
-# the first page to it, in the end we leave the renderer running and
-# keep input and output pipes open, so that it can accept further
-# pages. If the renderer is still running from the previous page and
-# the current modified command set is the same as the one for the
-# previous page, we send the page. If the command set is different, we
-# close the renderer, re-start it with the command line built from the
-# new modified command set, send the header again, and then the page.
+checkoptions($dat, 'default');
 
-# After the last page the trailer (%%Trailer) is sent.
 
-# The output pipe of this program stays open all the time so that the
-# spooler does not assume that the job has finished when the renderer
-# is re-started.
 
-# Non DSC-conforming documents will be read until a certain line
-# number is reached. Command line or JCL options inserted later will
-# be ignored.
+## TODO: Parse options from command line ($optstr)
 
-print $logh "Reading PostScript input ...\n";
-my $maxlines = 1000;            # Maximum number of lines to be read when
-                                # the documenent is not DSC-conforming.
-                                # "$maxlines = 0" means that all will be
-                                # read and examined. If it is discovered
-                                # that the input file is DSC-conforming,
-                                # this will be set to 0.
-my $maxlinestopsstart = 200;    # That many lines are allowed until the
-                                # "%!" indicating PS comes. These additional
-                                # lines in the beginning are usually JCL
-                                # commands. The lines will be ignored by
-                                # our parsing but passed through.
-my $maxlinesforpageoptions=200; # Unfortunately, CUPS does not bracket
-                                # "PageSetup" option with "%%BeginPageSetup"
-                                # and "%%EndPageSetup", so the options can
-                                # simply stand after the page header and
-                                # before the page code, without special
-                                # marking. So buffer this amount of lines
-                                # before printing the page to check for
-                                # options.
-my $maxnondsclinesinheader=1000; # If there is a block of more lines than
-                                # this in the document header which is not
-                                # in the "%%BeginProlog...%%EndProlog" or
-                                # "%%BeginSetup...%%EndSetup" sections,
-                                # the document is not considered as
-                                # DSC-conforming and the rest gets passed
-                                # through to the renderer without further
-                                # parsing for options.
-my $nondsclines = 0;            # Amount of lines found which are not in
-                                # a section (see $maxnondsclinesinheader).
-my $nonpslines = 0;             # lines before "%!" found yet.
-my $more_stuff = 1;             # there is more stuff in stdin.
-my $linect = 0;                 # how many lines have we examined?
-my $onelinebefore = "";         # The line before the current line
-                                # (Non-DSC comments are ignored)
-my $twolinesbefore = "";        # The line two lines before the current line
-                                # (Non-DSC comments are ignored)
-my @psheader;                   # The header of the PostScript file, to be
-                                # sent after each start of the renderer
-my @psfifo;                     # The input FIFO, data which we have pulled
-                                # from stdin for examination, but not sent
-                                # to the renderer yet.
-my $passthru = 0;               # 0: write data into $psfifo; 1: pass data
-                                # directly to the renderer
-my $isdscjob = 0;               # Is the job DSC conforming
-my $inheader = 1;               # Are we still in the header, before first
-                                # "%%Page:" comment?
-my $optionset = 'header';       # Where do the option settings, which we 
-                                # have found, go?
-my $nestinglevel = 0;           # Are we in the main document (0) or in an
-                                # embedded document  bracketed by
-                                # "%%BeginDocument" and "%%EndDocument" (>0)
-                                # We do not parse the PostScript in an
-                                # embedded document.
-my $inpageheader = 0;           # Are we in the header of a page, between
-                                # "%%BeginPageSetup" and "%%EndPageSetup"
-                                # (1) or not (0).
-my $lastpassthru = 0;           # State of $passthru in previous line (to
-                                # allow debug output when $passthru
-                                # switches.
-my $ignorepageheader = 0;       # Will be set to 1 as soon as active code
-                                # (not between "%%BeginPageSetup" and
-                                # "%%EndPageSetup") appears after a
-                                # "%%Page:" comment. In this case
-                                # "%%BeginPageSetup" and "%%EndPageSetup"
-                                # is not allowed any more on this page
-                                # and will be ignored. Will be set to 0
-                                # when a new "%%Page:" comment appears.
-my $printprevpage = 0;          # We set this when encountering "%%Page:"
-                                # and the previous page is not printed
-                                # yet. Then it will printed and the
-                                # new page will be prepared in the next
-                                # run of the loop (we don't read a new
-                                # line and don't increase the $linect then).
-my $rendererhandle;             # File handle to the renderer process\
-my $rendererpid = 0;            # PID of the renderer process
-my $prologfound = 0;            # Did we find the
-                                # "%%BeginProlog...%%EndProlog" section?
-my $setupfound = 0;             # Did we find the
-                                # "%%BeginSetup...%%EndSetup" section?
-my $inprolog = 0;               # We are between "%%BeginProlog" and
-                                # "%%EndProlog".
-my $insetup = 0;                # We are between "%%BeginSetup" and
-                                # "%%EndSetup".
-my $infeature = 0;              # We are between "%%BeginFeature" and
-                                # "%%EndFeature".
-my $nondsclines = 0;            # Number of subsequent lines found which
-                                # are at a non-DSC-conforming place,
-                                # between the sections of the header.
 
-if ($dontparse) {
-    # We do not parse the PostScript to find Foomatic options, we check
-    # only whether we have PostScript.
-    $maxlines = 1;
+
+## Set the $postpipe
+
+# Set up PPR backend.
+if ($spooler eq 'ppr') {
+    # Put the backend interface into the $postpipe
+    $postpipe = "| ( interfaces/$backend \"$ppr_printer\" ".
+	"\"$ppr_address\" \"" . join(" ",@backendoptions) .
+	"\" \"$ppr_jobbreak\" \"$ppr_feedback\" " .
+	"\"$ppr_codes\" \"$ppr_jobname\" \"$ppr_routing\" " .
+	"\"$ppr_for\" \"\" )";
 }
 
-# Open debug output file
+if ($spooler eq 'cups') {
+    # No $postpipe for CUPS, even if one is defined in the PPD file
+    $postpipe = "";
+}
+
+
+
+## Open debug output file
 if ($debug) {
     open DRIVERINPUT, "> /tmp/prnjob"
 	or rip_die ("error opening /tmp/prnjob",
 		    $EXIT_PRNERR_NORETRY_BAD_SETTINGS);
 }
+    
 
-my $line;                       # Line to be read from stdin
-do {
-    my $ignoreline = 0;         # Comment line to be ignored when
-                                # determining the last active line and the
-                                # one before the last
 
-    if (($printprevpage) || ($line=<STDIN>)) {
+## From here on we have to repeat all the rest of the program for
+## every file to print
 
-	# Debug output
-	if (($debug) && (!$printprevpage)) {
-	    print DRIVERINPUT $line;
-	}
+for $file (@filelist) {
 
-        if ($linect == $nonpslines) {
-            # In the beginning should be the postscript leader, sometimes
-	    # after some JCL commands
-	    if ($line !~ m/^.?%!/) { # There can be a Windows control char
-	                             # before "%!"
-		$nonpslines ++;
-		if ($maxlines == $nonpslines) {
-		    $maxlines ++;
-		}
-		if ($nonpslines > $maxlinestopsstart) {
-		    rip_die
-			('Job does not start with "%!", is it PostScript?',
-			 $EXIT_JOBERR);
+    print $logh "
+================================================
+
+File: $file
+
+================================================
+
+";
+
+
+
+    ## If we do not print standard input, open the file to print
+    if ($file ne "<STDIN>") {
+        close STDIN;
+        open STDIN, "< $file" ||
+            die "Cannot open $file";
+    }
+
+
+
+    ## First, for arguments with a default, stick the default in as
+    ## the initial value for the "header" option set, this option set
+    ## consists of the PPD defaults and the options set in the header
+    ## part of the PostScript file (all before the first page begins).
+
+    copyoptions($dat, 'default', 'header');
+
+
+
+    ## Next, examine the PostScript job for traces of command-line and
+    ## PJL options. The spooler-specific Foomatic filter and filters
+    ## of the spooler stuff the settings directly into the file, they
+    ## do not send PPD options by the command line.
+
+    # Examination strategy: read lines from STDIN until the first
+    # %%Page: comment appears and save them as $psheader. This is the
+    # page-independent header part of thr PostScript file. The
+    # PostScript interpreter (renderer) must execute this part once
+    # before rendering any assortment of pages. Then pages can be
+    # printed in any arbitrary selection or order. All option
+    # settings we find here will be collected in the default option
+    # set for the RIP command line.
+
+    # Now the pages will be read and sent to the renderer, one after
+    # the other. Every page is read into memory until the
+    # %%EndPageSetup comment appears. So we can get option settings
+    # only valid for this page. If we have such settings we set them
+    # in the modified command set for this page.
+
+    # If the renderer is not running yet (first page) we start it with
+    # the command line built from the current modified command set and
+    # send the first page to it, in the end we leave the renderer
+    # running and keep input and output pipes open, so that it can
+    # accept further pages. If the renderer is still running from
+    # the previous page and the current modified command set is the
+    # same as the one for the previous page, we send the page. If
+    # the command set is different, we close the renderer, re-start
+    # it with the command line built from the new modified command
+    # set, send the header again, and then the page.
+
+    # After the last page the trailer (%%Trailer) is sent.
+
+    # The output pipe of this program stays open all the time so that
+    # the spooler does not assume that the job has finished when the
+    # renderer # is re-started.
+
+    # Non DSC-conforming documents will be read until a certain line
+    # number is reached. Command line or JCL options inserted later
+    # will # be ignored.
+
+    print $logh "Reading PostScript input ...\n";
+    my $maxlines = 1000;            # Maximum number of lines to be read
+                                    # when the documenent is not
+                                    # DSC-conforming. "$maxlines = 0"
+                                    # means that all will be read
+                                    # and examined. If it is
+                                    # discovered that the input file
+                                    # is DSC-conforming, this will
+                                    # be set to 0.
+
+    my $maxlinestopsstart = 200;    # That many lines are allowed until the
+                                    # "%!" indicating PS comes. These
+                                    # additional lines in the
+                                    # beginning are usually JCL
+                                    # commands. The lines will be
+                                    # ignored by our parsing but
+                                    # passed through.
+
+    my $maxlinesforpageoptions=200; # Unfortunately, CUPS does not bracket
+                                    # "PageSetup" option with
+                                    # "%%BeginPageSetup" and
+                                    # "%%EndPageSetup", so the options
+                                    # can simply stand after the
+                                    # page header and before the
+                                    # page code, without special
+                                    # marking. So buffer this amount
+                                    # of lines before printing the
+                                    # page to check for options.
+
+    my $maxnondsclinesinheader=1000; # If there is a block of more lines
+                                    # than this in the document
+                                    # header which is not in the
+                                    # "%%BeginProlog...%%EndProlog"
+                                    # or
+                                    # "%%BeginSetup...%%EndSetup"
+                                    # sections, the document is not
+                                    # considered as DSC-conforming
+                                    # and the rest gets passed
+                                    # through to the renderer without
+                                    # further parsing for options.
+
+    my $nondsclines = 0;            # Amount of lines found which are not in
+                                    # a section (see 
+                                    # $maxnondsclinesinheader).
+
+    my $nonpslines = 0;             # lines before "%!" found yet.
+
+    my $more_stuff = 1;             # there is more stuff in stdin.
+
+    my $linect = 0;                 # how many lines have we examined?
+
+    my $onelinebefore = "";         # The line before the current line
+                                    # (Non-DSC comments are ignored)
+
+    my $twolinesbefore = "";        # The line two lines before the current 
+                                    # line (Non-DSC comments are ignored)
+
+    my @psheader;                   # The header of the PostScript file, 
+                                    # to be sent after each start of the
+                                    # renderer
+
+    my @psfifo;                     # The input FIFO, data which we have
+                                    # pulled from stdin for examination,
+                                    # but not sent to the renderer yet.
+
+    my $passthru = 0;               # 0: write data into $psfifo; 1: pass
+                                    # data directly to the renderer
+
+    my $isdscjob = 0;               # Is the job DSC conforming
+
+    my $inheader = 1;               # Are we still in the header, before
+                                    # first "%%Page:" comment?
+
+    my $optionset = 'header';       # Where do the option settings, which 
+                                    # we have found, go?
+
+    my $nestinglevel = 0;           # Are we in the main document (0) or
+                                    # in an embedded document bracketed by
+                                    # "%%BeginDocument" and "%%EndDocument"
+                                    # (>0) We do not parse the PostScript
+                                    # in an embedded document.
+
+    my $inpageheader = 0;           # Are we in the header of a page,
+                                    # between "%%BeginPageSetup" and
+                                    # "%%EndPageSetup" (1) or not (0).
+
+    my $lastpassthru = 0;           # State of $passthru in previous line
+                                    # (to allow debug output when $passthru
+                                    # switches.
+
+    my $ignorepageheader = 0;       # Will be set to 1 as soon as active 
+                                    # code (not between "%%BeginPageSetup" 
+                                    # and "%%EndPageSetup") appears after a
+                                    # "%%Page:" comment. In this case
+                                    # "%%BeginPageSetup" and
+                                    # "%%EndPageSetup" is not allowed any 
+                                    # more on this page and will be ignored.
+                                    # Will be set to 0 when a new "%%Page:" 
+                                    # comment appears.
+
+    my $printprevpage = 0;          # We set this when encountering
+                                    # "%%Page:" and the previous page is not
+                                    # printed yet. Then it will printed and 
+                                    # the new page will be prepared in the
+                                    # next run of the loop (we don't read a
+                                    # new line and don't increase the
+                                    # $linect then).
+
+    my $rendererhandle;             # File handle to the renderer process\
+
+    my $rendererpid = 0;            # PID of the renderer process
+
+    my $prologfound = 0;            # Did we find the
+                                    # "%%BeginProlog...%%EndProlog" section?
+
+    my $setupfound = 0;             # Did we find the
+                                    # "%%BeginSetup...%%EndSetup" section?
+
+    my $inprolog = 0;               # We are between "%%BeginProlog" and
+                                    # "%%EndProlog".
+
+    my $insetup = 0;                # We are between "%%BeginSetup" and
+                                    # "%%EndSetup".
+
+    my $infeature = 0;              # We are between "%%BeginFeature" and
+                                    # "%%EndFeature".
+
+    my $nondsclines = 0;            # Number of subsequent lines found which
+                                    # are at a non-DSC-conforming place,
+                                    # between the sections of the header.
+
+    if ($dontparse) {
+	# We do not parse the PostScript to find Foomatic options, we check
+	# only whether we have PostScript.
+	$maxlines = 1;
+    }
+
+    my $line;                       # Line to be read from stdin
+    do {
+	my $ignoreline = 0;         # Comment line to be ignored when
+	                            # determining the last active line 
+	                            # and the one before the last
+
+	if (($printprevpage) || ($line=<STDIN>)) {
+
+	    # Debug output
+	    if (($debug) && (!$printprevpage)) {
+		print DRIVERINPUT $line;
+	    }
+
+	    if ($linect == $nonpslines) {
+		# In the beginning should be the postscript leader,
+                # sometimes after some JCL commands
+		if ($line !~ m/^.?%!/) { # There can be a Windows control 
+		                         # char before "%!"
+		    $nonpslines ++;
+		    if ($maxlines == $nonpslines) {
+			$maxlines ++;
+		    }
+		    if ($nonpslines > $maxlinestopsstart) {
+			rip_die
+			    ('Job does not start with "%!", ' . 
+			     'is it PostScript?',
+			     $EXIT_JOBERR);
+		    }
+		} else {
+		    # Do we have a DSC-conforming document?
+		    if (($line =~ m/^.?%!PS-Adobe-/) && 
+			($line !~ m/EPSF/)) {
+			# Do not stop parsing the document
+			if (!$dontparse) {
+			    $maxlines = 0;
+			    $isdscjob = 1;
+			}
+			print $logh 
+			    "--> This document is DSC-conforming!\n";
+		    }
 		}
 	    } else {
-		# Do we have a DSC-conforming document?
-		if (($line =~ m/^.?%!PS-Adobe-/) && ($line !~ m/EPSF/)) {
-		    # Do not stop parsing the document
-		    if (!$dontparse) {
-			$maxlines = 0;
-			$isdscjob = 1;
-		    }
-		    print $logh "--> This document is DSC-conforming!\n";
-		}
-	    }
-        } else {
-	    if ($line =~ m/\%\%BeginDocument[: ]/) {
-		# Beginning of an embedded document
-		# Note that Adobe Acrobat has a bug and so uses
-		# "%%BeginDocument " instead of "%%BeginDocument:"
-		$nestinglevel ++;
-		print $logh "Embedded document, " .
-		    "nesting level now: $nestinglevel\n";
-	    } elsif (($line =~ m/\%\%EndDocument/) &&
-		     ($nestinglevel > 0)) {
-		# End of an embedded document
-		$nestinglevel --;
-		print $logh "End of Embedded document, " .
-		    "nesting level now: $nestinglevel\n";
-	    } elsif (($line =~ m/\%\%BeginProlog/) &&
-		     ($nestinglevel == 0)) {
-		# Beginning of Prolog
-		$prologfound = 1;
-		$inprolog = 1;
-		$nondsclines = 0;
-		# Push options for "Prolog" onto $psfifo here
-	    } elsif (($line =~ m/\%\%EndProlog/) &&
-		     ($nestinglevel == 0)) {
-		# End of Prolog
-		$inprolog = 0;
-	    } elsif (($line =~ m/\%\%BeginSetup/) &&
-		     ($nestinglevel == 0)) {
-		# Beginning of Setup
-		$setupfound = 1;
-		$insetup = 1;
-		$nondsclines = 0;
-		# If there was no "Prolog" but there are options for
-		# the "Prolog", push a "Prolog" with these options onto
-		# the $psfifo here
-		if (!$prologfound) {
-
-		    # Now we have a "Prolog"
+		if ($line =~ m/\%\%BeginDocument[: ]/) {
+		    # Beginning of an embedded document
+		    # Note that Adobe Acrobat has a bug and so uses
+		    # "%%BeginDocument " instead of "%%BeginDocument:"
+		    $nestinglevel ++;
+		    print $logh "Embedded document, " .
+			"nesting level now: $nestinglevel\n";
+		} elsif (($line =~ m/\%\%EndDocument/) &&
+			 ($nestinglevel > 0)) {
+		    # End of an embedded document
+		    $nestinglevel --;
+		    print $logh "End of Embedded document, " .
+			"nesting level now: $nestinglevel\n";
+		} elsif (($line =~ m/\%\%BeginProlog/) &&
+			 ($nestinglevel == 0)) {
+		    # Beginning of Prolog
 		    $prologfound = 1;
-		}
-		# Push options for "DocumentSetup" or "AnySetup" onto
-		# $psfifo here
-	    } elsif (($line =~ m/\%\%EndSetup/) &&
-		     ($nestinglevel == 0)) {
-		# End of Setup
-		$insetup = 0;
-	    } elsif (($line =~ m/\%\%Page:(.*)$/) &&
-		     ($nestinglevel == 0)) {
-		if ((!$lastpassthru) && (!$inheader)) {
-		    # In the last line we were not in passthru mode,
-		    # so the last page is not printed. Prepare to do
-		    # it now.
-		    $printprevpage = 1;
-		    # Print the previous page
-		    $passthru = 1;
-		    print $logh "New page found but previous not printed," .
-			" print it now.\n";
-		} else {
-		    # The previous page is printed, so we can prepare the
-		    # current one
-		    $printprevpage = 0;
-		    print $logh "\n-----------\nNew page: $1\n";
-		    # Here begins a new page
-		    if ($inheader) {
-			# If there was no "Prolog" but there are
-			# options for the "Prolog", push a "Prolog"
-			# with these options onto the $psfifo here
-			if (!$prologfound) {
-			    
-			    # Now we have a "Prolog"
-			    $prologfound = 1;
-			}
-			# If there was no "Setup" but there are
-			# options for the "Setup", push a "Setup"
-			# with these options onto the $psfifo here
-			if (!$setupfound) {
-			    
-			    # Now we have a "setup"
-			    $setupfound = 1;
-			}
-			# The first page starts, so the header ends
-			$inheader = 0;
-			$nondsclines = 0;
-			# Option setting should go into the page-specific
-			# option set now
-			$optionset = 'currentpage';
+		    $inprolog = 1;
+		    $nondsclines = 0;
+		    # Push options for "Prolog" onto $psfifo here
+		} elsif (($line =~ m/\%\%EndProlog/) &&
+			 ($nestinglevel == 0)) {
+		    # End of Prolog
+		    $inprolog = 0;
+		} elsif (($line =~ m/\%\%BeginSetup/) &&
+			 ($nestinglevel == 0)) {
+		    # Beginning of Setup
+		    $setupfound = 1;
+		    $insetup = 1;
+		    $nondsclines = 0;
+		    # If there was no "Prolog" but there are options for
+		    # the "Prolog", push a "Prolog" with these options onto
+		    # the $psfifo here
+		    if (!$prologfound) {
+			# TODO: Insert prolog
+			# Now we have a "Prolog"
+			$prologfound = 1;
+		    }
+		    # Push options for "DocumentSetup" or "AnySetup" onto
+		    # $psfifo here
+		} elsif (($line =~ m/\%\%EndSetup/) &&
+			 ($nestinglevel == 0)) {
+		    # End of Setup
+		    $insetup = 0;
+		} elsif (($line =~ m/\%\%Page:(.*)$/) &&
+			 ($nestinglevel == 0)) {
+		    if ((!$lastpassthru) && (!$inheader)) {
+			# In the last line we were not in passthru mode,
+			# so the last page is not printed. Prepare to do
+			# it now.
+			$printprevpage = 1;
+			# Print the previous page
+			$passthru = 1;
+			print $logh "New page found but previous not " . 
+			    "printed, print it now.\n";
 		    } else {
-			# Save the option settings of the previous page
-			copyoptions($dat, 'currentpage', 'previouspage');
-			deleteoptions($dat, 'currentpage');
+			# The previous page is printed, so we can prepare
+			# the current one
+			$printprevpage = 0;
+			print $logh "\n-----------\nNew page: $1\n";
+			# Here begins a new page
+			if ($inheader) {
+			    # If there was no "Prolog" but there are
+			    # options for the "Prolog", push a "Prolog"
+			    # with these options onto the $psfifo here
+			    if (!$prologfound) {
+				# TODO: Insert prolog
+				# Now we have a "Prolog"
+				$prologfound = 1;
+			    }
+			    # If there was no "Setup" but there are
+			    # options for the "Setup", push a "Setup"
+			    # with these options onto the $psfifo here
+			    if (!$setupfound) {
+				# TODO: Insert setup
+				# Now we have a "setup"
+				$setupfound = 1;
+			    }
+			    # The first page starts, so the header ends
+			    $inheader = 0;
+			    $nondsclines = 0;
+			    # Option setting should go into the
+			    # page-specific option set now
+			    $optionset = 'currentpage';
+			} else {
+			    # Save the option settings of the previous page
+			    copyoptions($dat, 'currentpage',
+					'previouspage');
+			    deleteoptions($dat, 'currentpage');
+			}
+			# Initialize the option set
+			copyoptions($dat, 'header', 'currentpage');
+			# Now the page header comes, so buffer the data,
+			# because we must perhaps shut down and restart 
+			# the renderer
+			$passthru = 0;
+			$ignorepageheader = 0;
 		    }
-		    # Initialize the option set
-		    copyoptions($dat, 'header', 'currentpage');
-		    # Now the page header comes, so buffer the data, because
-		    # we must perhaps shut down and restart the renderer
+		} elsif (($line =~ m/\%\%BeginPageSetup/) &&
+			 ($nestinglevel == 0) &&
+			 (!$ignorepageheader))  {
+		    # Start of the page header, up to %%EndPageSetup
+		    # nothing of the page will be drawn, page-specific
+		    # option settngs (as letter-head paper for page 1)
+		    # go here
 		    $passthru = 0;
-		    $ignorepageheader = 0;
-		}
-	    } elsif (($line =~ m/\%\%BeginPageSetup/) &&
-		     ($nestinglevel == 0) &&
-		     (!$ignorepageheader))  {
-		# Start of the page header, up to %%EndPageSetup
-		# nothing of the page will be drawn, page-specific
-		# option settngs (as letter-head paper for page 1)
-		# go here
-		$passthru = 0;
-		$inpageheader = 1;		
-	    } elsif (($line =~ m/\%\%EndPageSetup/) &&
-		     ($nestinglevel == 0) &&
-		     (!$ignorepageheader)) {
-		# End of the page header, the page is ready to be printed
-		print $logh "End of page header\n";
-		$passthru = 1;
-		$inpageheader = 0;
-            } elsif ((($line =~ m/\%\%(BeginFeature):\s+\*?([^\s=]+)\s+(\S[^\r\n]*)\r?\n?$/) ||
-		      ($line =~ m/\%\%\s*(FoomaticRIPOptionSetting):\s*([^\s=]+)\s*=\s*(\S[^\r\n]*)\r?\n?$/)) &&
-		     ($nestinglevel == 0) && 
-		     ((!$passthru) || (!$isdscjob))) {
-                my ($linetype, $option, $value) = ($1, $2, $3);
+		    $inpageheader = 1;		
+		} elsif (($line =~ m/\%\%EndPageSetup/) &&
+			 ($nestinglevel == 0) &&
+			 (!$ignorepageheader)) {
+		    # End of the page header, the page is ready to be
+		    # printed
+		    print $logh "End of page header\n";
+		    $passthru = 1;
+		    $inpageheader = 0;
+		} elsif ((($line =~ m/\%\%(BeginFeature):\s+\*?([^\s=]+)\s+(\S[^\r\n]*)\r?\n?$/) ||
+			  ($line =~ m/\%\%\s*(FoomaticRIPOptionSetting):\s*([^\s=]+)\s*=\s*(\S[^\r\n]*)\r?\n?$/)) &&
+			 ($nestinglevel == 0) && 
+			 ((!$passthru) || (!$isdscjob))) {
+		    my ($linetype, $option, $value) = ($1, $2, $3);
+		    
+		    # Mark that we are in a "Feature" section
+		    if ($linetype eq 'BeginFeature') {
+			$infeature = 1;
+		    }
+		    
+		    # OK, we have an option.  If it's not a
+		    # *ostscript-style option (ie, it's command-line or
+		    # PJL) then we should note that fact, since the
+		    # attribute-to-filteroption passing in CUPS is kind of
+		    # funky, especially wrt boolean options.  
 
-		# Mark that we are in a "Feature" section
-		if ($linetype eq 'BeginFeature') {
-		    $infeature = 1;
-		}
-
-                # OK, we have an option.  If it's not a
-                # *ostscript-style option (ie, it's command-line or
-                # PJL) then we should note that fact, since the
-                # attribute-to-filteroption passing in CUPS is kind of
-                # funky, especially wrt boolean options.  
-
-		print $logh "Found: $line";
-                if ($arg=argbyname($option)) {
-		    print $logh "   Option: $option=$value";
-                    if ($arg->{'style'} ne 'G') {
-			print $logh " --> Setting option\n";
-                        if ($arg->{'type'} eq 'bool') {
-                            # Boolean options are 1 or 0
-                            if ($value eq 'True') {
-                                $arg->{$optionset} = 1;
-                            } elsif ($value eq 'False') {
-                                $arg->{$optionset} = 0;
-                            } else {
-                                print $logh "job contained boolean option",
-                                " with neither True nor False value!?";
-                            }
-                        } elsif (($arg->{'type'} eq 'enum') ||
-				 ($arg->{'type'} eq 'int') ||
-				 ($arg->{'type'} eq 'float')) {
-                            # enum options go as the value, unless 
-                            # they were Unknown...
-			    # Same with numerical options.
-
-                            if (lc($value) eq 'unknown') {
-				# Ignore "unknown" settings
-                                #$arg->{$optionset} = undef;
-                            } else {
-				if ((($option eq 'PageSize') ||
-				     ($option eq 'PageRegion')) &&
-				    ($value =~ /^Custom/)) {
-				    if ($linetype eq 'FoomaticRIPOptionSetting') {
-					$twolinesbefore =~
-					    /^\s*([\d\.]+)\s+([\d\.]+)\s+([\d\.]+)\s+([\d\.]+)\s+([\d\.]+)\s*$/;
-					my ($w, $h) = ($1, $2);
-					if (($w) && ($h) && 
-					    ($w != 0) && ($h != 0)) {
-					    $arg->{$optionset} =
-					        "$value.$wx$h";
-					}
-				    }
+		    print $logh "Found: $line";
+		    if ($arg=argbyname($option)) {
+			print $logh "   Option: $option=$value";
+			if ($arg->{'style'} ne 'G') {
+			    print $logh " --> Setting option\n";
+			    if ($arg->{'type'} eq 'bool') {
+				# Boolean options are 1 or 0
+				if ($value eq 'True') {
+				    $arg->{$optionset} = 1;
+				} elsif ($value eq 'False') {
+				    $arg->{$optionset} = 0;
 				} else {
-				    $arg->{$optionset} = $value;
+				    print $logh "job contained boolean " .
+					"option with neither True nor " .
+					"False value!?";
 				}
-                            }
-                        }
-                    } else {
-                        # it is a postscript style option, presuemably
-                        # all applied for us and such...
-			print $logh " --> Option will be set by PostScript interpreter\n";
-                    }
-		} else {
-                    # This option is unknown to us.  WTF?
-                    print $logh "unknown option $option=$value found in the job\n";
-                }
-            } elsif (($line =~ m/\%\%EndFeature/) && ($nestinglevel == 0)) {
-		# End of Feature
-		$infeature = 0;
-	    } elsif (($line =~ m/^\s*\%/) || ($line =~ m/^\s*$/)) {
-		# This is an unknown PostScript comment or a blank line,
-		# no active code
-		$ignoreline = 1;
-            } else {
-		# This line is active PostScript code
-		if ($inheader) {
-		    if ((!$inprolog) && (!$insetup)) {
-			# Outside the "Prolog" and "Setup" section
-			# a correct DSC-conforming document has no
-			# active PostScript code, so consider the
-			# file as non-DSC-conforming when there are
-			# too many of such lines.
-			$nondsclines ++;
-			if ($nondsclines > $maxnondsclinesinheader) {
-			    # Consider document as not DSC-conforming
-			    print $logh "This job seems not to be " .
-				"DSC-conforming, DSC-comment for next " .
-				"section not found, stopping to parse " .
-				"the rest, passing it directly to the " .
-				"renderer.\n";
-			    # Stop scanning for further option settings
-			    $maxlines = 1;
-			    $isdscjob = 0;
+			    } elsif (($arg->{'type'} eq 'enum') ||
+				     ($arg->{'type'} eq 'int') ||
+				     ($arg->{'type'} eq 'float')) {
+				# enum options go as the value, unless 
+				# they were Unknown...
+				# Same with numerical options.
+				
+				if (lc($value) eq 'unknown') {
+				    # Ignore "unknown" settings
+				    #$arg->{$optionset} = undef;
+				} else {
+				    if ((($option eq 'PageSize') ||
+					 ($option eq 'PageRegion')) &&
+					($value =~ /^Custom/)) {
+					if ($linetype eq 'FoomaticRIPOptionSetting') {
+					    $twolinesbefore =~
+						/^\s*([\d\.]+)\s+([\d\.]+)\s+([\d\.]+)\s+([\d\.]+)\s+([\d\.]+)\s*$/;
+					    my ($w, $h) = ($1, $2);
+					    if (($w) && ($h) && 
+						($w != 0) && ($h != 0)) {
+						$arg->{$optionset} =
+						    "$value.$wx$h";
+					    }
+					}
+				    } else {
+					$arg->{$optionset} = $value;
+				    }
+				}
+			    }
+			} else {
+			    # it is a postscript style option, presuemably
+			    # all applied for us and such...
+			    print $logh 
+				" --> Option will be set by PostScript " .
+				"interpreter\n";
 			}
+		    } else {
+			# This option is unknown to us.  WTF?
+			print $logh "unknown option $option=$value found " .
+			    "in the job\n";
 		    }
+		} elsif (($line =~ m/\%\%EndFeature/) &&
+			 ($nestinglevel == 0)) {
+		    # End of Feature
+		    $infeature = 0;
+		} elsif (($line =~ m/^\s*\%/) || ($line =~ m/^\s*$/)) {
+		    # This is an unknown PostScript comment or a blank line,
+		    # no active code
+		    $ignoreline = 1;
 		} else {
-		    if (!$inpageheader) {
-			# PostScript code inside a page, but not between
-			# "%%BeginPageSetup" and "%%EndPageSetup", so we are
-			# perhaps already drawing onto a page now
-			if ($onelinebefore =~ m/\%\%Page:/) {
-			    print $logh "No page header or page header" .
-				" not DSC-conforming\n";
+		    # This line is active PostScript code
+		    if ($inheader) {
+			if ((!$inprolog) && (!$insetup)) {
+			    # Outside the "Prolog" and "Setup" section
+			    # a correct DSC-conforming document has no
+			    # active PostScript code, so consider the
+			    # file as non-DSC-conforming when there are
+			    # too many of such lines.
+			    $nondsclines ++;
+			    if ($nondsclines > $maxnondsclinesinheader) {
+				# Consider document as not DSC-conforming
+				print $logh "This job seems not to be " .
+				    "DSC-conforming, DSC-comment for " .
+				    "next section not found, stopping " .
+				    "to parse the rest, passing it " .
+				    "directly to the renderer.\n";
+				# Stop scanning for further option settings
+				$maxlines = 1;
+				$isdscjob = 0;
+			    }
 			}
-			# Stop buffering lines to search for options placed
-			# not DSC-conforming
-			if (scalar(@psfifo) >= $maxlinesforpageoptions) {
-			    $passthru = 1;
-			    # If there comes a page header now, ignore it
-			    $ignorepageheader = 1;
+		    } else {
+			if (!$inpageheader) {
+			    # PostScript code inside a page, but not between
+			    # "%%BeginPageSetup" and "%%EndPageSetup", so 
+			    # we are perhaps already drawing onto a page now
+			    if ($onelinebefore =~ m/\%\%Page:/) {
+				print $logh "No page header or page " .
+				    "header not DSC-conforming\n";
+			    }
+			    # Stop buffering lines to search for options 
+			    # placed not DSC-conforming
+			    if (scalar(@psfifo) >= 
+				$maxlinesforpageoptions) {
+				$passthru = 1;
+				# If there comes a page header now, ignore 
+				# it
+				$ignorepageheader = 1;
+			    }
 			}
 		    }
 		}
 	    }
-        }
-	
-	# Debug info
-	if ($lastpassthru != $passthru) {
-	    if ($passthru) {
-		print $logh "Found:\n   $twolinesbefore   $onelinebefore" .
-		    "   $line" . 
-		    " --> Output goes directly to the renderer now.\n";
-	    } else {
-		print $logh "Found:\n   $twolinesbefore   $onelinebefore" .
-		    "   $line" . 
-		    " --> Output goes to the FIFO buffer now.\n";
+	    
+	    # Debug info
+	    if ($lastpassthru != $passthru) {
+		if ($passthru) {
+		    print $logh "Found:\n   $twolinesbefore" .
+			"   $onelinebefore   $line" . 
+			" --> Output goes directly to the renderer now.\n";
+		} else {
+		    print $logh "Found:\n   $twolinesbefore" .
+			"   $onelinebefore   $line" . 
+			" --> Output goes to the FIFO buffer now.\n";
+		}
 	    }
-	}
 
-	# Store or send the current line
-	if (($inheader) && ($isdscjob)) {
-	    # We are still in the PostScript header, collect all lines in
-	    # $psheader
-	    push (@psheader, $line);
-	} else {
-	    if (($passthru) && ($isdscjob)) {
-		if (!$lastpassthru) {
-		    # We enter passthru mode with this line, so the command
-		    # line can have changed, check it and close the renderer
-		    # if needed
-		    if (($rendererpid) &&
-			(!optionsequal($dat, 'currentpage',
-				       'previouspage'))) {
-			print $logh "Command line/JCL options changed, " .
-			    "restarting renderer\n";
-			$retval = closerendererhandle
-			    ($rendererhandle, $rendererpid);
+	    # Store or send the current line
+	    if (($inheader) && ($isdscjob)) {
+		# We are still in the PostScript header, collect all lines 
+		# in $psheader
+		push (@psheader, $line);
+	    } else {
+		if (($passthru) && ($isdscjob)) {
+		    if (!$lastpassthru) {
+			# We enter passthru mode with this line, so the
+			# command line can have changed, check it and
+			# close the renderer if needed
+			if (($rendererpid) &&
+			    (!optionsequal($dat, 'currentpage',
+					   'previouspage'))) {
+			    print $logh "Command line/JCL options " .
+				"changed, restarting renderer\n";
+			    $retval = closerendererhandle
+				($rendererhandle, $rendererpid);
+			    if ($retval != $EXIT_PRINTED) {
+				rip_die ("Error closing renderer",
+					 $retval);
+			    }
+			    $rendererpid = 0;
+			}
+		    }
+		    # Flush $psfifo and send line directly to the renderer
+		    if (!$rendererpid) {
+			# No renderer running, start it
+			($rendererhandle, $rendererpid) =
+			    getrendererhandle
+			    ($dat, join('', @psheader, @psfifo));
 			if ($retval != $EXIT_PRINTED) {
-			    rip_die ("Error closing renderer",
+			    rip_die ("Error opening renderer",
 				     $retval);
 			}
-			$rendererpid = 0;
+			# $psfifo is sent out, flush it.
+			@psfifo = ();
 		    }
-		}
-		# Flush $psfifo and send line directly to the renderer
-		if (!$rendererpid) {
-		    # No renderer running, start it
-		    ($rendererhandle, $rendererpid) =
-			getrendererhandle
-			($dat, join('', @psheader, @psfifo));
-		    if ($retval != $EXIT_PRINTED) {
-			rip_die ("Error opening renderer",
-				 $retval);
+		    if ($#psfifo >= 0) {
+			# Send $psfifo to renderer
+			print $rendererhandle join('', @psfifo);
+			# flush $psfifo
+			@psfifo = ();
 		    }
-		    # $psfifo is sent out, flush it.
-		    @psfifo = ();
+		    # Send line to renderer
+		    if (!$printprevpage) {
+			print $rendererhandle $line;
+		    }
+		} else {
+		    # Push the line onto the stack for later spitting up...
+		    push (@psfifo, $line);
 		}
-		if ($#psfifo >= 0) {
-		    # Send $psfifo to renderer
-		    print $rendererhandle join('', @psfifo);
-		    # flush $psfifo
-		    @psfifo = ();
-		}
-		# Send line to renderer
-		if (!$printprevpage) {
-		    print $rendererhandle $line;
-		}
-	    } else {
-		# Push the line onto the stack for later spitting up...
-		push (@psfifo, $line);
 	    }
-	}
 	    
-	if (!$printprevpage) {
-	    $linect++;
+	    if (!$printprevpage) {
+		$linect++;
+	    }
+
+	} else {
+	    # EOF!
+	    $more_stuff = 0;
 	}
 
-    } else {
-        # EOF!
-        $more_stuff = 0;
-    }
+	$lastpassthru = $passthru;
+	
+	if ((!$ignoreline) && (!$printprevpage)) {
+	    $twolinesbefore = $onelinebefore;
+	    $onelinebefore = $line;
+	}
 
-    $lastpassthru = $passthru;
+    } while ((($maxlines == 0) or ($linect < $maxlines)) and
+	     ($more_stuff != 0));
 
-    if ((!$ignoreline) && (!$printprevpage)) {
-	$twolinesbefore = $onelinebefore;
-	$onelinebefore = $line;
-    }
-
-} while ((($maxlines == 0) or ($linect < $maxlines)) and
-	 ($more_stuff != 0));
-
-if (($more_stuff != 0) || ($#psfifo >= 0)) {
-    # Flush $psfifo and send the remaining data to the renderer, this only
-    # happens with non-DSC-conforming jobs or non-Foomatic PPDs
-    if ($more_stuff) {
-	print $logh "Stopped parsing the PostScript data, ".
-	    "sending rest directly to renderer.\n";
-    } else {
-	print $logh "Flushing FIFO.\n";
-    }
-    if ($inheader) {
-	# No page initialized yet? Copy the "header" option set into the
-	# "currentpage" option set, so that the renderer will find the
-	# options settings.
-	copyoptions($dat, 'header', 'currentpage');
-    }
-    ($rendererhandle, $rendererpid) =
-	getrendererhandle($dat, join('', @psheader, @psfifo));
-    if ($retval != $EXIT_PRINTED) {
-	rip_die ("Error opening renderer",
-		 $retval);
-    }
-    if ($more_stuff) {
-        while (<STDIN>) {
-            print $rendererhandle $_;
-	    if ($debug) {
-		print DRIVERINPUT $_;
+    if (($more_stuff != 0) || ($#psfifo >= 0)) {
+	# Flush $psfifo and send the remaining data to the renderer, this
+	# only happens with non-DSC-conforming jobs or non-Foomatic PPDs
+	if ($more_stuff) {
+	    print $logh "Stopped parsing the PostScript data, ".
+		"sending rest directly to renderer.\n";
+	} else {
+	    print $logh "Flushing FIFO.\n";
+	}
+	if ($inheader) {
+	    # No page initialized yet? Copy the "header" option set into the
+	    # "currentpage" option set, so that the renderer will find the
+	    # options settings.
+	    copyoptions($dat, 'header', 'currentpage');
+	}
+	($rendererhandle, $rendererpid) =
+	    getrendererhandle($dat, join('', @psheader, @psfifo));
+	if ($retval != $EXIT_PRINTED) {
+	    rip_die ("Error opening renderer",
+		     $retval);
+	}
+	if ($more_stuff) {
+	    while (<STDIN>) {
+		print $rendererhandle $_;
+		if ($debug) {
+		    print DRIVERINPUT $_;
+		}
 	    }
-        }
+	}
+    }
+    
+    # Close the renderer
+    if ($rendererpid) {
+	$retval = closerendererhandle ($rendererhandle, $rendererpid);
+	if ($retval != $EXIT_PRINTED) {
+	    rip_die ("Error opening renderer",
+		     $retval);
+	}
     }
 }
+   
 
-# Close the renderer
-if ($rendererpid) {
-    $retval = closerendererhandle ($rendererhandle, $rendererpid);
-    if ($retval != $EXIT_PRINTED) {
-	rip_die ("Error opening renderer",
-		 $retval);
-    }
-}
 
-# Close debug output file
+## Close last input file
+close STDIN;
+
+
+
+## Close debug output file
 if ($debug) {
     close DRIVERINPUT 
 	or rip_die ("error closing /tmp/prnjob",
@@ -1058,7 +1603,8 @@ if ($debug) {
 }
 
 
-# Only for debugging
+
+## Only for debugging
 if ($debug) {
     use Data::Dumper;
     local $Data::Dumper::Purity=1;
@@ -1066,9 +1612,13 @@ if ($debug) {
     print $logh Dumper($dat);
 }
 
+
+
+## The End
 print $logh "Closing foomatic-rip.";
 
 exit $retval;
+
 
 
 ## This function runs the renderer command line and returns a file handle
@@ -1315,6 +1865,8 @@ sub getrendererhandle {
     }
 }
 
+
+
 ## Close the renderer process and wait untill all kid processes
 ## finish.
 
@@ -1390,8 +1942,20 @@ sub valbyname {
 
 sub rip_die {
     my ($message, $exitstat) = @_;
+
     print $logh "Process dieing with \"$message\", exit stat: $exitstat\n";
-    print STDERR $message . "\n";
+    if ($spooler eq 'ppr') {
+	$message =~ s/\\/\\\\/;
+	$message =~ s/\"/\\\"/;
+	@messagelines = split("\n", $message);
+	my $firstline = "TRUE";
+	for $line (@messagelines) {
+	    system("lib/alert $printer $firstline \"$line\"");
+	    $firstline = "FALSE";
+	}
+    } else {
+	print STDERR $message . "\n";
+    }
     exit $exitstat;
 }
 
@@ -1849,6 +2413,7 @@ sub buildcommandline {
 	@{$dat->{'pjlappend'}} = @pjlappend;
     }
 }
+
 
 
 # Emacs tabulator/indentation

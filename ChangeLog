@@ -1,3 +1,22 @@
+2002-11-09  Till Kamppeter <till.kamppeter@gmx.net>
+
+	* foomatic-rip.in: foomatic-rip is one filter to be used with
+	  all spoolers now (Currently CUPS works without accounting
+	  and spooler-less printing only to stdout and without
+	  inserting of command line options).
+
+	  Completed spooler auto-detection and loading of queue and
+	  job information needed for executing the job.
+
+	  Introduced loop to print more than one file per job (needed
+	  for spooler-less printing).
+
+	  Parse definition of a postpipe (command into which output of
+	  renderer will be piped) in the PPD file, using the syntax
+	  '*FoomaticRIPPostPipe: "..."'. Use of the postpipe needs still
+	  to be implemented. The postpipe is needed for LPD/LPRng/GNUlpr
+	  and spooler-less printing.
+	
 2002-11-07  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* foomatic-rip.in: foomatic-rip works also as a CUPS filter,
