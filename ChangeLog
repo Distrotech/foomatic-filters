@@ -1,3 +1,9 @@
+2003-12-21  Till Kamppeter <till.kamppeter@gmx.net>
+
+	* Makefile.in: Fixed compatibility for non-bash systems: Used
+	  "VAR=VALUE; export VAR" instead of "export VAR=VALUE" (Thanks
+	  to Florian Diesch <diesch@spamfence.net>).
+
 2003-12-01  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* configure.in, Makefile.in: Added fixes and improvements for

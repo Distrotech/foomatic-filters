@@ -105,14 +105,15 @@ build:  man
 man:
 	chmod a+rx ./makeMan
 	if [ "$(INPLACE)" = "--inplace" ]; then \
-	  export FOOMATIC_RIP=`pwd`/foomatic-rip; \
-	  export FOO_ETC=`pwd`/etc/foomatic; \
-	  export PRINTCAP=@PRINTCAP@; \
+	  FOOMATIC_RIP=`pwd`/foomatic-rip; \
+	  FOO_ETC=`pwd`/etc/foomatic; \
+	  PRINTCAP=@PRINTCAP@; \
 	else \
-	  export FOOMATIC_RIP=$(BINDIR)/foomatic-rip; \
-	  export FOO_ETC=$(ETCDIR); \
-	  export PRINTCAP=@PRINTCAP@; \
+	  FOOMATIC_RIP=$(BINDIR)/foomatic-rip; \
+	  FOO_ETC=$(ETCDIR); \
+	  PRINTCAP=@PRINTCAP@; \
 	fi; \
+	export FOOMATIC_RIP FOO_ETC PRINTCAP; \
 	./makeMan ${SRC}/*[0-9].in
 
 # Clean up the source directory
