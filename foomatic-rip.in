@@ -1068,7 +1068,7 @@ while(<PPD>) {
 	}
     } elsif (m!^\*FoomaticRIPOptionPrototype\s+([^/:\s]+):\s*\"(.*)$!) {
 	# "*FoomaticRIPOptionPrototype <option>: <code>"
-	# Used for numerical options only
+	# Used for numerical and string options only
 	my $argname = $1;
 	my $line = $2;
 	# Make sure that the argument is in the data structure
@@ -1102,6 +1102,15 @@ while(<PPD>) {
 	# Store the values
 	$dat->{'args_byname'}{$argname}{'min'} = $min;
 	$dat->{'args_byname'}{$argname}{'max'} = $max;
+    } elsif (m!^\*FoomaticRIPOptionMaxLength\s+([^/:\s]+):\s*(\S+)\s*$!) {
+	# "*FoomaticRIPOptionMaxLength <option>: <length>"
+	# Used for string options only
+	my $argname = $1;
+	my $maxlength = $2;
+	# Make sure that the argument is in the data structure
+	checkarg ($dat, $argname);
+	# Store the value
+	$dat->{'args_byname'}{$argname}{'maxlength'} = $maxlength;
     } elsif (m!^\*OrderDependency:\s*(\S+)\s+(\S+)\s+\*([^:/\s]+)\s*$!) {
 	# "*OrderDependency: <order> <section> *<option>"
 	my $order = $1;
@@ -1122,6 +1131,7 @@ while(<PPD>) {
 	$dat->{'args_byname'}{$argname}{'default'} = $default;
     } elsif (m!^\*FoomaticRIPDefault([^/:\s]+):\s*([^/:\s]+)\s*$!) {
 	# "*FoomaticRIPDefault<option>: <value>"
+	# Used for numerical options only
 	my $argname = $1;
 	my $default = $2;
 	# Make sure that the argument is in the data structure
@@ -1158,6 +1168,11 @@ while(<PPD>) {
 	    }
 	} else {
 	    checksetting ($dat, $currentargument, $setting);
+	    # Make sure that this argument has a default setting, even if 
+	    # none is defined in this PPD file
+	    if (!$dat->{'args_byname'}{$argname}{'default'}) {
+		$dat->{'args_byname'}{$argname}{'default'} = $setting;
+	    }
 	    $dat->{'args_byname'}{$currentargument}{'vals_byname'}{$setting}{'comment'} = $translation;
 	}
 	# Store the value
@@ -1330,26 +1345,31 @@ if ((!defined(@{$dat->{'args'}})) ||
     # priority, the user's change in "*Default<option>: <value>"
     # had no effect.
 
-    for $arg (@{$dat->{'args'}}) {
+    for my $arg (@{$dat->{'args'}}) {
 	if ($arg->{'fdefault'}) {
 	    if ($arg->{'default'}) {
-		next if $arg->{'type'} !~ /^(int|float)$/;
-		next if ($arg->{'fdefault'} < $arg->{'min'}) ||
-		    ($arg->{'fdefault'} > $arg->{'max'});
-		my $mindiff = abs($arg->{'max'} - $arg->{'min'});
-		my $closestvalue;
-		for $val (@{$arg->{'vals'}}) {
-		    if (abs($arg->{'fdefault'} - $val->{'value'}) <
-			$mindiff) {
-			$mindiff = 
-			    abs($arg->{'fdefault'} - $val->{'value'});
-			$closestvalue = $val->{'value'};
+		if ($arg->{'type'} =~ /^(int|float)$/) {
+		    if ($arg->{'fdefault'} < $arg->{'min'}) {
+			$arg->{'fdefault'} = $arg->{'min'};
 		    }
-		}
-		if (($arg->{'default'} == $closestvalue) ||
-		    (abs($arg->{'default'} - $closestvalue) /
-		     $closestvalue < 0.001)) {
-		    $arg->{'default'} = $arg->{'fdefault'};
+		    if ($arg->{'fdefault'} > $arg->{'max'}) {
+			$arg->{'fdefault'} = $arg->{'max'};
+		    }
+		    my $mindiff = abs($arg->{'max'} - $arg->{'min'});
+		    my $closestvalue;
+		    for $val (@{$arg->{'vals'}}) {
+			if (abs($arg->{'fdefault'} - $val->{'value'}) <
+			    $mindiff) {
+			    $mindiff = 
+				abs($arg->{'fdefault'} - $val->{'value'});
+			    $closestvalue = $val->{'value'};
+			}
+		    }
+		    if (($arg->{'default'} == $closestvalue) ||
+			(abs($arg->{'default'} - $closestvalue) /
+			 $closestvalue < 0.001)) {
+			$arg->{'default'} = $arg->{'fdefault'};
+		    }
 		}
 	    } else {
 		$arg->{'default'} = $arg->{'fdefault'};
@@ -1416,12 +1436,12 @@ $backend = "";
 @backendoptions = ();
 
 # "foo='bar nut'"
-while ($optstr =~ s!(((even|odd|[\d-,]+):|)\w+=[\'\"].+?[\'\"]) ?!!i) {
+while ($optstr =~ s!(((even|odd|[\d-,]+):|)\w+=[\'\"].*?[\'\"]) ?!!i) {
     push (@opts, $1);
 }
 
 # "foo:'bar nut'" (GPR separates option and setting with a colon ":")
-while ($optstr =~ s!(((even|odd|[\d-,]+):|)\w+:[\'\"].+?[\'\"]) ?!!i) {
+while ($optstr =~ s!(((even|odd|[\d-,]+):|)\w+:[\'\"].*?[\'\"]) ?!!i) {
     push (@opts, $1);
 }
 
@@ -1462,7 +1482,7 @@ for (@opts) {
     }
 
     my $arg;
-    if ((m!([^=]+)=\'?(.+)\'?!) || (m!([^=:]+):\'?(.+)\'?!)) {
+    if ((m!([^=]+)=\'?(.*)\'?!) || (m!([^=:]+):\'?(.*)\'?!)) {
         my ($aname, $avalue) = ($1, $2);
 
 	if (($optionset =~ /pages/) &&
@@ -2445,8 +2465,10 @@ File: $file
 				 "*$option $arg->{$optionset}\n");
 			    if ($arg->{'style'} eq 'G') {
 				# PostScript option, insert the code
+				my $sprintfproto = $arg->{'proto'};
+				$sprintfproto =~ s/\%(?!s)/\%\%/g;
 				push(@{$dest},
-				     sprintf($arg->{'proto'},
+				     sprintf($sprintfproto,
 					     $arg->{$optionset}) .
 				     "\n");
 			    } else {
@@ -3706,6 +3728,7 @@ sub getdocgeneratorhandle {
 	$boolopt, $booloptfalseprefix, $booloptleft, $booloptequal,
 	$booloptright,
 	$numopt, $numoptleft, $numoptequal, $numoptright,
+	$stropt, $stroptleft, $stroptequal, $stroptright,
 	$optsep, $trailer, $custompagesize);
     if ($spooler eq 'cups') {
 	($command,
@@ -3713,10 +3736,12 @@ sub getdocgeneratorhandle {
 	 $boolopt, $booloptfalseprefix, $booloptleft, $booloptequal,
 	 $booloptright,
 	 $numopt, $numoptleft, $numoptequal, $numoptright,
+	 $stropt, $stroptleft, $stroptequal, $stroptright,
 	 $optsep, $trailer, $custompagesize) =
 	     ("lpr -P $printerstr ",
 	      "-o ", "", "=", "",
 	      "-o ", "no", "", "=", "",
+	      "-o ", "", "=", "",
 	      "-o ", "", "=", "",
 	      " "," <file>",
 	      "\n  Custom size: -o PageSize=Custom." .
@@ -3729,10 +3754,12 @@ sub getdocgeneratorhandle {
 	 $boolopt, $booloptfalseprefix, $booloptleft, $booloptequal,
 	 $booloptright,
 	 $numopt, $numoptleft, $numoptequal, $numoptright,
+	 $stropt, $stroptleft, $stroptequal, $stroptright,
 	 $optsep, $trailer, $custompagesize) =
 	     ("lpr -P $printerstr -J \"",
 	      "", "", "=", "",
 	      "", "", "", "=", "",
+	      "", "", "=", "",
 	      "", "", "=", "",
 	      " ", "\" <file>",
 	      "\n  Custom size: PageSize=Custom." .
@@ -3745,10 +3772,12 @@ sub getdocgeneratorhandle {
 	 $boolopt, $booloptfalseprefix, $booloptleft, $booloptequal,
 	 $booloptright,
 	 $numopt, $numoptleft, $numoptequal, $numoptright,
+	 $stropt, $stroptleft, $stroptequal, $stroptright,
 	 $optsep, $trailer, $custompagesize) =
 	     ("lpr -P $printerstr ",
 	      "-o ", "", "=", "",
 	      "-o ", "", "", "=", "",
+	      "-o ", "", "=", "",
 	      "-o ", "", "=", "",
 	      " "," <file>",
 	      "\n  Custom size: -o PageSize=Custom." .
@@ -3761,10 +3790,12 @@ sub getdocgeneratorhandle {
 	 $boolopt, $booloptfalseprefix, $booloptleft, $booloptequal,
 	 $booloptright,
 	 $numopt, $numoptleft, $numoptequal, $numoptright,
+	 $stropt, $stroptleft, $stroptequal, $stroptright,
 	 $optsep, $trailer, $custompagesize) =
 	     ("lpr -P $printerstr ",
 	      "-Z ", "", "=", "",
 	      "-Z ", "", "", "=", "",
+	      "-Z ", "", "=", "",
 	      "-Z ", "", "=", "",
 	      " "," <file>",
 	      "\n  Custom size: -Z PageSize=Custom." .
@@ -3777,42 +3808,48 @@ sub getdocgeneratorhandle {
 	 $boolopt, $booloptfalseprefix, $booloptleft, $booloptequal,
 	 $booloptright,
 	 $numopt, $numoptleft, $numoptequal, $numoptright,
+	 $stropt, $stroptleft, $stroptequal, $stroptright,
 	 $optsep, $trailer, $custompagesize) =
-	     ("ppr -d $printerstr ",
-	      "-F ", "\"*", " ", "\"",
-	      "-F ", "", "\"*", " ", "\"",
-	      "-F ", "\"*", " ", "\"",
-	      " "," <file>",
-	      "\n  Custom size: -F \"*PageSize Custom\" --ripopts " .
+	     ("ppr -d $printerstr --ripopts \"",
+	      "", "", "=", "",
+	      "", "", "", "=", "",
+	      "", "", "=", "",
+	      "", "", "=", "",
+	      " ","\" <file>",
+	      "\n  Custom size: PageSize=Custom." .
 	      "<width>x<height>[<unit>]\n" .
 	      "               Units: pt (default), in, cm, mm\n" .
-	      "  Example: -F \"*PageSize Custom\" --ripopts 4.0x6.0in\n");
+	      "  Example: PageSize=Custom.4.0x6.0in\n");
     } elsif ($spooler eq 'ppr-int') {
 	($command,
 	 $enumopt, $enumoptleft, $enumoptequal, $enumoptright,
 	 $boolopt, $booloptfalseprefix, $booloptleft, $booloptequal,
 	 $booloptright,
 	 $numopt, $numoptleft, $numoptequal, $numoptright,
+	 $stropt, $stroptleft, $stroptequal, $stroptright,
 	 $optsep, $trailer, $custompagesize) =
-	     ("ppr -d $printerstr ",
-	      "-F ", "\"*", " ", "\"",
-	      "-F ", "", "\"*", " ", "\"",
-	      "-F ", "\"*", " ", "\"",
-	      " "," <file>",
-	      "\n  Custom size: -F \"*PageSize Custom\" -i " .
+	     ("ppr -d $printerstr -i \"",
+	      "", "", "=", "",
+	      "", "", "", "=", "",
+	      "", "", "=", "",
+	      "", "", "=", "",
+	      " ","\" <file>",
+	      "\n  Custom size: PageSize=Custom." .
 	      "<width>x<height>[<unit>]\n" .
 	      "               Units: pt (default), in, cm, mm\n" .
-	      "  Example: -F \"*PageSize Custom\" -i 4.0x6.0in\n");
+	      "  Example: PageSize=Custom.4.0x6.0in\n");
     } elsif ($spooler eq 'cps') {
 	($command,
 	 $enumopt, $enumoptleft, $enumoptequal, $enumoptright,
 	 $boolopt, $booloptfalseprefix, $booloptleft, $booloptequal,
 	 $booloptright,
 	 $numopt, $numoptleft, $numoptequal, $numoptright,
+	 $stropt, $stroptleft, $stroptequal, $stroptright,
 	 $optsep, $trailer, $custompagesize) =
 	     ("lpr -P $printerstr ",
 	      "-o ", "", "=", "",
 	      "-o ", "", "", "=", "",
+	      "-o ", "", "=", "",
 	      "-o ", "", "=", "",
 	      " "," <file>",
 	      "\n  Custom size: -o PageSize=Custom." .
@@ -3825,10 +3862,12 @@ sub getdocgeneratorhandle {
 	 $boolopt, $booloptfalseprefix, $booloptleft, $booloptequal,
 	 $booloptright,
 	 $numopt, $numoptleft, $numoptequal, $numoptright,
+	 $stropt, $stroptleft, $stroptequal, $stroptright,
 	 $optsep, $trailer, $custompagesize) =
 	     ("$programname -P $printerstr ",
 	      "-o ", "", "=", "",
 	      "-o ", "", "", "=", "",
+	      "-o ", "", "=", "",
 	      "-o ", "", "=", "",
 	      " "," <file>",
 	      "\n  Custom size: -o PageSize=Custom." .
@@ -3841,10 +3880,12 @@ sub getdocgeneratorhandle {
 	 $boolopt, $booloptfalseprefix, $booloptleft, $booloptequal,
 	 $booloptright,
 	 $numopt, $numoptleft, $numoptequal, $numoptright,
+	 $stropt, $stroptleft, $stroptequal, $stroptright,
 	 $optsep, $trailer, $custompagesize) =
 	     ("pdq -P $printerstr ",
 	      "-o", "", "_", "",
 	      "-o", "no", "", "_", "",
+	      "-a", "", "=", "",
 	      "-a", "", "=", "",
 	      " "," <file>",
 	      "\n" .
@@ -3923,7 +3964,9 @@ sub getdocgeneratorhandle {
 	    "${boolopt}${booloptleft}[${booloptfalseprefix}]<switch>" .
 	    "${booloptright}${optsep}" .
 	    "${numopt}${numoptleft}<num. option>${numoptequal}" .
-	    "<value>${numoptright}" .
+	    "<value>${numoptright}${optsep}" .
+	    "${stropt}${stroptleft}<string option>${stroptequal}" .
+	    "<string>${stroptright}" .
 	    "${trailer}\n\n";
     } else {
 	print "   ${command}${enumopt}${enumoptleft}<option>" .
@@ -3931,7 +3974,9 @@ sub getdocgeneratorhandle {
 	    "${boolopt}${booloptleft}<switch>${booloptequal}" .
 	    "<True/False>${booloptright}${optsep}" .
 	    "${numopt}${numoptleft}<num. option>${numoptequal}" .
-	    "<value>${numoptright}" .
+	    "<value>${numoptright}${optsep}" .
+	    "${stropt}${stroptleft}<string option>${stroptequal}" .
+	    "<string>${stroptright}" .
 	    "${trailer}\n\n";
     }
 	
@@ -3971,6 +4016,8 @@ sub getdocgeneratorhandle {
 	    $typestr = "An integer number";
 	} elsif ($type eq "float") {
 	    $typestr = "A floating point number";
+	} elsif (($type eq "string") || ($type eq "password")) {
+	    $typestr = "A string";
 	}
 
         print "Option '$name':\n$commentstr  $typestr argument\n";
@@ -4032,6 +4079,56 @@ sub getdocgeneratorhandle {
             if (!$exarg) { $exarg=0; }
             print "  Example: ${numopt}${numoptleft}${name}" .
 		"${numoptequal}${exarg}${numoptright}\n";
+        } elsif ($type eq 'string' or $type eq 'password') {
+            my $maxlength = $arg->{'maxlength'};
+            if (defined($maxlength)) {
+                print "  Maximum length: $maxlength characters\n";
+            }
+            if (defined($default)) {
+                print "  Default: $default\n";
+            }
+            print "  Examples/special settings:\n";
+            for (@{$arg->{'vals'}}) {
+                my ($value, $comment, $driverval, $proto) = 
+		    ($_->{'value'}, $_->{'comment'}, $_->{'driverval'},
+		     $arg->{'proto'});
+		# Retrieve the original string from the prototype
+		# and the driverval
+		my $string;
+		if ($proto) {
+		    my $s = index($proto, '%s');
+		    my $l = length($driverval) - length($proto) + 2;
+		    if (($s < 0) || ($l < 0)) {
+			$string = $driverval;
+		    } else {
+			$string = substr($driverval, $s, $l);
+		    }
+		} else {
+		    $string = $driverval;
+		}
+		print "   o ${stropt}${stroptleft}${name}" .
+		    "${stroptequal}${value}${stroptright}";
+		if (($value ne $string) || ($comment ne $value)) {
+		    print " (";
+		}
+		if ($value ne $string) {
+		    if ($string eq '') {
+			print "blank string";
+		    } else {
+			print "\"$string\"";
+		    }
+		}
+		if (($value ne $string) && ($comment ne $value)) {
+		    print ", ";
+		}
+		if ($value ne $comment) {
+		    print "$comment";
+		}
+		if (($value ne $string) || ($comment ne $value)) {
+		    print ")";
+		}
+		print "\n";
+            }
         }
 
         print "\n";
@@ -4269,7 +4366,7 @@ sub undossify {
 }
 
 sub checkarg {
-    # Check if there is already an argument record $argname in $dat, if
+    # Check if there is already an argument record $argname in $dat, if not,
     # create one
     my ($dat, $argname) = @_;
     return if defined($dat->{'args_byname'}{$argname});
@@ -4290,8 +4387,8 @@ sub checkarg {
 }
 
 sub checksetting {
-    # Check if there is already an argument record $argname in $dat, if
-    # create one
+    # Check if there is already an choice record $setting in the $argname
+    # argument in $dat, if not, create one
     my ($dat, $argname, $setting) = @_;
     return if 
 	defined($dat->{'args_byname'}{$argname}{'vals_byname'}{$setting});
@@ -4408,8 +4505,26 @@ sub checkoptionvalue {
 		$newvalue = $arg->{'min'}
 	    }
 	    print $logh 
-		"PPD default value $value for $name is out of " .
+		"The value $value for $name is out of " .
 		"range!\n" .
+		" --> Using $newvalue instead!\n";
+	    return $newvalue;
+	}
+    } elsif (($arg->{'type'} eq 'string') ||
+	     ($arg->{'type'} eq 'password')) {
+	if (defined($arg->{'vals_byname'}{$value})) {
+	    my $name = $arg->{'name'};
+	    print $logh 
+		"The value $value for $name is a predefined choice\n";
+	    return $value;
+	} elsif ((!defined($arg->{'maxlength'})) ||
+		 (length($value) <= $arg->{'maxlength'})) {
+	    return $value;
+	} elsif ($forcevalue) {
+	    my $name = $arg->{'name'};
+	    my $newvalue = substr($value, 0, $arg->{'maxlength'});
+	    print $logh 
+		"The value $value for $name is too long\n" .
 		" --> Using $newvalue instead!\n";
 	    return $newvalue;
 	}
@@ -4872,7 +4987,6 @@ sub buildcommandline {
 	my $section = $arg->{'section'};
 	my $userval = ($arg->{'fromcomposite'} ?
 		       $arg->{'fromcomposite'} : $arg->{$optionset});
-        
 	my $cmdvar = "";
 
 	# If we have both "PageSize" and "PageRegion" options, we kept
@@ -4910,7 +5024,7 @@ sub buildcommandline {
 		    $userval = $max;
 		}
 		my $sprintfcmd = $cmd;
-		$sprintfcmd =~ s!\%([^s])!\%\%$1!g;
+		$sprintfcmd =~ s/\%(?!s)/\%\%/g;
 		$cmdvar = sprintf($sprintfcmd,
 				  ($type eq 'int' 
 				   ? sprintf("%d", $userval)
@@ -4922,7 +5036,7 @@ sub buildcommandline {
 	    # If defined, stick the selected value into the proto and
 	    # thence into the commandline
 	    if (defined($userval)) {
-		# CUPS assumes that options with the choises "Yes", "No",
+		# CUPS assumes that options with the choices "Yes", "No",
 		# "On", "Off", "True", or "False" are boolean options and
 		# maps "-o Option=On" to "-o Option" and "-o Option=Off"
 		# to "-o noOption", which foomatic-rip maps to "0" and "1".
@@ -4977,7 +5091,7 @@ sub buildcommandline {
 		}
 		if ($found) {
 		    my $sprintfcmd = $cmd;
-		    $sprintfcmd =~ s!\%([^s])!\%\%$1!g;
+		    $sprintfcmd =~ s/\%(?!s)/\%\%/g;
 		    $cmdvar = sprintf($sprintfcmd,
 				      (defined($val->{'driverval'})
 				       ? $val->{'driverval'}
@@ -5024,6 +5138,22 @@ sub buildcommandline {
 		} else {
 		    # User gave unknown value?
 		    print $logh "Value $userval for $name is not a valid choice.\n";
+		}
+	    }
+
+	} elsif (($type eq 'string') || ($type eq 'password')) {
+	    # Stick the entered value into the proto and
+	    # thence into the commandline
+	    if (defined($userval)) {
+		my $val;
+		if ($val=valbyname($arg,$userval)) {
+		    $cmdvar = (defined($val->{'driverval'})
+				       ? $val->{'driverval'}
+				       : $val->{'value'});
+		} else {
+		    my $sprintfcmd = $cmd;
+		    $sprintfcmd =~ s/\%(?!s)/\%\%/g;
+		    $cmdvar = sprintf($sprintfcmd, $userval);
 		}
 	    }
 
@@ -5194,10 +5324,10 @@ sub buildpdqdriver {
     ## First, compute the various option/value clauses
     for $arg (@{$dat->{'args'}}) {
 
-	if ($arg->{'type'} eq 'enum') {
+	if ($arg->{'type'} eq "enum") {
 	    
-	    # Option with only one choice, omit it, foomatic-rip will
-	    # set this choice anyway.
+	    # Option with only one choice, omit it, foomatic-rip will set 
+	    # this choice anyway.
 	    next if ($#{$arg->{'vals'}} < 1);
 
 	    my $nam = $arg->{'name'};
@@ -5268,7 +5398,7 @@ sub buildpdqdriver {
 			     "legal vals.\n",
 			     "      if [ \"x\${$varn}\" == 'x$val' ]; " .
 			     "then\n",
-			     "          $varn=\"\${$varn}.\${PageWidth}" .
+			     "        $varn=\"\${$varn}.\${PageWidth}" .
 			     "x\${PageHeight}\${PageSizeUnit}\"\n",
 			     "      fi\n\n");
 		    }
@@ -5394,6 +5524,74 @@ sub buildpdqdriver {
 		 "    }\n",
 		 "  }\n\n");
 
+	} elsif ($arg->{'type'} eq 'string' or $arg->{'type'} eq 'password') {
+	    
+	    my $nam = $arg->{'name'};
+	    my $com = $arg->{'comment'};
+
+	    # Assure that the comment is not empty
+	    if (!$com) {
+		$com = $nam;
+	    }
+
+	    my $def = $arg->{$optionset};
+	    my $maxlength = $arg->{'maxlength'};
+	    my $proto = $arg->{'proto'};
+	    $arg->{'varname'} = "$nam";
+	    $arg->{'varname'} =~ s![\-\/\.]!\_!g;
+	    my $varn = $arg->{'varname'};
+
+	    my $legal;
+            if (defined($maxlength)) {
+                $legal .= "Maximum length: $maxlength characters, ";
+            }
+            $legal .= "Examples/special settings: ";
+            for (@{$arg->{'vals'}}) {
+                my ($value, $comment, $driverval) = 
+		    ($_->{'value'}, $_->{'comment'}, $_->{'driverval'});
+		# Retrieve the original string from the prototype
+		# and the driverval
+		my $string;
+		if ($proto) {
+		    my $s = index($proto, '%s');
+		    my $l = length($driverval) - length($proto) + 2;
+		    if (($s < 0) || ($l < 0)) {
+			$string = $driverval;
+		    } else {
+			$string = substr($driverval, $s, $l);
+		    }
+		} else {
+		    $string = $driverval;
+		}
+		if ($value ne $string) {
+		    $legal .= "${value}: \\\"$string\\\"";
+		} else {
+		    $legal .= "\\\"$value\\\"";
+		}
+		if ($comment && ($value ne $comment) && 
+		    ($string ne $comment) && 
+		    (($value ne 'None') || ($comment ne '(None)'))) {
+		    $legal .= " ($comment)";
+		}
+		$legal .= "; ";
+	    }
+	    $legal =~ s/; $//;
+
+	    $arg->{'legal'} = $legal;
+	    
+	    my $defstr = "";
+	    if ($def) {
+		$defstr = sprintf("    def_value \"%s\"\n", $def);
+	    }
+	    
+	    push(@driveropts,
+		 "  argument {\n",
+		 "    var = \"$varn\"\n",
+		 "    desc = \"$com\"\n",
+		 $defstr,
+		 "    help = \"$legal\"\n",
+		 "  }\n\n");
+	    
 	}
 	
     }
@@ -5446,9 +5644,11 @@ sub buildpdqdriver {
 
     for $arg (@{$dat->{'args'}}) {
 		
-	# Only numerical options need to be treated here
+	# Only numerical and string options need to be treated here
 	next if (($arg->{'type'} ne 'int') && 
-		 ($arg->{'type'} ne 'float'));
+		 ($arg->{'type'} ne 'float') &&
+		 ($arg->{'type'} ne 'string') &&
+		 ($arg->{'type'} ne 'password'));
 
 	my $comment = $arg->{'comment'};
 	my $name = $arg->{'name'};
@@ -5460,20 +5660,25 @@ sub buildpdqdriver {
 		    
 	push(@psfilter,
 	     "      # $comment\n",
-	     "      # We aren't really checking for max/min.\n",
-	     "      if [ \"x\${$varname}\" != 'x' ]; then\n",
-	     "         $varname=\" -o $name=\${$varname}\"\n",
-	     "      fi\n\n");
+	     (($arg->{'type'} eq 'int') || ($arg->{'type'} eq 'float') ?
+	      ("      # We aren't really checking for max/min,\n",
+	       "      # this is done by foomatic-rip\n",
+	       "      if [ \"x\${$varname}\" != 'x' ]; then\n  ") : ""),
+	     #"      $varname=`echo \${$varname} | perl -p -e \"s/'/'\\\\\\\\\\\\\\\\''/g\"`\n",
+	     "      $varname=\" -o $name='\${$varname}'\"\n",
+	     (($arg->{'type'} eq 'int') || ($arg->{'type'} eq 'float') ?
+	      "      fi\n" : ""),
+	     "\n");
     }
 
     # Command execution
 
     push(@psfilter,
 	 "      if ! test -e \$INPUT.ok; then\n",
-	 "        $commandline\n",
+	 "        sh -c \"$commandline\"\n",
 	 "        if ! test -e \$OUTPUT; then \n",
-	 "           echo 'Error running foomatic-rip; no output!'\n",
-	 "           exit 1\n",
+	 "          echo 'Error running foomatic-rip; no output!'\n",
+	 "          exit 1\n",
 	 "        fi\n",
 	 "      else\n",
 	 "        ln -s \$INPUT \$OUTPUT\n",

@@ -1,3 +1,7 @@
+2003-04-12  Till Kamppeter <till.kamppeter@gmx.net>
+
+	* foomatic-rip.in: Introduced string and password options.
+
 2003-04-07  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* foomatic-rip.in: Currently, the renderer is re-started whenever
