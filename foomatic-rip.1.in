@@ -125,19 +125,32 @@
 .
 
 
+.hy 0
 .TH FOOMATIC-RIP 1 "2002-11-26" "Foomatic Project"
 .SH NAME
 foomatic-rip \- Universal print filter/RIP wrapper
 .SH SYNOPSIS
 
+.SS \fRGeneral Options:
+.BI \fBfoomatic-rip\fR\ \fB[-v]\ [-q]\ [-d]\fP \fI\ <filter\ specific\ options>
+
 .SS \fRSpooler-less printing/CPS (older versions) filter:
-.BI \fBfoomatic-rip\fR\ \fB[\fB-P\fR \ \fI<printer>\fR \ | \ \fB--ppd\fR \ \fI<ppdfile>\fR \fB]\fR \ [\fB-J\fR\ \fI<jobtitle>\fR ] \ [\fB-o\fR \ \fI<option>\fB=\fI<value>\fR \ [...]] \ \fB[\fI<files>\fB]\fR
+.BI \fBfoomatic-rip\fR\ \fB[\fB-P\fR \ \fI<printer>\fR \ 
+| \ \fB--ppd\fR \ \fI<ppdfile>\fR \fB]\fR \ [\fB-J\fR\ \fI<jobtitle>\fR ]
+[\fB-o\fR \ \fI<option>\fB=\fI<value>\fR \ [...]] \ \fB[\fI<files>\fB]\fR
 
 .SS \fRCUPS filter:
 .BI \fBfoomatic-rip\fR\ \fI<jobid>\fR \ \fI<user>\fR \ \fI<jobtitle>\fR \ \fI<numcopies>\fR \ \fI<options>\fR \ \fB[\fI<file>\fB]\fR 
 
 .SS \fRLPRng filter:
-.BI \fBfoomatic-rip\fR\ \fB--lprng\fR \ \fB[\fB-J\fI<jobtitle>\fB]\fR \ \fB[\fB-Z\fI<option>\fB=\fI<value>\fB[,\fI<option>\fB=\fI<value>\fB[, \ \fB...]]\fR \ \fI<ppdfile>\fR
+.BI \fBfoomatic-rip\fR\ --lprng\  \fB[\fB-J\fI<jobtitle>\fB]\fR   \fB[\fB-Z\fI<option>\fB=\fI<value>\fB[,\fI<option>\fB=\fI<value>\fB[, \ \fB...]]\fR \ \fI<ppdfile>\fR
+.br
+
+.BI \fBfoomatic-rip\fR\ \ \fB[\fB-J\fI<jobtitle>\fB]\fR   \fB[\fB-Z\fI<option>\fB=\fI<value>\fB[,\fI<option>\fB=\fI<value>\fB[, \ \fB...]]\fR
+.br
+(printcap :pdd=<ppdfile>)
+
+.BI \fBfoomatic-rip\fR\ \fB--ppd\fR \ \fI<ppdfile>\fR   \fB[\fB-J\fI<jobtitle>\fB]\fR \ \fB[\fB-Z\fI<option>\fB=\fI<value>\fB[,\fI<option>\fB=\fI<value>\fB[, \ \fB...]]\fR
 
 .SS \fRLPD/GNUlpr filter:
 .BI \fBfoomatic-rip\fR\ \fB[\fB-w\fR\ \fI<number>\fB]\fR\ \fB[\fB-l\fR\ \fI<number>\fB]\fR\ \fB[\fB-x\fR\ \fI<number>\fB]\fR\ \fB[\fB-y\fR\ \fI<number>\fB]\fR\ \fB[\fB-i\fR\ \fI<number>\fB]\fR\ \fB[\fB-c\fB]\fR\ \fB[\fB-n\fR\ \fI<string>\fB]\fR\ \fB[\fB-h\fR\ \fI<string>\fB]\fR\ \fB[\fB-j|-J\fR\ \fI<jobtitle>\fB|\fI<options>\fB]\fR\ \fI<ppdfile>\fR
@@ -205,9 +218,29 @@ supported.
 .SH SPOOLER-LESS PRINTING
 
 .SS Options
+
+.TP 10
+.B \-v
+\fRverbose mode for debugging.
+.B WARNING:
+This will create a file in /tmp that contains the debugging information.
+This opens a security loophole and should not be used in production.
+
+.TP 10
+.B \-q
+\fRquiet mode - minimal information output
+
+.TP 10
+.B \-d
+\fRidentical to the 'opts' option, but option information is
+left in text format.  This is useful for running foomatic-rip
+from the command line to determine what the printer option are.
+The PPD file will need to be specified using the --ppd option.
+
 .TP 10
 .BI \-P \ <printer>
 \fI<printer>\fR is the configured printer which should be used for this job.
+
 .TP 10
 .BI \--ppd \ <ppdfile>
 The PPD file \fI<ppdfile>\fR should be applied for processing this job.
@@ -237,6 +270,7 @@ or \fI~/.foomatic/direct/<printer>.ppd\fR you can use it by simply specifying "-
 Put a line
 
 \fB*FoomaticRIPPostPipe: "| \fI<command>\fB"\fR
+.hy 0
 
 into the PPD file, right after \fB*PPD-Adobe: "4.3"\fR, where
 \fI<command>\fR is a command into which you wnat to re-direct the
@@ -283,9 +317,12 @@ named \fBprintserver\fR.
 
 See also http://www.linuxprinting.org/direct-doc.html
 
-.SH PRINTING WITH SPOOLER
+.SH "PRINTING WITH SPOOLER"
 
-To be done.
+See the documentation on the Linux Printing Web site:
+.ft CW
+http://www.linuxprinting.org
+\fR
 
 .SH FILES
 .PD 0
@@ -313,7 +350,7 @@ returns 0 unless something unexpected happens.
 .SH AUTHOR
 Till Kamppeter <\fItill.kamppeter@gmx.net\fR> with parts of Manfred
 Wassmanns's <\fImanolo@NCC-1701.B.Shuttle.de\fR> man pages for the
-Foomatic 2.0.x filters (\fBdirectomatic(1)\fR, \fBlpdomatic(8)\fR).
+Foomatic 2.0.x filters.
 
 .SH BUGS
 None so far.

@@ -1,3 +1,61 @@
+2003-10-20  Till Kamppeter <till.kamppeter@gmx.net>
+
+	* configure.in: For CUPS a2ps, enscript, or mpage is not needed,
+	  here texttops of CUPS is used be default. So let ./configure
+	  also check for texttops.
+
+	* tests/Makefile.in: Continue testing when comparing the result of
+	  a test with the reference file fails, give only a warning in
+	  such a case.
+
+2003-10-20  Patrick Powell <papowell@lprng.com>
+
+	* added 'use strict' and -w to the Perl options.
+
+	* fixed a large number of undefined or out of scope variable
+	  references discovered by the 'use strict' and -w.
+
+	* added 'use Cwd' to get current working directory
+
+	* Modified foomatic-rip to auto-sense the LPRng configuration.
+	  This eliminates the need for the --lprng option, unless you want
+	  to use it.  You now set the ppd_file option in the printcap to
+	  specify the location of the PPD file:
+
+	  	lp:filter=/path/to/foomatic-rip
+	  	  :ppd_file=/path/to/ppdfile
+	   or
+	  	lp:filter=/path/to/foomatic-rip --ppd=/path/to/ppdfile \
+		[options]
+	   or
+	  	lp:filter=/path/to/foomatic-rip --lprng [options] \
+		/path/to/ppdfile
+		  (legacy documented foomatic method)
+
+	  If you specify both, the command line overrides the :ppd_file
+	  New versions of the LPRng 'checkpc' program will check for the
+	  presence of the :ppd_file if it is specified.
+
+	* Modified fomatic-rip to be less 'verbose' and not put out blank
+	  lines when used with LPRng.  Changed 'dieing' to 'dying' in
+	  error messages, as well as removing some typeos in other places.
+
+	* Modified the configure.in, Makefile.in, and makeMan.in scripts
+	  to use the current/latest autoconf conventions.  Using
+	  ${INSTALL} to do installation and mkinstalldirs to create
+	  directories.  Modified the configure script to NOT override the
+	  use of sysconfdir.  You can now run the configure script from a
+	  subdirectory.  This implies that your filter.conf file will now
+	  be installed in ${sysconfdir}/foomatic/filter.conf, not in
+	  /etc/foomatic/filter.conf.  The other foomatic installation
+	  scripts should also be modified to follow this convention.
+
+	* The configure script now checks for at least one page converter
+	  (a2ps, enscript, mpage) and errors if one is not installed.
+
+	* modified the code for 'echo' to be compatible with the comments in
+	  foomatic-rip.  The filter.conf file can now set the echo program.
+	
 2003-09-13  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* foomatic-rip.in: When option settings on the last page of a job
@@ -11,8 +69,6 @@
 2003-08-21  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* foomatic-rip.in: Fix on PostScript code insertion for nested
-	  composite option. There was the possibility of an infinite loop,
-	  even without the composite options being actually nested.
 
 2003-08-14  Till Kamppeter <till.kamppeter@gmx.net>
 

@@ -23,11 +23,13 @@ mandir=@mandir@
 sysconfdir=@sysconfdir@
 
 PREFIX=$(prefix)
+SRC=@srcdir@
 
 BINDIR=$(bindir)
 SBINDIR=$(sbindir)
 MANDIR=$(mandir)
 ETCDIR=$(sysconfdir)/foomatic
+INSTALL=@INSTALL@
 
 # Paths for CUPS
 CUPS=@CUPS@
@@ -38,12 +40,8 @@ PPR=@PPR@
 PPR_INTERFACES=@PPR_INTERFACES@
 PPR_LIB=@PPR_LIB@
 
-# Genereal paths for all filter scripts
-EXEC_PATH=/usr/local/bin:/usr/bin:/bin
-LOG_PATH=/tmp
-
 # This is mainly useful for building a binary foomatic package
-DESTDIR=/
+DESTDIR=
 
 ### Probably nothing to fiddle past here
 
@@ -73,26 +71,25 @@ check-config:
 	fi
 
 install-bin: check-config
-	install -d $(DESTDIR)$(BINDIR)
-#	install -d $(DESTDIR)$(SBINDIR)
-	install -d $(DESTDIR)$(ETCDIR)
-	install -d $(DESTDIR)$(ETCDIR)/direct
-	install -d $(DESTDIR)$(CUPS_FILTERS)
-	install -d $(DESTDIR)$(PPR_INTERFACES)
-	install -d $(DESTDIR)$(PPR_LIB)
-	cp -f $(BINFILES) $(DESTDIR)$(BINDIR)
-#	cp -f $(SBINFILES) $(DESTDIR)$(SBINDIR)
+	${SRC}/mkinstalldirs $(DESTDIR)$(BINDIR)
+	${SRC}/mkinstalldirs $(DESTDIR)$(ETCDIR)/direct
+	${SRC}/mkinstalldirs $(DESTDIR)$(CUPS_FILTERS)
+	${SRC}/mkinstalldirs $(DESTDIR)$(PPR_INTERFACES)
+	${SRC}/mkinstalldirs $(DESTDIR)$(PPR_LIB)
+	${INSTALL} -m 755 $(BINFILES) $(DESTDIR)$(BINDIR)
+#	${INSTALL} -m 755 $(SBINFILES) $(DESTDIR)$(SBINDIR)
 #	Make foomatic-rip being found by CUPS and PPR
 	ln -sf $(BINDIR)/foomatic-rip $(DESTDIR)$(CUPS_FILTERS)
 	ln -sf $(BINDIR)/foomatic-rip $(DESTDIR)$(PPR_INTERFACES)
 	ln -sf $(BINDIR)/foomatic-rip $(DESTDIR)$(PPR_LIB)
-	cp -f filter.conf $(DESTDIR)$(ETCDIR)
+	${INSTALL} -m 644 ${SRC}/filter.conf $(DESTDIR)$(ETCDIR)/filter.conf.sample
+	if [ ! -f  $(DESTDIR)$(ETCDIR)/filter.conf ] ; then ${INSTALL} -m 644 ${SRC}/filter.conf $(DESTDIR)$(ETCDIR); fi;
 
 install-man: check-config
-	install -d $(DESTDIR)$(MANDIR)
-	install -d $(DESTDIR)$(MANDIR)/man1
-#	install -d $(DESTDIR)$(MANDIR)/man8
-	cp -f *.1 $(DESTDIR)$(MANDIR)/man1
+	${SRC}/mkinstalldirs $(DESTDIR)$(MANDIR)
+	${SRC}/mkinstalldirs $(DESTDIR)$(MANDIR)/man1
+#	${SRC}/mkinstalldirs $(DESTDIR)$(MANDIR)/man8
+	${INSTALL} -m 644 *.1 $(DESTDIR)$(MANDIR)/man1
 #	cp -f *.8 $(DESTDIR)$(MANDIR)/man8
 
 build:  man
@@ -100,7 +97,7 @@ build:  man
 
 man:
 	chmod a+rx ./makeMan
-	if [ "$(INPLACE)" == "--inplace" ]; then \
+	if [ "$(INPLACE)" = "--inplace" ]; then \
 	  export FOOMATIC_RIP=`pwd`/foomatic-rip; \
 	  export FOO_ETC=`pwd`/etc/foomatic; \
 	  export PRINTCAP=@PRINTCAP@; \
@@ -109,15 +106,15 @@ man:
 	  export FOO_ETC=$(ETCDIR); \
 	  export PRINTCAP=@PRINTCAP@; \
 	fi; \
-	./makeMan
+	./makeMan ${SRC}/*[0-9].in
 
 # Clean up the source directory
 clean: remove-trash
 	rm -f .testing-stamp
-	rm -f $(BINFILES:=.1) $(SBINFILES:=.8)
+	rm -f $(BINFILES:=.1) $(SBINFILES:=.8) test/*.out
 
 distclean: clean
-	rm -f $(AC_OUTPUT_FILES) config.log config.status config.cache
+	rm -f $(AC_OUTPUT_FILES) config.log config.status config.cache configure.lineno
 	rm -rf autom*.cache confdefs.h
 
 maintainer-clean: distclean
@@ -176,4 +173,7 @@ testing-clean: clean
 
 .PHONY: all check-config build install install-bin \
 	man inplace testing clean inplace-clean testing-clean distclean \
-	maintainer-clean
+	maintainer-clean tests
+
+tests:
+	cd tests; ${MAKE}

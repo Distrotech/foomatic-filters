@@ -3,9 +3,9 @@ AC_INIT(foomatic-rip.in)
 
 dnl If the user didn't specify the $sysconfdir on the command line, let it
 dnl be /etc, not /usr/local/etc or /usr/etc
-if [[ x$sysconfdir == 'x${prefix}/etc' ]]; then
-  sysconfdir=/etc
-fi
+dnl if [[ x$sysconfdir = 'x${prefix}/etc' ]]; then
+dnl   sysconfdir=/etc
+dnl fi
 
 dnl Checks for programs.
 AC_PROG_INSTALL
@@ -38,24 +38,34 @@ dnl Check for /etc/printcap
 AC_PATH_PROGS(PRINTCAP,printcap,/etc/printcap,$SYSCONFSEARCHPATH)
 
 dnl Check for /usr/lib/cups
-AC_PATH_DIRS(CUPS,cups,/usr/lib/cups,$LIBSEARCHPATH)
+AC_PATH_PROGS(CUPS,cups,/usr/lib/cups,$LIBSEARCHPATH)
 
 dnl Check for /usr/lib/cups/filter
-AC_PATH_DIRS(CUPS_FILTERS,cups/filter,/usr/lib/cups/filter,$LIBSEARCHPATH)
+AC_PATH_PROGS(CUPS_FILTERS,cups/filter,/usr/lib/cups/filter,$LIBSEARCHPATH)
 
 dnl Check for /usr/lib/ppr
-AC_PATH_DIRS(PPR,ppr,/usr/lib/ppr,$LIBSEARCHPATH)
+AC_PATH_PROGS(PPR,ppr,/usr/lib/ppr,$LIBSEARCHPATH)
 
 dnl Check for /usr/lib/ppr/interfaces
-AC_PATH_DIRS(PPR_INTERFACES,ppr/interfaces,/usr/lib/ppr/interfaces,$LIBSEARCHPATH)
+AC_PATH_PROGS(PPR_INTERFACES,ppr/interfaces,/usr/lib/ppr/interfaces,$LIBSEARCHPATH)
 
 dnl Check for /usr/lib/ppr/lib
-AC_PATH_DIRS(PPR_LIB,ppr/lib,/usr/lib/ppr/lib,$LIBSEARCHPATH)
+AC_PATH_PROGS(PPR_LIB,ppr/lib,/usr/lib/ppr/lib,$LIBSEARCHPATH)
+
+dnl Check for a2ps, enscript, mpage
+AC_PATH_PROG(A2PS,a2ps,,$BINSEARCHPATH)
+AC_PATH_PROG(ENSCRIPT,enscript,,$BINSEARCHPATH)
+AC_PATH_PROG(MPAGE,mpage,,$BINSEARCHPATH)
+AC_PATH_PROG(TEXTTOPS,texttops,,$CUPS_FILTERS)
+if test "${A2PS}" = "" -a "${ENSCRIPT}" = "" -a "${MPAGE}" = "" -a "${TEXTTOPS}" = "" ; then
+	AC_MSG_ERROR([cannot find a2ps, enscript, mpage, or CUPS' texttops.  You need to have at least one installed]);
+fi
 
 dnl AC_OUTPUT(Makefile src/Makefile)
-AC_OUTPUT(Makefile makeMan foomatic-gswrapper foomatic-rip)
+AC_OUTPUT(Makefile makeMan foomatic-gswrapper foomatic-rip tests/Makefile)
 
 dnl Finished
 echo "Finished configuring."
 echo "Type 'make' to build the package"
 echo "then 'make install' to install it."
+echo "Use 'make tests' to run some simple tests."
