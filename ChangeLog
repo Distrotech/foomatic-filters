@@ -2,11 +2,13 @@
 
 	* configure.in, makeMan.in, foomatic-rip.in: Support for IRIX.
 
+	* foomatic-rip.in: Updated comments.
+
 2003-06-25  Till Kamppeter <till.kamppeter@gmx.net>
 
-	* foomatic-rip.in: Let "echo" commands in the renderer command line
-	  being replaced by $myecho, so that printing on non-GNU systems with
-	  user-selected GNU "echo" command works.
+	* foomatic-rip.in: Let "echo" commands in the renderer command
+	  line being replaced by $myecho, so that printing on non-GNU
+	  systems with user-selected GNU "echo" command works.
 
 2003-04-29  Till Kamppeter <till.kamppeter@gmx.net>
 

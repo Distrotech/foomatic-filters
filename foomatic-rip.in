@@ -23,7 +23,12 @@ my $ripversion='$Revision$';
 # spoolers run the print filters as a special user, as "lp", not as
 # "root" or as the user who sent the job).
 
-# See http://www.linuxprinting.org/<NOT WRITTEN YET>.html
+# See http://www.linuxprinting.org/cups-doc.html
+#     http://www.linuxprinting.org/lpd-doc.html
+#     http://www.linuxprinting.org/ppr-doc.html
+#     http://www.linuxprinting.org/pdq-doc.html
+#     http://www.linuxprinting.org/direct-doc.html
+#     http://www.linuxprinting.org/ppd-doc.html
 
 # ==========================================================================
 #
