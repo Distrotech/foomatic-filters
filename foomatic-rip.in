@@ -161,8 +161,9 @@ $SIGTTOU = 22;
 #    gnulpr  - GNUlpr, an enhanced LPD (development stopped)
 #    ppr     - PPR (foomatic-rip runs as a PPR RIP)
 #    ppr_int - PPR (foomatic-rip runs as an interface)
-#    pdq     - PDQ - Print, Don't Queue
-#    direct  - Direct, spooler-less printing (also CPS)
+#    cps     - CPS - Coherent Printing System
+#    pdq     - PDQ - Print, Don't Queue (development stopped)
+#    direct  - Direct, spooler-less printing
 
 $spooler = 'direct';
 
@@ -412,7 +413,13 @@ if ($argstr =~ s/\x01-[jJ](\x01|)([^\x01]+)\x01/\x01/) {
     }
 }
 
-# Options for spooler-less printing or PDQ
+# Check for CPS
+if ($argstr =~ s/\x01--cps\x01/\x01/) {
+    # We have cps
+    $spooler = 'cps';
+}
+
+# Options for spooler-less printing, CPS, or PDQ
 while ($argstr =~ s/\x01-o(\x01|)([^\x01]+)\x01/\x01/) {
     my $opt = $2;
     $opt =~ s/^\s+//;
@@ -421,9 +428,9 @@ while ($argstr =~ s/\x01-o(\x01|)([^\x01]+)\x01/\x01/) {
 	$opt = "\"$opt\"";
     }
     $optstr .= "$opt ";
-    # If we don't print as a PPR RIP, we print without spooler (we check 
-    # for PDQ later)
-    if ($spooler ne 'ppr') {
+    # If we don't print as a PPR RIP or as a CPS filter, we print without
+    # spooler (we check for PDQ later)
+    if (($spooler ne 'ppr') || ($spooler ne 'cps')) {
 	$spooler = 'direct';
     }
 }
@@ -610,8 +617,8 @@ if (($spooler eq 'lpd') ||
 
 }
 
-# No spooler or PDQ
-if (($spooler eq 'direct') || ($spooler eq 'pdq')) {
+# No spooler, CPS, or PDQ
+if (($spooler eq 'direct') || ($spooler eq 'cps') || ($spooler eq 'pdq')) {
     # Which files do we want to print?
     @filelist = @rargs;
 }
@@ -715,9 +722,9 @@ def
     $printer = $2;
 }
 
-# No spooler/PDQ
+# No spooler, CPS, or PDQ
 
-if (($spooler eq 'direct') || ($spooler eq 'pdq')) {
+if (($spooler eq 'direct') || ($spooler eq 'cps') || ($spooler eq 'pdq')) {
 
     # Path for personal Foomatic configuration
     my $user_default_path = "$ENV{'HOME'}/.foomatic";
@@ -761,8 +768,28 @@ if (($spooler eq 'direct') || ($spooler eq 'pdq')) {
 	# Search also common spooler-specific locations, this way a printer
 	# configured under a certain spooler can also be used without
 	# spooler
+
 	if (-r $printer) {
 	    $ppdfile = $printer;
+	# CPS can have the PPD in the spool directory
+	} elsif (($spooler eq 'cps') &&
+		 (-r "/var/spool/lpd/${printer}/${printer}.ppd")) {
+	    $ppdfile = "/var/spool/lpd/${printer}/${printer}.ppd";
+	} elsif (($spooler eq 'cps') &&
+		 (-r "/var/local/spool/lpd/${printer}/${printer}.ppd")) {
+	    $ppdfile = "/var/local/spool/lpd/${printer}/${printer}.ppd";
+	} elsif (($spooler eq 'cps') &&
+		 (-r "/var/local/lpd/${printer}/${printer}.ppd")) {
+	    $ppdfile = "/var/local/lpd/${printer}/${printer}.ppd";
+	} elsif (($spooler eq 'cps') &&
+		 (-r "/var/spool/lpd/${printer}.ppd")) {
+	    $ppdfile = "/var/spool/lpd/${printer}.ppd";
+	} elsif (($spooler eq 'cps') &&
+		 (-r "/var/local/spool/lpd/${printer}.ppd")) {
+	    $ppdfile = "/var/local/spool/lpd/${printer}.ppd";
+	} elsif (($spooler eq 'cps') &&
+		 (-r "/var/local/lpd/${printer}.ppd")) {
+	    $ppdfile = "/var/local/lpd/${printer}.ppd";
 	} elsif (-r "${printer}.ppd") { # current dir
 	    $ppdfile = "${printer}.ppd";
 	} elsif (-r "$user_default_path/${printer}.ppd") { # user dir
@@ -815,9 +842,10 @@ for $file (@filelist) {
 
 
 
-## When we print without spooler do not log onto STDERR unless the "-v"
-## ('Verbose') is set or the debug mode is used
-if ((($spooler eq 'direct') || ($genpdqfile)) && (!$verbose) && (!$debug)) {
+## When we print without spooler or with CPS do not log onto STDERR unless 
+## the "-v" ('Verbose') is set or the debug mode is used
+if ((($spooler eq 'direct') || ($spooler eq 'cps') || ($genpdqfile)) && 
+    (!$verbose) && (!$debug)) {
     close $logh;
     open LOG, "> /dev/null";
     $logh = *LOG;
@@ -1585,6 +1613,12 @@ if ($spooler eq 'ppr_int') {
 if (($spooler eq 'cups') || ($spooler eq 'pdq')) {
     # No $postpipe for CUPS or PDQ, even if one is defined in the PPD file
     $postpipe = "";
+}
+
+# CPS needs always a $postpipe, set the default one for local printing
+# if none is set
+if (($spooler eq 'cps') && !$postpipe) {
+    $postpipe = "| cat - > \$LPDDEV";
 }
 
 if ($postpipe) {
@@ -3549,6 +3583,22 @@ sub getdocgeneratorhandle {
 	      "<width>x<height>[<unit>]\n" .
 	      "               Units: pt (default), in, cm, mm\n" .
 	      "  Example: -F \"*PageSize Custom\" -i 4.0x6.0in\n");
+    } elsif ($spooler eq 'cps') {
+	($command,
+	 $enumopt, $enumoptleft, $enumoptequal, $enumoptright,
+	 $boolopt, $booloptfalseprefix, $booloptleft, $booloptequal,
+	 $booloptright,
+	 $numopt, $numoptleft, $numoptequal, $numoptright,
+	 $optsep, $trailer, $custompagesize) =
+	     ("lpr -P $printerstr ",
+	      "-o ", "", "=", "",
+	      "-o ", "", "", "=", "",
+	      "-o ", "", "=", "",
+	      " "," <file>",
+	      "\n  Custom size: -o PageSize=Custom." .
+	      "<width>x<height>[<unit>]\n" .
+	      "               Units: pt (default), in, cm, mm\n" .
+	      "  Example: -o PageSize=Custom.4.0x6.0in\n");
     } elsif ($spooler eq 'direct') {
 	($command,
 	 $enumopt, $enumoptleft, $enumoptequal, $enumoptright,
