@@ -1,3 +1,30 @@
+2003-04-06  Till Kamppeter <till.kamppeter@gmx.net>
+
+	* foomatic-rip.in: Added support for applying options only to
+	  selected pages via the command line. Now options can be
+	  preceeded by a page specification:
+
+	  CUPS, GNUlpr, CPS, no spooler:
+	    lpr -o 1:InputSlot=Letterhead
+	    lpr -o even:Watermark=on
+	    lpr -o 1,6-10,15,20-:MediaType=YellowPaper
+
+	  LPRng:
+	    lpr -Z 1-2:MediaType=Cardboard
+
+	  LPD:
+	    lpr -J "1,6-10,15,20-:MediaType=YellowPaper"
+
+	  PPR (RIP):
+	    ppr --ripopts "1:InputSlot=Letterhead"
+
+	  PPR (Interface)
+	    ppr -i "1:InputSlot=Letterhead"
+
+	  The syntax is "even", "odd", or giving comma-separated page
+	  numbers or page ranges. Applying options to selected pages with
+	  PDQ is not supported.
+	    
 2003-03-22  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* *: Tagged CVS for the release of foomatic-filters 3.0.0beta2. 

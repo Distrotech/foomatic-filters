@@ -1401,6 +1401,8 @@ copyoptions($dat, 'default', 'userval');
 
 # The options are "foo='bar nut'", "foo", "nofoo", "'bar nut'", or
 # "foo:'bar nut'" (when GPR was used) all with spaces between...
+# In addition they can be preceeded by page ranges, separated with a
+# colon.
 
 my @opts;
 
@@ -1414,12 +1416,12 @@ $backend = "";
 @backendoptions = ();
 
 # "foo='bar nut'"
-while ($optstr =~ s!(\w+=[\'\"].+?[\'\"]) ?!!) {
+while ($optstr =~ s!(((even|odd|[\d-,]+):|)\w+=[\'\"].+?[\'\"]) ?!!i) {
     push (@opts, $1);
 }
 
 # "foo:'bar nut'" (GPR separates option and setting with a colon ":")
-while ($optstr =~ s!(\w+:[\'\"].+?[\'\"]) ?!!) {
+while ($optstr =~ s!(((even|odd|[\d-,]+):|)\w+:[\'\"].+?[\'\"]) ?!!i) {
     push (@opts, $1);
 }
 
@@ -1450,9 +1452,28 @@ for (@opts) {
 	next;
     }
 
+    # Is the command line option limited to certain page ranges? If so,
+    # mark the setting with a hash key containing the ranges
+    my $optionset;
+    if (s/^(even|odd|[\d-,]+)://i) {
+	$optionset = "pages:$1";
+    } else {
+	$optionset = 'userval';
+    }
+
     my $arg;
     if ((m!([^=]+)=\'?(.+)\'?!) || (m!([^=:]+):\'?(.+)\'?!)) {
         my ($aname, $avalue) = ($1, $2);
+
+	if (($optionset =~ /pages/) &&
+	    ($arg = argbyname($aname)) &&
+	    ((!defined($arg->{'section'})) ||
+	     ($arg->{'section'} !~ /^(Any|Page)Setup/))) {
+	    print $logh "This option is not a \"PageSetup\" or " .
+		"\"AnySetup\" option, so it cannot be restricted to " .
+		"a page range.\n";
+	    next;
+	}
 
 	# At first look for the "backend" option to determine the PPR
 	# backend to use
@@ -1479,38 +1500,38 @@ for (@opts) {
             for (@values) {
                 if ($dat->{'args_byname'}{'PageSize'} and
                     $val=valbyname($dat->{'args_byname'}{'PageSize'},$_)) {
-                    $dat->{'args_byname'}{'PageSize'}{'userval'} = 
+                    $dat->{'args_byname'}{'PageSize'}{$optionset} = 
                         $val->{'value'};
 		    # Keep "PageRegion" in sync
 		    if ($dat->{'args_byname'}{'PageRegion'} and
 			$val=valbyname($dat->{'args_byname'}{'PageRegion'},
 				       $_)) {
-			$dat->{'args_byname'}{'PageRegion'}{'userval'} = 
+			$dat->{'args_byname'}{'PageRegion'}{$optionset} = 
 			    $val->{'value'};
 		    }
                 } elsif ($dat->{'args_byname'}{'PageSize'} 
 			 and /^Custom/) {
-		    $dat->{'args_byname'}{'PageSize'}{'userval'} = $_;
+		    $dat->{'args_byname'}{'PageSize'}{$optionset} = $_;
 		    # Keep "PageRegion" in sync
 		    if ($dat->{'args_byname'}{'PageRegion'}) {
-			$dat->{'args_byname'}{'PageRegion'}{'userval'} = 
+			$dat->{'args_byname'}{'PageRegion'}{$optionset} = 
 			    $_;
 		    }
                 } elsif ($dat->{'args_byname'}{'MediaType'} and
                          $val=valbyname($dat->{'args_byname'}{'MediaType'},
 					$_)) {
-                    $dat->{'args_byname'}{'MediaType'}{'userval'} =
+                    $dat->{'args_byname'}{'MediaType'}{$optionset} =
                         $val->{'value'};
                 } elsif ($dat->{'args_byname'}{'InputSlot'} and
                          $val=valbyname($dat->{'args_byname'}{'InputSlot'},
 					$_)) {
-                    $dat->{'args_byname'}{'InputSlot'}{'userval'} = 
+                    $dat->{'args_byname'}{'InputSlot'}{$optionset} = 
                         $val->{'value'};
                 } elsif (lc($_) eq 'manualfeed') {
                     # Special case for our typical boolean manual
                     # feeder option if we didn't match an InputSlot above
                     if (defined($dat->{'args_byname'}{'ManualFeed'})) {
-                        $dat->{'args_byname'}{'ManualFeed'}{'userval'} = 1;
+                        $dat->{'args_byname'}{'ManualFeed'}{$optionset} = 1;
                     }
                 } else {
                     print $logh "Unknown \"media\" component: \"$_\".\n";
@@ -1522,22 +1543,22 @@ for (@opts) {
                 if (defined($dat->{'args_byname'}{'Duplex'})) {
 		    # We set "Duplex" to '1' here, the real argument setting
 		    # will be done later
-                    $dat->{'args_byname'}{'Duplex'}{'userval'} = '1';
+                    $dat->{'args_byname'}{'Duplex'}{$optionset} = '1';
 		    # Check the binding: "long edge" or "short edge"
 		    if ($avalue =~ m!long-edge!i) {
 			if (defined($dat->{'args_byname'}{'Binding'})) {
-			    $dat->{'args_byname'}{'Binding'}{'userval'} =
+			    $dat->{'args_byname'}{'Binding'}{$optionset} =
       $dat->{'args_byname'}{'Binding'}{'vals_byname'}{'LongEdge'}{'value'};
 			} else {
-			    $dat->{'args_byname'}{'Duplex'}{'userval'} = 
+			    $dat->{'args_byname'}{'Duplex'}{$optionset} = 
 				'LongEdge';
 			}
 		    } elsif ($avalue =~ m!short-edge!i) {
 			if (defined($dat->{'args_byname'}{'Binding'})) {
-			    $dat->{'args_byname'}{'Binding'}{'userval'} =
+			    $dat->{'args_byname'}{'Binding'}{$optionset} =
       $dat->{'args_byname'}{'Binding'}{'vals_byname'}{'ShortEdge'}{'value'};
 			} else {
-			    $dat->{'args_byname'}{'Duplex'}{'userval'} = 
+			    $dat->{'args_byname'}{'Duplex'}{$optionset} = 
 				'ShortEdge';
 			}
 		    }
@@ -1546,7 +1567,7 @@ for (@opts) {
                 if (defined($dat->{'args_byname'}{'Duplex'})) {
 		    # We set "Duplex" to '0' here, the real argument setting
 		    # will be done later
-                    $dat->{'args_byname'}{'Duplex'}{'userval'} = '0';
+                    $dat->{'args_byname'}{'Duplex'}{$optionset} = '0';
                 }
             }
 
@@ -1557,15 +1578,15 @@ for (@opts) {
 
         } else {
             # Various non-standard printer-specific options
-            if ($arg=argbyname($aname)) {
+            if ($arg = argbyname($aname)) {
 		if (defined(my $newvalue =
 		    checkoptionvalue($dat, $aname, $avalue, 0))) {
 		    # If the choice is valid, use it, otherwise
 		    # ignore it.
-		    $arg->{'userval'} = $newvalue;
+		    $arg->{$optionset} = $newvalue;
 		    # If this argument is PageSize or PageRegion,
 		    # also set the other
-		    syncpagesize($dat, $aname, $avalue, 'userval');
+		    syncpagesize($dat, $aname, $avalue, $optionset);
 		} else {
 		    # Invalid choice, make log entry
 		    print $logh "Invalid choice $aname=$avalue.\n";
@@ -1584,21 +1605,21 @@ for (@opts) {
 	if (($w != 0) && ($h != 0) &&
 	    ($arg=argbyname("PageSize")) &&
 	    (defined($arg->{'vals_byname'}{'Custom'}))) {
-            $arg->{'userval'} = "Custom.${w}x${h}${u}";
+            $arg->{$optionset} = "Custom.${w}x${h}${u}";
 	    # Keep "PageRegion" in sync
 	    if ($dat->{'args_byname'}{'PageRegion'}) {
-		$dat->{'args_byname'}{'PageRegion'}{'userval'} = 
-		    $arg->{'userval'};
+		$dat->{'args_byname'}{'PageRegion'}{$optionset} = 
+		    $arg->{$optionset};
 	    }
 	}
     } elsif ((m!^\s*no(.+)\s*$!i) and ($arg=argbyname($1))) {
         # standard bool args:
         # landscape; what to do here?
         # duplex; we should just handle this one OK now?
-	$arg->{'userval'} = 0;
+	$arg->{$optionset} = 0;
     } elsif (m!^\s*(.+)\s*$!) {
         if ($arg=argbyname($1)) {
-            $arg->{'userval'} = 1;
+            $arg->{$optionset} = 1;
         } else {
             print $logh "Unknown boolean option \"$1\".\n";
         }
@@ -2020,6 +2041,9 @@ File: $file
                                     # number of the line with the
                                     # magic string.
 
+    my $currentpage = 0;            # The page which we are currently
+                                    # printing.
+
     if ($dontparse) {
 	# We do not parse the PostScript to find Foomatic options, we check
 	# only whether we have PostScript.
@@ -2230,6 +2254,8 @@ File: $file
 			# the current one
 			$printprevpage = 0;
 			print $logh "\n-----------\nNew page: $1\n";
+			# Count pages
+			$currentpage ++;
 			# We consider the beginning of the page already as
 			# page setup section, as some apps do not use
 			# "%%PageSetup" tags.
@@ -2272,6 +2298,9 @@ File: $file
 			}
 			# Initialize the option set
 			copyoptions($dat, 'header', 'currentpage');
+			# Set command line options which apply only
+			# given pages
+			setoptionsforpage($dat, 'currentpage', $currentpage);
 			$pagesetupfound = 0;
 			if ($spooler eq 'cups') {
 			    # Remove the "notfirst" flag from all options
@@ -2285,15 +2314,14 @@ File: $file
 				    delete($arg->{'notfirst'});
 				}
 			    }
-			} else {
-			    # Insert PostScript option settings
-			    # (options for section "PageSetup".
-			    if ($isdscjob) {
-				$line .= 
-				    makepagesetupsection($dat, $optionset,
-							 0);
-				$pagesetupfound = 1;
-			    }
+			}
+			# Insert PostScript option settings
+			# (options for section "PageSetup".
+			if ($isdscjob) {
+			    $line .= 
+				makepagesetupsection($dat, $optionset,
+						     0);
+			    $pagesetupfound = 1;
 			}
 			# Now the page header comes, so buffer the data,
 			# because we must perhaps shut down and restart 
@@ -2349,7 +2377,7 @@ File: $file
 		    # OK, we have an option.  If it's not a
 		    # *ostscript-style option (ie, it's command-line or
 		    # JCL) then we should note that fact, since the
-		    # attribute-to-filteroption passing in CUPS is kind of
+		    # attribute-to-filter option passing in CUPS is kind of
 		    # funky, especially wrt boolean options.  
 
 		    print $logh "Found: $line";
@@ -2359,49 +2387,58 @@ File: $file
 			if (($spooler eq 'cups') &&
 			    ($linetype eq 'BeginFeature') &&
 			    (!defined($arg->{'notfirst'})) &&
-			    (($arg->{'type'} eq 'int') ||
-			     ($arg->{'type'} eq 'float'))) {
-			    # We have the first occurence of a numerical
+			    ($arg->{$optionset} != $value) &&
+			    (($inheader) ||
+			     ($arg->{section} eq 'PageSetup'))) {
+			    # We have the first occurence of an
 			    # option setting and the spooler is CUPS,
 			    # so this setting is inserted by "pstops".
-			    # As "pstops" ignores settings of numerical
-			    # options which are not one of the choices
-			    # in the PPD file, and inserts the default
-			    # value instead, we must fix this here
-			    # replacing the setting inserted by "pstops"
-			    # with the exact setting given on the command
-			    # line.
-			    if ($arg->{$optionset} != $value) {
-				# The value from the command line was not
-				# inserted by "pstops" so it seems to be
-				# not under the choices in the PPD.
-				# $arg->{$optionset} is already 
-				# range-checked, so do not check again here
-				# Insert DSC comment
-				my $dest = ((($inheader) && ($isdscjob)) ?
-					    \@psheader : \@psfifo);
+			    # The value from the command line was not
+			    # inserted by "pstops" so it seems to be
+			    # not under the choices in the PPD.
+			    # Possible reasons:
+			    #
+			    # - "pstops" ignores settings of numerical
+			    #   options which are not one of the choices
+			    #   in the PPD file, and inserts the default
+			    #   value instead.
+			    #
+			    # - On the command line an option was applied
+			    #   only to selected pages:
+			    #    "-o <page ranges>:<option>=<values>
+			    #   This is not supported by CUPS, so not
+			    #   taken care of by "pstops".
+			    #
+                            # We must fix this here by replacing the setting
+			    # inserted by "pstops" with the exact setting
+			    # given on the command line.
+			    
+			    # $arg->{$optionset} is already 
+			    # range-checked, so do not check again here
+			    # Insert DSC comment
+			    my $dest = ((($inheader) && ($isdscjob)) ?
+					\@psheader : \@psfifo);
+			    push(@{$dest},
+				 "%%BeginFeature: " .
+				 "*$option $arg->{$optionset}\n");
+			    if ($arg->{'style'} eq 'G') {
+				# PostScript option, insert the code
 				push(@{$dest},
-				     "%%BeginFeature: " .
-				     "*$option $arg->{$optionset}\n");
-				if ($arg->{'style'} eq 'G') {
-				    # PostScript option, insert the code
-				    push(@{$dest},
-					 sprintf($arg->{'proto'},
-						 $arg->{$optionset}) .
-					 "\n");
-				} else {
-				    # Cmmand line or JCL option
-				    push(@{$dest},
-					 "%% FoomaticRIPOptionSetting: " .
-					 "$option=$arg->{$optionset}\n");
-				}
-				print $logh " --> Correcting numerical " .
-				    "option to $option=$arg->{$optionset}" .
-				    " (Command line argument)\n";
-				# We have replaced this option on the 
-				# FIFO
-				$optionreplaced = 1;
+				     sprintf($arg->{'proto'},
+					     $arg->{$optionset}) .
+				     "\n");
+			    } else {
+				# Command line or JCL option
+				push(@{$dest},
+				     "%% FoomaticRIPOptionSetting: " .
+				     "$option=$arg->{$optionset}\n");
 			    }
+			    print $logh " --> Correcting numerical " .
+				"option to $option=$arg->{$optionset}" .
+				" (Command line argument)\n";
+			    # We have replaced this option on the 
+			    # FIFO
+			    $optionreplaced = 1;
 			}
 			# Mark that we have already found this option
 			$arg->{'notfirst'} = 1;
@@ -2650,7 +2687,7 @@ File: $file
 			# close the renderer if needed
 			if (($rendererpid) &&
 			    (!optionsequal($dat, 'currentpage',
-					   'previouspage'))) {
+					   'previouspage', 0))) {
 			    print $logh "Command line/JCL options " .
 				"changed, restarting renderer\n";
 			    $retval = closerendererhandle
@@ -4455,10 +4492,12 @@ sub optionsequal {
 
     ## Compare two option sets, if they are equal, return 1, otherwise 0
 
-    # Option sets to be compared
-    my ($dat, $firstoptionset, $secondoptionset) = @_;
+    # Option sets to be compared, flag to compare only command line and JCL
+    # options
+    my ($dat, $firstoptionset, $secondoptionset, $exceptPS) = @_;
 
     for $arg (@{$dat->{'args'}}) {
+	next if ($exceptPS && ($arg->{'style'} eq 'G'));
 	if ((defined($arg->{$firstoptionset})) &&
 	    (defined($arg->{$secondoptionset}))) {
 	    # Both entries exist
@@ -4555,10 +4594,12 @@ sub makepagesetupsection {
     }
 
     # Generate the option code (not necessary when CUPS is spooler)
+    print $logh "Inserting option code into \"PageSetup\" section.\n";
+    buildcommandline ($dat, $optionset);
     if ($spooler ne 'cups') {
-	print $logh "Inserting option code into \"PageSetup\" section.\n";
-	buildcommandline ($dat, $optionset);
 	push(@output, @{$dat->{'pagesetupprepend'}});
+    } else {
+	push(@output, @{$dat->{'cupspagesetupprepend'}});
     }
 
     # End comment
@@ -4567,6 +4608,160 @@ sub makepagesetupsection {
     }
 
     return join('', @output);
+}
+
+sub parsepageranges {
+
+    ## Parse a string containing page ranges and either check whether a
+    ## given page is in the ranges or, if the given page number is zero,
+    ## determine the score how specific this page range string is.
+
+    # String with page ranges and number of current page (0 for score)
+    my ($ranges, $page) = @_;
+    
+    my $currentnumber = 0;
+    my $rangestart = 0;
+    my $currentkeyword = '';
+    my $invalidrange = 0;
+    my $totalscore = 0;
+    my $pageinside = 0;
+    my $currentrange = '';
+
+    my $evaluaterange = sub {
+	# evaluate the current range: determine its score and whether the
+	# current page is member of it.
+	if ($invalidrange) {
+	    # Range is invalid, issue a warning
+	    print $logh "   Invalid range: $currentrange\n";
+	} else {
+	    # We have a valid range, evaluate it
+	    if ($currentkeyword) {
+		if ($currentkeyword =~ /^even/i) {
+		    # All even-numbered pages
+		    $totalscore += 50000;
+		    $pageinside = 1 if (($page % 2) == 0);
+		} elsif ($currentkeyword =~ /^odd/i) {
+		    # All odd-numbered pages
+		    $totalscore += 50000;
+		    $pageinside = 1 if (($page % 2) == 1);
+		} else {
+		    # Invalid range
+		    print $logh "   Invalid range: $currentrange\n";
+		}
+	    } elsif (($rangestart == 0) && ($currentnumber > 0)) {
+		# Page range is a single page
+		$totalscore += 1;
+		$pageinside = 1 if ($page == $currentnumber);
+	    } elsif (($rangestart > 0) && ($currentnumber > 0)) {
+		# Page range is a sequence of pages
+		$totalscore += (abs($currentnumber - $rangestart) + 1);
+		if ($currentnumber < $rangestart) {
+		    my $tmp = $currentnumber;
+		    $currentnumber = $rangestart;
+		    $rangestart = $tmp;
+		}
+		$pageinside = 1 if (($page <= $currentnumber) &&
+				    ($page >= $rangestart));
+	    } elsif ($rangestart > 0) {
+		# Page range goes to the end of the document
+		$totalscore += 100000;
+		$pageinside = 1 if ($page >= $rangestart);
+	    } else {
+		# Invalid range
+		print $logh "   Invalid range: $currentrange\n";
+	    }
+	}
+	# Range is evaluated, remove all recordings of the current range
+	$rangestart = 0;
+	$currentnumber = 0;
+	$currentkeyword = '';
+	$invalidrange = 0;
+	$currentrange = '';
+    };
+
+    for (my $i = 0; $i < length($ranges); $i ++) {
+	my $c = substr($ranges, $i, 1);
+	if (!$invalidrange) {
+	    if ($c =~ /\d/) {
+		# Digit
+		if ($currentkeyword) {
+		    # Add to keyword
+		    $currentkeyword .= $c;
+		} else {
+		    # Build a page number
+		    $currentnumber *= 10;
+		    $currentnumber += $c;
+		}
+	    } elsif ($c =~ /[a-z_]/i) {
+		# Letter or underscore
+		if (($rangestart > 0) || ($rangeend > 0) ||
+		    ($currentnumber > 0)) {
+		    # Keyword not allowed after a page number or a
+		    # page range
+		    $invalidrange = 1;
+		} else {
+		    # Build a keyword
+		    $currentkeyword .= $c;
+		}
+	    } elsif ($c eq '-') {
+		# Page range 
+		if (($rangestart > 0) || ($currentkeyword)) {
+		    # Keyword or two '-' not allowed in page range
+		    $invalidrange = 1;
+		} else {
+		    # Save start of range, reset page number
+		    $rangestart = $currentnumber;
+		    if ($rangestart == 0) {
+			$rangestart = 1;
+		    }
+		    $currentnumber = 0;
+		}
+	    } 
+	}
+	if ($c eq ',') {
+	    # End of a range
+	    &$evaluaterange();
+	} else {
+	    # Make a string of the current range, for warnings
+	    $currentrange .= $c;
+	}
+    }
+    # End of input string
+    &$evaluaterange();
+    # Return value
+    if (($page == 0) || ($pageinside)) {
+	return $totalscore;
+    } else {
+	return 0;
+    }
+}
+
+sub setoptionsforpage {
+
+    ## Set the options for a given page
+
+    # Foomatic data, name of the option set where to apply the options, and
+    # number of the page
+    my ($dat, $optionset, $page) = @_;
+
+    my $bestscore = 10000000;
+    my $value;
+    for $arg (@{$dat->{'args'}}) {
+	$value = '';
+	for $key (keys %{$arg}) {
+	    next if $key !~ /^pages:(.*)$/;
+	    my $pageranges = $1;
+	    if (my $score = parsepageranges($pageranges, $page)) {
+		if ($score <= $bestscore) {
+		    $bestscore = $score;
+		    $value = $arg->{$key};
+		}
+	    }
+	}
+	if ($value) {
+	    $arg->{$optionset} = $value;
+	}
+    }
 }
 
 sub buildcommandline {
@@ -4581,6 +4776,7 @@ sub buildcommandline {
     my @prologprepend;
     my @setupprepend;
     my @pagesetupprepend;
+    my @cupspagesetupprepend;
     my @jclprepend;
     my @jclappend;
     my $arg;
@@ -4809,57 +5005,72 @@ sub buildcommandline {
 	if ($arg->{'style'} eq 'G') {
 	    # Place this Postscript command onto the prepend queue
 	    # for the appropriate section.
-	    my $open = "[{\n%%BeginFeature: *$name $userval\n";
-	    my $close = "\n%%EndFeature\n} stopped cleartomark\n";
-	    if ($section eq "Prolog") {
-		push (@prologprepend, "$open$cmdvar$close") if $cmdvar;
-		if ($cmdvar && $arg->{'controlledby'}) {
-		    # Collect option PostScript code to be inserted when
-		    # the composite option which controls this option
-		    # is found in the PostScript code
-		    $dat->{'args_byname'}{$arg->{'controlledby'}}{'prolog'}
-		    .= "$cmdvar\n";
-		}
-	    } elsif (($section eq "AnySetup") ||
-		     ($section eq "DocumentSetup")) {
-		push (@setupprepend, "$open$cmdvar$close") if $cmdvar;
-		if ($cmdvar && $arg->{'controlledby'}) {
-		    # Collect option PostScript code to be inserted when
-		    # the composite option which controls this option
-		    # is found in the PostScript code
-		    $dat->{'args_byname'}{$arg->{'controlledby'}}{'setup'}
-		    .= "$cmdvar\n";
-		    $dat->{'args_byname'}{$arg->{'controlledby'}}{'pagesetup'}
-		    .= "$cmdvar\n";
-		}
-	    } elsif ($section eq "PageSetup") {
-		push (@pagesetupprepend, "$open$cmdvar$close") if $cmdvar;
-		if ($cmdvar && $arg->{'controlledby'}) {
-		    # Collect option PostScript code to be inserted when
-		    # the composite option which controls this option
-		    # is found in the PostScript code
-		    $dat->{'args_byname'}{$arg->{'controlledby'}}{'pagesetup'}
-		    .= "$cmdvar\n";
-		}
-	    } elsif ($section eq "JCLSetup") {
-		# PJL/JCL argument
-		$dat->{'jcl'} = 1;
-		push (@jclprepend, unhexify($cmdvar)) if $cmdvar;
-		if ($cmdvar && $arg->{'controlledby'}) {
-		    # Collect option PostScript code to be inserted when
-		    # the composite option which controls this option
-		    # is found in the PostScript code
-		    $dat->{'args_byname'}{$arg->{'controlledby'}}{'jclsetup'}
-		    .= "$cmdvar\n";
-		}
-	    } else {
-		push (@setupprepend, "$open$cmdvar$close") if $cmdvar;
-		if ($cmdvar && $arg->{'controlledby'}) {
-		    # Collect option PostScript code to be inserted when
-		    # the composite option which controls this option
-		    # is found in the PostScript code
-		    $dat->{'args_byname'}{$arg->{'controlledby'}}{'setup'}
-		    .= "$cmdvar\n";
+	    if ($cmdvar) {
+		my $open = "[{\n%%BeginFeature: *$name $userval\n";
+		my $close = "\n%%EndFeature\n} stopped cleartomark\n";
+		if ($section eq "Prolog") {
+		    push (@prologprepend, "$open$cmdvar$close");
+		    if ($arg->{'controlledby'}) {
+			# Collect option PostScript code to be inserted when
+			# the composite option which controls this option
+			# is found in the PostScript code
+			$dat->{'args_byname'}{$arg->{'controlledby'}}{'prolog'}
+			.= "$cmdvar\n";
+		    }
+		} elsif ($section eq "AnySetup") {
+		    if ($optionset ne 'currentpage') {
+			push (@setupprepend, "$open$cmdvar$close");
+		    } elsif ($arg->{'header'} ne $userval) {
+			push (@pagesetupprepend, "$open$cmdvar$close");
+			push (@cupspagesetupprepend, "$open$cmdvar$close");
+		    }
+		    if ($arg->{'controlledby'}) {
+			# Collect option PostScript code to be inserted when
+			# the composite option which controls this option
+			# is found in the PostScript code
+			$dat->{'args_byname'}{$arg->{'controlledby'}}{'setup'}
+			.= "$cmdvar\n";
+			$dat->{'args_byname'}{$arg->{'controlledby'}}{'pagesetup'}
+			.= "$cmdvar\n";
+		    }
+		} elsif ($section eq "DocumentSetup") {
+		    push (@setupprepend, "$open$cmdvar$close");
+		    if ($arg->{'controlledby'}) {
+			# Collect option PostScript code to be inserted when
+			# the composite option which controls this option
+			# is found in the PostScript code
+			$dat->{'args_byname'}{$arg->{'controlledby'}}{'setup'}
+			.= "$cmdvar\n";
+		    }
+		} elsif ($section eq "PageSetup") {
+		    push (@pagesetupprepend, "$open$cmdvar$close");
+		    if ($arg->{'controlledby'}) {
+			# Collect option PostScript code to be inserted when
+			# the composite option which controls this option
+			# is found in the PostScript code
+			$dat->{'args_byname'}{$arg->{'controlledby'}}{'pagesetup'}
+			.= "$cmdvar\n";
+		    }
+		} elsif ($section eq "JCLSetup") {
+		    # PJL/JCL argument
+		    $dat->{'jcl'} = 1;
+		    push (@jclprepend, unhexify($cmdvar));
+		    if ($arg->{'controlledby'}) {
+			# Collect option PostScript code to be inserted when
+			# the composite option which controls this option
+			# is found in the PostScript code
+			$dat->{'args_byname'}{$arg->{'controlledby'}}{'jclsetup'}
+			.= "$cmdvar\n";
+		    }
+		} else {
+		    push (@setupprepend, "$open$cmdvar$close");
+		    if ($arg->{'controlledby'}) {
+			# Collect option PostScript code to be inserted when
+			# the composite option which controls this option
+			# is found in the PostScript code
+			$dat->{'args_byname'}{$arg->{'controlledby'}}{'setup'}
+			.= "$cmdvar\n";
+		    }
 		}
 	    }
 	    # Do we have an option which is set to "Controlled by 
@@ -4922,6 +5133,7 @@ sub buildcommandline {
     @{$dat->{'prologprepend'}} = @prologprepend;
     @{$dat->{'setupprepend'}} = @setupprepend;
     @{$dat->{'pagesetupprepend'}} = @pagesetupprepend;
+    @{$dat->{'cupspagesetupprepend'}} = @cupspagesetupprepend;
 }
 
 sub buildpdqdriver {
