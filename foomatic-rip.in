@@ -3015,7 +3015,7 @@ for $file (@filelist) {
 	     ($more_stuff != 0));
 
     # Some buffer still containing data? Send it out to the renderer.
-    if (($more_stuff != 0) || ($#psheader >= 0) || ($#psfifo >= 0)) {
+    if (($more_stuff != 0) || ($inheader) || ($#psfifo >= 0)) {
 	# Flush @psfifo and send the remaining data to the renderer, this
 	# only happens with non-DSC-conforming jobs or non-Foomatic PPDs
 	if ($more_stuff) {
