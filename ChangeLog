@@ -19,8 +19,8 @@
 
 	  Inserted page accounting code for CUPS.
 
-	  If an enumerated choice option has only one choice, set this as
-	  the default choice,
+	  If an enumerated choice option has only one choice, set this one
+	  as the default choice. There was no default set before.
 	
 2002-11-09  Till Kamppeter <till.kamppeter@gmx.net>
 
