@@ -1,3 +1,28 @@
+2004-09-14  Till Kamppeter <till.kamppeter@gmx.net>
+
+	* *: Tagged CVS for the release of foomatic-filters 3.0.2. 
+	  Tag name: "foomatic-filters-3_0_2".
+
+	* README, USAGE: Updated for version 3.0.2.
+
+2004-08-26  Till Kamppeter <till.kamppeter@gmx.net>
+
+	* foomatic-rip.in: SECURITY FIX: foomatic-rip could execute
+	  arbitrary commands as user "lp" (or however the spooler's
+	  special user is named) on the print server. Advisory ID:
+	  CAN-2004-0801.
+
+	  The fixes:
+
+	  - Let unprintable characters be removed from all command line
+	    options and environment variables.
+
+	  - Let shell escape characters be removed from file names, queue
+	    names, driver options, and some other input strings.
+
+	  - Let "open" commands for file access always use "<" or ">" to
+	    specify reading or writing.
+ 	
 2004-06-15  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* foomatic-rip.in: Made workaround for OpenOffice.org 1.1.0 bug
