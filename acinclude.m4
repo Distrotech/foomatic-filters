@@ -1,3 +1,4 @@
+dnl $Id :$
 dnl AC_PATH_DIR(VARIABLE, DIR-TO-CHECK-FOR [, VALUE-IF-NOT-FOUND [, PATH]])
 AC_DEFUN(AC_PATH_DIR,
 [# Extract the first word of "$2", so it can be a program name with args.

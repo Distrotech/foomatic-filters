@@ -1,3 +1,6 @@
+$Id$
+$Name$
+
 2003-12-21  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* Makefile.in: Fixed compatibility for non-bash systems: Used
@@ -12,6 +15,8 @@
 
 2003-11-22  Till Kamppeter <till.kamppeter@gmx.net>
 
+	* README, USAGE: Updated for version number 3.1.0.
+	
 	* *: Tagged all files of the repository with "foomatic-3_0-bp",
 	  started stable branch "foomatic-3_0-branch".
 	

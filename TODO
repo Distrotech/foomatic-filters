@@ -1,4 +1,6 @@
 See also the bugtracker at foomatic.sourceforge.net.
+  $Id$
+  $Name$
 
  - Possibility for users to have their personal default options
    (.lpoptions file as in CUPS, due to the Foomatic options having the same
