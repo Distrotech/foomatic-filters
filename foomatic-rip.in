@@ -435,7 +435,7 @@ while ($argstr =~ s/\x01-o(\x01|)([^\x01]+)\x01/\x01/) {
     $optstr .= "$opt ";
     # If we don't print as a PPR RIP or as a CPS filter, we print without
     # spooler (we check for PDQ later)
-    if (($spooler ne 'ppr') || ($spooler ne 'cps')) {
+    if (($spooler ne 'ppr') && ($spooler ne 'cps')) {
 	$spooler = 'direct';
     }
 }

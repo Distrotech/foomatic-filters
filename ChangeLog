@@ -1,3 +1,7 @@
+2003-08-14  Till Kamppeter <till.kamppeter@gmx.net>
+
+	* foomatic-rip.in: Fixed checks for CPS printer spooler.
+
 2003-08-01  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* foomatic-rip.in: Fixes on JCL header merging, support for nested
