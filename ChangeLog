@@ -1,3 +1,8 @@
+2002-11-29  Till Kamppeter <till.kamppeter@gmx.net>
+
+	* *: Tagged CVS for the release of foomatic-filters 2.0.9pre1. 
+	  Tag name: "foomatic-filters-2_0_9pre1".
+	
 2002-11-28  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* foomatic-rip.in: Fixed comment text.
