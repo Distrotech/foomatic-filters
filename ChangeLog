@@ -1,3 +1,8 @@
+2003-01-23  Till Kamppeter <till.kamppeter@gmx.net>
+
+	* Removed some more files which do not belong into the stable
+	  release.
+
 2004-01-21  Grant Taylor  <gtaylor@linuxprinting.org>
 
 	* Secondary checkin, to remove/add files that changed between
@@ -20,6 +25,8 @@
 
 2003-11-22  Till Kamppeter <till.kamppeter@gmx.net>
 
+	* README, USAGE: Updated for version number 3.1.0.
+	
 	* *: Tagged all files of the repository with "foomatic-3_0-bp",
 	  started stable branch "foomatic-3_0-branch".
 	
