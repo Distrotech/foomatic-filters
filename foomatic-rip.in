@@ -36,14 +36,14 @@ my $ripversion='$Revision$';
 # possibly other stuff.	 The default path is often fine on Linux, but
 # may not be on other systems.
 #
-my $execpath = "/usr/local/bin:/usr/bin:/bin";
+my $execpath = "@prefix@/bin:/usr/local/bin:/usr/bin:/bin";
 
 # Location of the configuration file "filter.conf", this file can be
 # used to change the settings of foomatic-rip without editing
 # foomatic-rip. itself. This variable must contain the full pathname 
 # of the directory which contains the configuration file, usually
 # "/etc/foomatic".
-my $configpath = "/etc/foomatic";
+my $configpath = "@sysconfdir@/foomatic";
 
 # For the stuff below, the settings in the configuration file have priority.
 
