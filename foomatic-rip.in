@@ -239,13 +239,14 @@ my @fileconverters =
    '-f -P- -');
 
 # spooler-specific file converters, default for the specific spooler when
-# none of the converters above is chosen.
-my @fixed_args = (
-	defined($ARGV[0])?$ARGV[0]:"",
-	defined($ARGV[1])?$ARGV[1]:"",
-	defined($ARGV[2])?$ARGV[2]:"",
-	defined($ARGV[3])?$ARGV[3]:"",
-	defined($ARGV[4])?$ARGV[4]:"" );
+# none of the converters above is chosen. Remove weird characters from the
+# command line arguments to enhance security
+my @fixed_args = 
+    (defined($ARGV[0])?removespecialchars($ARGV[0]):"",
+     defined($ARGV[1])?removespecialchars($ARGV[1]):"",
+     defined($ARGV[2])?removespecialchars($ARGV[2]):"",
+     defined($ARGV[3])?removespecialchars($ARGV[3]):"",
+     defined($ARGV[4])?removespecialchars($ARGV[4]):"");
 my $spoolerfileconverters = {
     'cups' => "${programdir}texttops '$fixed_args[0]' '$fixed_args[1]' '$fixed_args[2]' " .
 		"'$fixed_args[3]' '$fixed_args[4] page-top=36 page-bottom=36 " .
@@ -283,10 +284,12 @@ if (defined $conf{textfilter}) {
 
 # "PPD": PPD file name for CUPS or PPR (if we run as PPR RIP)
 if (defined($ENV{'PPD'})) {
-    $ppdfile = $ENV{'PPD'};
+    # Clean the file name from weird characters which could cause
+    # unexpected behaviour
+    $ppdfile = removespecialchars($ENV{'PPD'});
     # CUPS and PPR (RIP filter) use the "PPD" environment variable to 
     # make the PPD file name available (we set CUPS here preliminarily,
-    # in the next step we check for PPR
+    # in the next step we check for PPR)
     $spooler = 'cups';
 }
 
@@ -301,14 +304,16 @@ if (defined($ENV{'PPR_RIPOPTS'})) {
     # PPR 1.5 allows the user to specify options for the PPR RIP with the 
     # "--ripopts" option on the "ppr" command line. They are provided to
     # the RIP via the "PPR_RIPOPTS" environment variable.
-    $optstr .= "$ENV{'PPR_RIPOPTS'} ";
+    # Clean the option string from weird characters which could cause
+    # unexpected behaviour
+    $optstr .= removespecialchars("$ENV{'PPR_RIPOPTS'} ");
     # We have PPR
     $spooler = 'ppr';
 }
 
 # "LPOPTS": Option settings for some LPD implementations (ex: GNUlpr)
 if (defined($ENV{'LPOPTS'})) {
-    my @lpopts = split(/,/, $ENV{'LPOPTS'});
+    my @lpopts = split(/,/, removespecialchars($ENV{'LPOPTS'}));
     foreach my $opt (@lpopts) {
 	$opt =~ s/^\s+//;
 	$opt =~ s/\s+$//;
@@ -331,8 +336,16 @@ if (defined($ENV{'LPOPTS'})) {
 # options this way when printing without spooler.
 
 # Make one option string with a non-printable character as separator,
-# So we can parse it more easily
-my $argstr = "\x01" . join("\x01",@ARGV) . "\x01";
+# So we can parse it more easily.
+
+# To avoid the separator to be in the options itselves, it is filters
+# out of the options. This does not break anything as having non
+# printable characters in the command line options does not make sense
+# nor is this needed. This way misinterpretation and even abuse is
+# prevented.
+
+my $argstr = "\x01" . 
+    join("\x01", map { removeunprintables($_) } @ARGV) . "\x01";
 
 # Debug mode activated via command line
 if ($argstr =~ s/\x01--debug\x01/\x01/) {
@@ -373,7 +386,7 @@ if ($debug) {
 
 ## Start debug logging
 if ($debug) {
-    # If we are not debug mode, we do this later, as we must find out at
+    # If we are not in debug mode, we do this later, as we must find out at
     # first which spooler is used. When printing without spooler we
     # suppress logging because foomatic-rip is called directly on the
     # command line and so we avoid logging onto the console.
@@ -405,7 +418,7 @@ if (defined($ENV{'PRINTCAP_ENTRY'})){
 	shift @pc;
 	foreach (@pc) {
 		if( /^ppd=(.*)$/ or  /^ppdfile=(.*)$/ ){
-			$ppdfile = $1 if $1;
+			$ppdfile = removespecialchars($1) if $1;
 		}
 	}
 } elsif ($argstr =~ s/\x01--lprng\x01/\x01/g) {
@@ -417,10 +430,10 @@ if (defined($ENV{'PRINTCAP_ENTRY'})){
 # PPD file name given via the command line
 # allow duplicates, and use the last specified one
 while ( ($spooler ne 'lprng') and ($argstr =~ s/\x01-p(\x01|)([^\x01]+)\x01/\x01/)) {
-    $ppdfile = $2;
+    $ppdfile = removeshellescapes($2);
 }
 while ($argstr =~ s/\x01--ppd(\x01|=|)([^\x01]+)\x01/\x01/) {
-    $ppdfile = $2;
+    $ppdfile = removeshellescapes($2);
 }
 
 # Check for LPD/GNUlpr by typical options which the spooler puts onto
@@ -447,6 +460,7 @@ if ($argstr =~ s/\x01-Z(\x01|)([^\x01]+)\x01/\x01/) {
     foreach my $opt (@lpopts) {
 	$opt =~ s/^\s+//;
 	$opt =~ s/\s+$//;
+	$opt = removeshellescapes($opt);
 	if ($opt =~ /\s+/) {
 	    $opt = "\"$opt\"";
 	}
@@ -459,7 +473,7 @@ if ($argstr =~ s/\x01-Z(\x01|)([^\x01]+)\x01/\x01/) {
 # Job title and options for stock LPD
 if ($argstr =~ s/\x01-[jJ](\x01|)([^\x01]+)\x01/\x01/) {
     # An LPD
-    $jobtitle = $2;
+    $jobtitle = removeshellescapes($2);
     # Classic LPD hack
     if ($spooler eq "lpd") {
 	$optstr .= "$jobtitle ";
@@ -477,6 +491,7 @@ while ($argstr =~ s/\x01-o(\x01|)([^\x01]+)\x01/\x01/) {
     my $opt = $2;
     $opt =~ s/^\s+//;
     $opt =~ s/\s+$//;
+    $opt = removeshellescapes($opt);
     if ($opt =~ /\s+/) {
 	$opt = "\"$opt\"";
     }
@@ -490,11 +505,11 @@ while ($argstr =~ s/\x01-o(\x01|)([^\x01]+)\x01/\x01/) {
 
 # Printer for spooler-less printing or PDQ
 if ($argstr =~ s/\x01-d(\x01|)([^\x01]+)\x01/\x01/) {
-    $printer = $2;
+    $printer = removeshellescapes($2);
 }
 # Printer for spooler-less printing, PDQ, or LPRng
 if ($argstr =~ s/\x01-P(\x01|)([^\x01]+)\x01/\x01/) {
-    $printer = $2;
+    $printer = removeshellescapes($2);
 }
 
 # Were we called from a PDQ wrapper?
@@ -515,9 +530,9 @@ if (($argstr =~ s/\x01--(gen)(raw|)pdq(\x01|=|)([^\x01]*)\x01/\x01/) ||
 	$genpdqfile = ">&STDOUT";
     } else {
 	if ($1 eq 'gen') {
-	    $genpdqfile = "> $4";
+	    $genpdqfile = "> " . removeshellescapes($4);
 	} else {
-	    $genpdqfile = ">> $4";
+	    $genpdqfile = ">> " . removeshellescapes($4);
 	}
     }
     # Do we want to have a PDQ driver declaration for a raw printer?
@@ -571,7 +586,7 @@ if ($spooler eq 'ppr') {
     my @definitions;
     for my $file (("lib/interface.sh", "lib/signal.sh")) {
 	
-	open FILE, "$file" || do {
+	open FILE, "< $file" || do {
 	    print $logh "error opening $file.\n";
 	    next;
 	};
@@ -608,17 +623,17 @@ if ($spooler eq 'ppr') {
 	# PPR directory.
 	
 	# Get all command line parameters
-	$ppr_printer = $rargs[0];
+	$ppr_printer = removeshellescapes($rargs[0]);
 	$ppr_address = $rargs[1];
-	$ppr_options = $rargs[2];
+	$ppr_options = removeshellescapes($rargs[2]);
 	$ppr_jobbreak = $rargs[3];
 	$ppr_feedback = $rargs[4];
 	$ppr_codes = $rargs[5];
-	$ppr_jobname = $rargs[6];
-	$ppr_routing = $rargs[7];
+	$ppr_jobname = removeshellescapes($rargs[6]);
+	$ppr_routing = removeshellescapes($rargs[7]);
 	$ppr_for = $rargs[8];
 	$ppr_filetype = $rargs[9];
-	$ppr_filetoprint = $rargs[10];
+	$ppr_filetoprint = removeshellescapes($rargs[10]);
 	
 	# Common job parameters
 	$printer = $ppr_printer;
@@ -630,6 +645,7 @@ if ($spooler eq 'ppr') {
 	
 	# Get the path of the PPD file from the queue configuration
 	$ppdfile = `LANG=en_US; ppad show $ppr_printer | grep PPDFile`;
+	$ppdfile = removeshellescapes($ppdfile);
 	$ppdfile =~ s/PPDFile:\s+//;
 	if ($ppdfile !~ m!^/!) {
 	    $ppdfile = "../../share/ppr/PPDFiles/$ppdfile";
@@ -646,12 +662,12 @@ my( $cups_jobid, $cups_user, $cups_jobtitle, $cups_copies, $cups_options,
     $cups_filename );
 if ($spooler eq 'cups') {
     # Get all command line parameters
-    $cups_jobid = $rargs[0];
-    $cups_user = $rargs[1];
-    $cups_jobtitle = $rargs[2];
-    $cups_copies = $rargs[3];
-    $cups_options = $rargs[4];
-    $cups_filename = $rargs[5];
+    $cups_jobid = removeshellescapes($rargs[0]);
+    $cups_user = removeshellescapes($rargs[1]);
+    $cups_jobtitle = removeshellescapes($rargs[2]);
+    $cups_copies = removeshellescapes($rargs[3]);
+    $cups_options = removeshellescapes($rargs[4]);
+    $cups_filename = removeshellescapes($rargs[5]);
 
     # Common job parameters
     #$printer = $cups_printer;
@@ -673,7 +689,7 @@ if (($spooler eq 'lpd') ||
     ($spooler eq 'gnulpr')) {
 
     # Get PPD file name as the last command line argument
-    $ppdfile = $rargs[$#rargs];
+    $ppdfile = removeshellescapes($rargs[$#rargs]);
 
 }
 
@@ -681,7 +697,7 @@ if (($spooler eq 'lpd') ||
 # No spooler, CPS, or PDQ
 if (($spooler eq 'direct') || ($spooler eq 'cps') || ($spooler eq 'pdq')) {
     # Which files do we want to print?
-    @filelist = @rargs;
+    @filelist = map { removeshellescapes($_) } @rargs;
 }
 
 
@@ -936,7 +952,7 @@ if (!$debug) {
 
 # Load the PPD file and build a data structure for the renderer's
 # command line and the options
-open PPD, "$ppdfile" || do {
+open PPD, "< $ppdfile" || do {
     print $logh "error opening $ppdfile.\n";
     rip_die ("Unable to open PPD file $ppdfile",
 	     $EXIT_PRNERR_NORETRY_BAD_SETTINGS);
@@ -4696,6 +4712,25 @@ sub readConfFile {
     }
 
     return %conf;
+}
+
+sub removeunprintables {
+    # Remove unprintable characters
+    my $str = $_[0];
+    $str =~ s/[\x00-\x1f]//g;
+    return $str;
+}
+
+sub removeshellescapes {
+    # Remove shell escape characters
+    my $str = $_[0];
+    $str =~ s/[\|<>&!\$\'\"\#\*\?\(\)\[\]\{\}]//g;
+    return $str;
+}
+
+sub removespecialchars {
+    # Remove unprintable and shell escape characters
+    return removeshellescapes(removeunprintables($_[0]));
 }
 
 sub unhtmlify {
