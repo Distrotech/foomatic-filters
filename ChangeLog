@@ -1,3 +1,9 @@
+2003-11-19  Till Kamppeter <till.kamppeter@gmx.net>
+
+	* foomatic-rip.in, filter.conf: Added support for CUPS raster
+	  drivers to foomatic-rip. Now CUPS raster drivers can be used
+	  with every spooler.
+
 2003-10-24  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* foomatic-rip.in: Fixed bug of sometimes an extra blank page

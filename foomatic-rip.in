@@ -46,6 +46,9 @@ my $ripversion='$Revision$';
 #
 my $execpath = "@prefix@/bin:/usr/local/bin:/usr/bin:/bin";
 
+# CUPS raster drivers are searched here
+my $cupsfilterpath = "@prefix@/lib/cups/filter:/usr/local/lib/cups/filter:/usr/local/libexec/cups/filter:/opt/cups/filter:/usr/lib/cups/filter";
+
 # Location of the configuration file "filter.conf", this file can be
 # used to change the settings of foomatic-rip without editing
 # foomatic-rip. itself. This variable must contain the full pathname 
@@ -259,6 +262,9 @@ my %conf = readConfFile("$configpath/filter.conf");
 $execpath = $conf{execpath} if defined $conf{execpath};
 $ENV{'PATH'} = $execpath;
 
+# Get CUPS filter path from config file
+$cupsfilterpath = $conf{cupsfilterpath} if defined $conf{cupsfilterpath};
+
 # Set debug mode
 $debug = $conf{debug} if defined $conf{debug};
 
@@ -338,6 +344,7 @@ my $verbose = ($argstr =~ s/\x01-v\x01/\x01/);
 my $quiet = ($argstr =~ s/\x01-q\x01/\x01/);
 my $show_docs = ($argstr =~ s/\x01-d\x01/\x01/);
 my $do_docs;
+my $cupscolorprofile;
 
 # Where to send debugging log output to
 my $logh;
@@ -1023,6 +1030,32 @@ while(<PPD>) {
 	$line =~ m!^([^\"]*)\"!;
 	$cmd .= $1;
 	$dat->{'cmd'} = unhtmlify($cmd);
+    } elsif (m!^\*cupsFilter:\s*\"(.*)$!) {
+	# "*cupsFilter: <code>"
+	my $line = $1;
+	# Store the value
+	# Code string can have multiple lines, read all of them
+	my $cmd = "";
+	while ($line !~ m!\"!) {
+	    if ($line =~ m!&&$!) {
+		# line continues in next line
+		$cmd .= substr($line, 0, -2);
+	    } else {
+		# line ends here
+		$cmd .= "$line\n";
+	    }
+	    # Read next line
+	    $line = <PPD>;
+	    chomp $line;
+	}
+	$line =~ m!^([^\"]*)\"!;
+	$cmd .= $1;
+	my $cupsfilterline = unhtmlify($cmd);
+	if ($cupsfilterline =~ /^\s*(\S+)\s+\d+\s+(\S+)\s*$/) {
+	    print $logh "*cupsFilter: \"$cupsfilterline\"\n"; 
+	    # Make a hash by mime type for all CUPS filters set in this PPD
+	    $dat->{'cupsfilter'}{$1} = $2;
+	}
     } elsif (m!^\*CustomPageSize\s+True:\s*\"(.*)$!) {
 	# "*CustomPageSize True: <code>"
 	my $setting = "Custom";
@@ -1487,6 +1520,63 @@ if ((!defined(@{$dat->{'args'}})) ||
     }
 }
 
+# Is our PPD for a CUPS raster driver
+if (my $cupsfilter = $dat->{'cupsfilter'}{"application/vnd.cups-raster"}) {
+
+    # Search filter in cupsfilterpath
+    # The %Y is a placeholder for the option settings
+    my $havefilter = 0;
+    for (split(':', $cupsfilterpath)) {
+	if (-x "$_/$cupsfilter") {
+	    $havefilter=1;
+	    $cupsfilter = "$_/$cupsfilter 0 '' '' 0 '%Y%X'";
+	    last;
+	}
+    }
+
+    if (!$havefilter) {
+
+	# We do not have the required filter, so we assume that
+	# rendering this job is supposed to be done on a remote
+	# server. So we do not define a renderer command line and
+	# embed only the option settings (as we had a PostScript
+	# printer). This way the settings are # taken into account
+	# when the job is rendered on the server.
+	print $logh "${added_lf}CUPS filter for this PPD file not found " .
+	    "assuming that job will be rendered on a remote server. Only " .
+	    "the PostScript of the options will be inserted into the " .
+	    "PostScript data stream.${added_lf}\n";
+
+    } else {
+
+	# use pstoraster script if available, otherwise run GhostScript
+	# directly
+	my $pstoraster = "pstoraster";
+	my $havepstoraster = 0;
+	for (split(':', $cupsfilterpath)) {
+	    if (-x "$_/$pstoraster") {
+		$havepstoraster=1;
+		$pstoraster = "$_/$pstoraster 0 '' '' 0 '%X'";
+		last;
+	    }
+	}
+
+	if (1 || !$havepstoraster) {
+
+	    # Build GhostScript command line
+	    $pstoraster = "gs -dQUIET -dDEBUG -dPARANOIDSAFER -dNOPAUSE -dBATCH -dNOMEDIAATTRS -sDEVICE=cups -sOutputFile=-%W -"
+	    
+	}
+
+	# build GhostScript/CUPS driver command line
+	$dat->{'cmd'} = "$pstoraster | $cupsfilter";
+
+	# Set environment variables
+	$ENV{'PPD'} = $ppdfile;
+	
+    }
+}
+
 # Was the RIP command line defined in the PPD file? If not, we assume a
 # PostScript printer and do not render/translate the input data
 if (!defined($dat->{'cmd'})) {
@@ -1574,11 +1664,21 @@ push(@opts, split(/ /,$optstr));
 for (@opts) {
     print $logh "Pondering option '$_'\n";
 
+    # "docs" option to print help page
     if ((lc($_) =~ /^\s*docs\s*$/) ||
 	(lc($_) =~ /^\s*docs\s*=\s*true\s*$/)) {
 	# The second one is necessary becuase CUPS 1.1.15 or newer sees
 	# "docs" as boolean option and modifies it to "docs=true"
         $do_docs = 1;
+	next;
+    }
+
+    # "profile" option to supply a color correction profile to a
+    # CUPS raster driver
+    if (lc($_) =~ /^\s*profile=(\S+)\s*$/) {
+	$cupscolorprofile=$1;
+	$dat->{'cmd'} =~ s!\%X!profile=$cupscolorprofile!g;
+	$dat->{'cmd'} =~ s!\%W! -c\"<</cupsProfile($cupscolorprofile)>>setpagedevice\"!g;
 	next;
     }
 
@@ -4763,7 +4863,9 @@ sub checkoptionvalue {
 	    return 0;
 	}
     } elsif ($arg->{'type'} eq 'enum') {
-	if (defined($arg->{'vals_byname'}{$value})) {
+	if ($value =~ /^None$/i) {
+	    return 'None';
+	} elsif (defined($arg->{'vals_byname'}{$value})) {
 	    return $value;
 	} elsif ((($arg->{'name'} eq "PageSize") ||
 		  ($arg->{'name'} eq "PageRegion")) &&
@@ -5372,6 +5474,7 @@ sub buildcommandline {
 	    if (defined($userval) && $userval == 1) {
 		$cmdvar = $cmd;
 	    } elsif ($cmdf) {
+		$userval = 0;
 		$cmdvar = $cmdf;
 	    }
 
@@ -5396,6 +5499,8 @@ sub buildcommandline {
 				  ($type eq 'int' 
 				   ? sprintf("%d", $userval)
 				   : sprintf("%f", $userval)));
+	    } else {
+		$userval = 'None';
 	    }
 
 	} elsif ($type eq 'enum') {
@@ -5409,8 +5514,8 @@ sub buildcommandline {
 		# to "-o noOption", which foomatic-rip maps to "0" and "1".
 		# So when "0" or "1" is unavailable in the option, we try
 		# "Yes", "No", "On", "Off", "True", and "False".
-		my $found = 0;
 		my $val;
+		my $found = 0;
 		if ($val=valbyname($arg,$userval)) {
 		    $found = 1;
 		} elsif ($userval =~ /^Custom\.[\d\.]+x[\d\.]+[A-Za-z]*$/) {
@@ -5504,8 +5609,11 @@ sub buildcommandline {
 		    }
 		} else {
 		    # User gave unknown value?
+		    $userval = 'None';
 		    print $logh "Value $userval for $name is not a valid choice.\n";
 		}
+	    } else {
+		$userval = 'None';
 	    }
 
 	} elsif (($type eq 'string') || ($type eq 'password')) {
@@ -5514,6 +5622,7 @@ sub buildcommandline {
 	    if (defined($userval)) {
 		my $val;
 		if ($val=valbyname($arg,$userval)) {
+		    $userval = $val->{'value'};
 		    $cmdvar = (defined($val->{'driverval'})
 				       ? $val->{'driverval'}
 				       : $val->{'value'});
@@ -5522,6 +5631,8 @@ sub buildcommandline {
 		    $sprintfcmd =~ s/\%(?!s)/\%\%/g;
 		    $cmdvar = sprintf($sprintfcmd, $userval);
 		}
+	    } else {
+		$userval = 'None';
 	    }
 
 	} else {
@@ -5623,6 +5734,11 @@ sub buildcommandline {
 	    # just before every occurance of the spot marker.
 	    $dat->{'currentcmd'} =~ s!\%$spot!$cmdvar\%$spot!g;
 	}
+	# Insert option into command line of CUPS raster driver
+	if ($dat->{'currentcmd'} =~ m!\%Y!) {
+	    next if !defined($userval) or $userval eq "";
+	    $dat->{'currentcmd'} =~ s!\%Y!$name=$userval \%Y!g;
+	}
 	# Remove the marks telling that this option is currently controlled
 	# by a composite option (setting "From<composite>")
         undef $arg->{'fromcomposite'};
@@ -5635,7 +5751,7 @@ sub buildcommandline {
 
     ## C type finishing
     # Pluck out all of the %n's from the command line prototype
-    my @letters = qw/A B C D E F G H I J K L M Z/;
+    my @letters = qw/A B C D E F G H I J K L M W X Y Z/;
     for my $spot (@letters) {
 	# Remove the letter markers from the commandline
 	$dat->{'currentcmd'} =~ s!\%$spot!!g;
