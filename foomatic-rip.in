@@ -265,6 +265,16 @@ if (defined($ENV{'PPR_VERSION'})) {
     $spooler = 'ppr';
 }
 
+# "PPR_RIPOPTS": PPR
+if (defined($ENV{'PPR_RIPOPTS'})) {
+    # PPR 1.5 allows the user to specify options for the PPR RIP with the 
+    # "--ripopts" option on the "ppr" command line. They are provided to
+    # the RIP via the "PPR_RIPOPTS" environment variable.
+    $optstr .= "$ENV{'PPR_RIPOPTS'} ";
+    # We have PPR
+    $spooler = 'ppr';
+}
+
 # "LPOPTS": Option settings for some LPD implementations (ex: GNUlpr)
 if (defined($ENV{'LPOPTS'})) {
     my @lpopts = split(/,/, $ENV{'LPOPTS'});
@@ -322,6 +332,28 @@ if ($debug) {
     # Default: log to STDERR
     $logh=*STDERR;
 }
+
+
+
+## Start debug logging
+if ($debug) {
+    # If we are not debug mode, we do this later, as we must find out at
+    # first which spooler is used. When printing without spooler we
+    # suppress logging because foomatic-rip is called directly on the
+    # command line and so we avoid logging onto the console.
+    print $logh "foomatic-rip version $ripversion running...\n";
+    # Print the command line only in debug mode, Mac OS X adds very many
+    # options so that CUPS cannot handle the output of the command line
+    # in its log files. If CUPS encounters a line with more than 1024
+    # characters sent into its log files, it aborts the job with an error.
+    if (($debug) || ($spooler ne 'cups')) {
+	print $logh "called with arguments: '", join("', '",@ARGV), "'\n";
+    }
+}
+
+
+
+## Continue with named options
 
 # PPD file name given via the command line
 if ($argstr =~ s/\x01-p(\x01|)([^\x01]+)\x01/\x01/) {
@@ -389,8 +421,11 @@ while ($argstr =~ s/\x01-o(\x01|)([^\x01]+)\x01/\x01/) {
 	$opt = "\"$opt\"";
     }
     $optstr .= "$opt ";
-    # We print without spooler (we check for PDQ later)
-    $spooler = 'direct';
+    # If we don't print as a PPR RIP, we print without spooler (we check 
+    # for PDQ later)
+    if ($spooler ne 'ppr') {
+	$spooler = 'direct';
+    }
 }
 
 # Printer for spooler-less printing or PDQ
@@ -413,17 +448,42 @@ if ($argstr =~ s/\x01--pdq\x01/\x01/) {
 # "--genpdq=<file>" creates/overwrites <file> for the data, and
 # "--genpdq" writes to standard output
 my $genpdqfile = "";
-if (($argstr =~ s/\x01--(gen)pdq(\x01|=|)([^\x01]*)\x01/\x01/) ||
-    ($argstr =~ s/\x01--(append)pdq(\x01|=|)([^\x01]+)\x01/\x01/)) {
+if (($argstr =~ s/\x01--(gen)(raw|)pdq(\x01|=|)([^\x01]*)\x01/\x01/) ||
+    ($argstr =~ s/\x01--(append)(raw|)pdq(\x01|=|)([^\x01]+)\x01/\x01/)) {
     # Determine output file name
-    if (!$3) {
+    if (!$4) {
 	$genpdqfile = ">&STDOUT";
     } else {
 	if ($1 eq 'gen') {
-	    $genpdqfile = "> $3";
+	    $genpdqfile = "> $4";
 	} else {
-	    $genpdqfile = ">> $3";
+	    $genpdqfile = ">> $4";
 	}
+    }
+    # Do we want to have a PDQ driver declaration for a raw printer?
+    if ($2 eq 'raw') {
+	my $time = time();
+	my @pdqfile =
+"driver \"Raw-Printer-$time\" {
+  # This PDQ driver declaration file was generated automatically by
+  # foomatic-rip to allow raw (filter-less) printing.
+  language_driver all {
+    # We accept all file types and pass them through without any changes
+    filetype_regx \"\"
+    convert_exec {
+      ln -s \$INPUT \$OUTPUT
+    }
+  }
+  filter_exec {
+    ln -s \$INPUT \$OUTPUT
+  }
+}";
+	open PDQFILE, $genpdqfile or
+	    rip_die("Cannot write PDQ driver declaration file",
+		    $EXIT_PRNERR_NORETRY_BAD_SETTINGS);
+	print PDQFILE join('', @pdqfile);
+	close PDQFILE;
+	exit $EXIT_PRINTED;
     }
     # We have PDQ
     $spooler = 'pdq';
@@ -501,7 +561,7 @@ if ($spooler eq 'ppr') {
 	if ((!$jobtitle) && ($ppr_filetoprint)) {
 	    $jobtitle = $ppr_filetoprint;
 	}
-	$optstr = "$ppr_options $ppr_routing";
+	$optstr .= "$ppr_options $ppr_routing";
 	
 	# Get the path of the PPD file from the queue configuration
 	$ppdfile = `LANG=en_US; ppad show $ppr_printer | grep PPDFile`;
@@ -529,7 +589,7 @@ if ($spooler eq 'cups') {
     # Common job parameters
     #$printer = $cups_printer;
     $jobtitle = $cups_jobtitle;
-    $optstr = $cups_options;
+    $optstr .= $cups_options;
 
     # Check for and handle inputfile vs stdin
     if ((defined($cups_filename)) && ($cups_filename) &&
@@ -669,10 +729,10 @@ if (($spooler eq 'direct') || ($spooler eq 'pdq')) {
 	    for my $conf_file (("./.directconfig",
 				"./directconfig",
 				"./.config",
-				"$user_default_path/directconfig",
 				"$user_default_path/direct/.config",
-				"$configpath/directconfig",
-				"$configpath/direct/.config")) {
+				"$user_default_path/direct.conf",
+				"$configpath/direct/.config",
+				"$configpath/direct.conf")) {
 		if (open CONFIG, "< $conf_file") {
 		    while (my $line = <CONFIG>) {
 			chomp $line;
@@ -683,7 +743,7 @@ if (($spooler eq 'direct') || ($spooler eq 'pdq')) {
 		    }
 		    close CONFIG;
 		}
-		if (defined($printer)) {
+		if ($printer) {
 		    last;
 		}
 	    }
@@ -691,12 +751,12 @@ if (($spooler eq 'direct') || ($spooler eq 'pdq')) {
 
 	# Neither in a config file nor on the command line a printer was
 	# selected.
-	if (!defined($printer)) {
+	if (!$printer) {
 	    rip_die("No printer definition (option \"-P <name>\") " .
 		    "specified!", $EXIT_PRNERR_NORETRY_BAD_SETTINGS);
 	}
 	
-	# Search the PPD file
+	# Search for the PPD file
 	
 	# Search also common spooler-specific locations, this way a printer
 	# configured under a certain spooler can also be used without
@@ -707,6 +767,8 @@ if (($spooler eq 'direct') || ($spooler eq 'pdq')) {
 	    $ppdfile = "${printer}.ppd";
 	} elsif (-r "$user_default_path/${printer}.ppd") { # user dir
 	    $ppdfile = "$user_default_path/${printer}.ppd";
+	} elsif (-r "$configpath/direct/${printer}.ppd") { # system dir
+	    $ppdfile = "$configpath/direct/${printer}.ppd";
 	} elsif (-r "$configpath/${printer}.ppd") { # system dir
 	    $ppdfile = "$configpath/${printer}.ppd";
 	} elsif (-r "/etc/cups/ppd/${printer}.ppd") { # CUPS config dir
@@ -766,14 +828,17 @@ if (($spooler eq 'direct') && (!$verbose) && (!$debug)) {
 
 
 
-## Start debug logging
-print $logh "foomatic-rip version $ripversion running...\n";
-# Print the command line only in debug mode, Mac OS X adds very many
-# options so that CUPS cannot handle the output of the command line
-# in its log files. If CUPS encounters a line with more than 1024 characters
-# sent into its log files, it aborts the job with an error.
-if (($debug) || ($spooler ne 'cups')) {
-    print $logh "called with arguments: '", join("', '",@ARGV), "'\n";
+## Start logging
+if (!$debug) {
+    # If we are in debug mode, we do this earlier.
+    print $logh "foomatic-rip version $ripversion running...\n";
+    # Print the command line only in debug mode, Mac OS X adds very many
+    # options so that CUPS cannot handle the output of the command line
+    # in its log files. If CUPS encounters a line with more than 1024
+    # characters sent into its log files, it aborts the job with an error.
+    if (($debug) || ($spooler ne 'cups')) {
+	print $logh "called with arguments: '", join("', '",@ARGV), "'\n";
+    }
 }
 
 
@@ -826,6 +891,13 @@ while(<PPD>) {
 	$line =~ m!^([^\"]*)\"!;
 	$cmd .= $1;
 	$model = unhtmlify($cmd);
+    } elsif (m!^\*FoomaticIDs:\s*(\S+)\s+(\S+)\s*$!) {
+	# "*FoomaticIDs: <printer ID> <driver ID>"
+	my $id = $1;
+	my $driver = $2;
+	# Store the values
+	$dat->{'id'} = $id;
+	$dat->{'driver'} = $driver;
     } elsif (m!^\*FoomaticRIPPostPipe:\s*\"(.*)$!) {
 	# "*FoomaticRIPPostPipe: <code>"
 	my $line = $1;
@@ -1177,6 +1249,7 @@ if ($#datablob >= 0) {
 	}
 	undef $dat;
 	$dat = $VAR1;
+	$dat->{'jcl'} = $dat->{'pjl'};
     } else {
 	# Perl structure broken
 	print $logh "\nUnable to evaluate datablob, print job may come " .
@@ -1208,6 +1281,13 @@ if ((!defined(@{$dat->{'args'}})) ||
 # PostScript printer and do not render/translate the input data
 if (!defined($dat->{'cmd'})) {
     $dat->{'cmd'} = "cat%A%B%C%D%E%F%G%H%I%J%K%L%M%Z";
+    if ($dontparse) {
+	# No command line, no options, we have a raw queue, don't check
+	# whether the input is PostScript and ignore the "docs" option,
+	# simply pass the input data to the backend.
+	$dontparse = 2;
+	$model = "Raw queue";
+    }
 }
 
 
@@ -1463,8 +1543,12 @@ if ($genpdqfile) {
 
 # $postpipe when running as a PPR RIP
 if ($spooler eq 'ppr') {
-    # Strange, the PPR RIP must send to /dev/fd/3 instead of to STDOUT
-    $postpipe = "| cat - >&3";
+    # The PPR RIP sends the data output to /dev/fd/3 instead of to STDOUT
+    if (-w "/dev/fd/3") {
+	$postpipe = "| cat - > /dev/fd/3";
+    } else {
+	$postpipe = "| cat - >&3";
+    }
 }
 
 # Set up PPR backend (if we run as a PPR interface).
@@ -1572,6 +1656,17 @@ File: $file
 	    print $logh "Cannot open $file, skipping.\n";
 	    next;
 	}
+    }
+
+
+
+    ## Do we have a raw queue
+    if ($dontparse == 2) {
+	# Raw queue, simply pass the input into the $postpipe (or to STDOUT
+	# when there is no $postpipe)
+	print $logh "Raw printing, executing \"cat $postpipe\"\n\n";
+	system("cat $postpipe");
+	next;
     }
 
 
@@ -2541,7 +2636,6 @@ if ($debug && 1) {
     use Data::Dumper;
     local $Data::Dumper::Purity=1;
     local $Data::Dumper::Indent=1;
-    print $logh Dumper(%ENV);
     print $logh Dumper($dat);
 }
 
@@ -2739,7 +2833,7 @@ sub getrendererhandle {
 	    # In debug mode save the data supposed to be fed into the
 	    # renderer also into a file
 	    if ($debug) {
-		$commandline = "tee -a ${logfile}.ps | $commandline";
+		$commandline = "tee -a ${logfile}.ps | ( $commandline )";
 	    }
 	    
 	    # Actually run the thing...
