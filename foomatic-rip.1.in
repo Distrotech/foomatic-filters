@@ -251,6 +251,8 @@ follows:
 .B		<	&lt;
 .B		>	&gt;
 .B		"	&quot;
+.B		'	&apos;
+.B		&	&amp;
 .fi
 
 This way you can print directly to your printer, use

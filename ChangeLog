@@ -1,3 +1,13 @@
+2003-04-22  Till Kamppeter <till.kamppeter@gmx.net>
+
+	* *: Tagged CVS for the release of foomatic-filters 3.0.0rc2. 
+	  Tag name: "foomatic-filters-3_0_0rc2".
+
+	* README, USAGE: Updated for version 3.0.0rc2.
+
+	* foomatic-rip.1.in: Added missing substitutions for special
+	  characters in postpipe.
+	
 2003-04-21  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* foomatic-rip.in: added restriction for allowed strings by means
