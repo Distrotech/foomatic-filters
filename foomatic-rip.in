@@ -1312,7 +1312,7 @@ if ((!defined(@{$dat->{'args'}})) ||
     # issue warnings if the values are not valid
     checkoptions($dat, 'default');
 
-    # Adobe´s PPD specs do not support numerical
+    # Adobe's PPD specs do not support numerical
     # options. Therefore the numerical options are mapped to
     # enumerated options in the PPD file and their characteristics
     # as a numerical option are stored in "*Foomatic..."
@@ -1327,7 +1327,7 @@ if ((!defined(@{$dat->{'args'}})) ||
     # tool only supporting PPD files but not Foomatic extensions.
     # This tool only modifies the "*Default<option>: <value>" line
     # and if the "*FoomaticRIPDefault<option>: <value>" had always
-    # priority, the user´s change in "*Default<option>: <value>"
+    # priority, the user's change in "*Default<option>: <value>"
     # had no effect.
 
     for $arg (@{$dat->{'args'}}) {
