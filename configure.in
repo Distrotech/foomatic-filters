@@ -31,7 +31,8 @@ AC_PATH_DIRS(PPR_INTERFACES,ppr/interfaces,/usr/lib/ppr/interfaces,$LIBSEARCHPAT
 
 dnl AC_OUTPUT(Makefile src/Makefile)
 AC_OUTPUT(Makefile makeMan foomatic-gswrapper
-src/cupsomatic.pl src/directomatic.pl src/lpdomatic.pl src/ppromatic.pl)
+src/cupsomatic.pl src/directomatic.pl src/lpdomatic.pl src/ppromatic.pl
+foomatic-rip)
 
 dnl Finished
 echo "Finished configuring."

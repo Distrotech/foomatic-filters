@@ -1,3 +1,25 @@
+2002-11-03  Till Kamppeter <till.kamppeter@gmx.net>
+
+	* foomatic-rip.in: "foomatic-rip", the filter to translate
+	  PostScript input to the printer's native language using printer
+	  capability info from a new Perl-free PPD file. It expects the
+	  name of the PPD file in the environment variable PPD or with the
+	  "-p" command line option and the PostScript on standard input,
+	  the job translated to the printer's native language appears as
+	  standard output.
+	  
+	  The filter recognizes DSC-conforming PostScript documents and
+	  searches for inserted options settings at all allowed places
+	  without loading the whole document into memory. It handles also
+	  command line and PJL arguments given onely for certain pages, in
+	  this case the renderer (usually GhostScript) is restarted with a
+	  new command line and/or new prepended PJL. For
+	  non-DSC-conforming documents only settings in the beginning of
+	  the file are recognized.
+
+	* Makefile.in, configure.in: Taken into account the new
+	  "foomatic-rip" filter.
+	
 2002-10-19  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* src/*omatic.pl.in: Support for custom page sizes. A choice named

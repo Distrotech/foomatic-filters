@@ -1,0 +1,1702 @@
+#!@PERL@
+
+# The above Perl path may vary on your system; fix it!!!
+
+# foomatic-rip is a spooler-independent filter script which takes
+# PostScript as standard input and generates the printer's page
+# description language (PDL)/raster format as standard output. This
+# kind of filter is usually called Raster Image Processor (RIP),
+# therefore the name "foomatic-rip".
+
+# Save it in one of the directories of your $PATH, so that it gets
+# found by the spooler-specific filter, and mark it world-executable
+# (note that most spoolers run the print filters as a special user, as
+# "lp", not as "root" or as the user who sent the job.
+
+# See http://www.linuxprinting.org/<NOT WRITTEN YET>.html
+
+# ==========================================================================
+#
+#    User-configurable settings, edit them if needed
+#
+# ==========================================================================
+
+# What path to use for filter programs and such.  Your printer driver
+# must be in the path, as must be the renderer, $enscriptcommand, and
+# possibly other stuff.	 The default path is often fine on Linux, but
+# may not be on other systems.
+#
+my $execpath = "/usr/local/bin:/usr/bin:/bin";
+
+# Location of the configuration file "filter.conf", this file can be
+# used for settings which should apply to all filters (lpdomatic,
+# cupsomatic, ...). 
+# This variable must contain the full pathname of the directory which
+# contains the configuration file, usually "/etc/foomatic".
+my $configpath = "/etc/foomatic";
+
+# For the stuff below, the settings in the configuration file have priority.
+
+# Enter here your personal command for converting non-postscript files
+# (especially text) to PostScript. If you leave it blank, at first the
+# line "textfilter: ..." from /etc/foomatic/filter.conf is read and
+# then the commands given on the list below are tried, beginning with
+# the first one.
+# You can set this to "a2ps", "enscript" or "mpage" to select one of the 
+# default command strings.
+my $enscriptcommand = "";
+
+# What 'echo' program to use.  It needs -e and -n.  Linux's builtin
+# and regular echo work fine; non-GNU platforms may need to install
+# gnu echo and put gecho here or something.
+#
+my $myecho = 'echo';
+
+# Set debug to 1 to enable the debug logfile for this filter; it will
+# appear as defined by $logfile. It will contain status from this
+# filter, plus the renderer's stderr output. You can also add a line
+# "debug: 1" to your /etc/foomatic/filter.conf to get all your
+# Foomatic filters into debug mode.
+#
+# WARNING: This logfile is a security hole; do not use in production.
+my $debug=0;
+
+# This is the location of the debug logfile in case you have enabled
+# debugging # above.
+my $logfile = "/tmp/foomatic-rip.log";
+
+# End interesting enduser options
+
+# ==========================================================================
+#
+# foomatic-rip spooler-independent PS->Printer filter (RIP) of Foomatic
+#
+# Copyright 2002 Grant Taylor <gtaylor@picante.com>
+#		 & Till Kamppeter <till.kamppeter@gmx.net>
+#
+#  This program is free software; you can redistribute it and/or modify it
+#  under the terms of the GNU General Public License as published by the
+#  Free Software Foundation; either version 2 of the License, or (at your
+#  option) any later version.
+#
+#  This program is distributed in the hope that it will be useful, but
+#  WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General
+#  Public License for more details.
+#
+#  You should have received a copy of the GNU General Public License
+#  along with this program; if not, write to the Free Software
+#  Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307,
+#  USA.
+#
+
+
+# Error codes, as some spooles behave different depending on the reason why
+# the RIP failed, we return an error code. As I have only found a table of
+# error codes for the PPR spooler, I have used these codes, the filter
+# should translate them if the spooler uses other numbers.
+
+$EXIT_PRINTED = 0;         # file was printed normally
+$EXIT_PRNERR = 1;          # printer error occured
+$EXIT_PRNERR_NORETRY = 2;  # printer error with no hope of retry
+$EXIT_JOBERR = 3;          # job is defective
+$EXIT_SIGNAL = 4;          # terminated after catching signal
+$EXIT_ENGAGED = 5;         # printer is otherwise engaged (connection 
+                           # refused)
+$EXIT_STARVED = 6;         # starved for system resources
+$EXIT_PRNERR_NORETRY_ACCESS_DENIED = 7;     # bad password? bad port
+                                            # permissions?
+$EXIT_PRNERR_NOT_RESPONDING = 8;            # just doesn't answer at all 
+                                            # (turned off?)
+$EXIT_PRNERR_NORETRY_BAD_SETTINGS = 9;      # interface settings are invalid
+$EXIT_PRNERR_NO_SUCH_ADDRESS = 10;          # address lookup failed, may be 
+                                            # transient
+$EXIT_PRNERR_NORETRY_NO_SUCH_ADDRESS = 11;  # address lookup failed, not 
+                                            # transient
+$EXIT_INCAPABLE = 50;                       # printer wants (lacks) features
+                                            # or resources
+
+# Unix signal names
+$SIGHUP = 1;
+$SIGINT = 2;
+$SIGQUIT = 3;
+$SIGKILL = 9;
+$SIGTERM = 15;
+$SIGUSR1 = 10;
+$SIGUSR2 = 12;
+$SIGTTIN = 21;
+$SIGTTOU = 22;
+
+# Read config file if present
+%conf = readConfFile("$configpath/filter.conf");
+
+# Get execution path from config file
+if ($execpath) {$ENV{'PATH'} = $execpath;}
+
+# Set debug mode
+$debug = $conf{debug} if defined(%conf) and defined $conf{debug};
+
+# Flush everything immediately.
+$|=1;
+
+# Read the command line options
+use Getopt::Long;
+Getopt::Long::Configure("no_ignore_case");
+GetOptions("q"        => \$opt_q,         # Quiet
+           "v"        => \$opt_v,         # Verbose
+	   "debug"    => \$opt_debug,     # Debug mode
+	   "p"        => \$opt_p,         # PPD file
+	   "ppd"      => \$opt_p);
+
+# Quiet mode, do not log
+if (($opt_q) && (!$debug)) {
+    open LOG, ">/dev/null";
+    $logh = *LOG;
+
+    use IO::Handle;
+    $logh->autoflush(1);
+}
+
+
+# Debug mode activated via command line
+if ($opt_debug) {
+    $debug = 1;
+}
+
+# Get the PPD file name
+my $ppdfile = $ENV{'PPD'};
+if ($opt_p) {
+    $ppdfile = $opt_p;
+}
+
+# Where to send debugging log output to
+if ($debug) {
+    # Grotesquely unsecure; use for debugging only
+    open LOG, ">$logfile";
+    $logh = *LOG;
+
+    use IO::Handle;
+    $logh->autoflush(1);
+} else {
+    $logh=*STDERR;
+}
+
+my $ripversion='$Revision$';
+#'# Fix emacs syntax highlighting
+print $logh "foomatic-rip version $ripversion running...\n";
+print $logh "called with arguments: '",join("','",@ARGV),"'\n";
+
+print $logh "ppd=$ppdfile\n";
+
+# Load the PPD file and build a data structure for the renderer's
+# command line and the options
+open PPD, "$ppdfile" || do {
+    print $logh "error opening $ppdfile.\n";
+    rip_die ("Unable to open PPD file $ppdfile",
+	     $EXIT_PRNERR_NORETRY_BAD_SETTINGS);
+};
+
+print $logh "Parsing PPD file ...\n";
+
+my $dat = {};              # data structure for the options
+my $currentargument = "";  # We are currently reading this argument
+
+# Parse the PPD file
+while(<PPD>) {
+    # Parse keywords
+    if (m!^\*FoomaticRIPCommandLine:\s*\"(.*)$!) {
+	# "*FoomaticRIPCommandLine: <code>"
+	my $line = $1;
+	# Store the value
+	# Code string can have multiple lines, read all of them
+	my $cmd = "";
+	while ($line !~ m!\"!) {
+	    if ($line =~ m!&&$!) {
+		# line continues in next line
+		$cmd .= substr($line, 0, -2);
+	    } else {
+		# line ends here
+		$cmd .= "$line\n";
+	    }
+	    # Read next line
+	    $line = <PPD>;
+	    chomp $line;
+	}
+	$line =~ m!^([^\"]*)\"!;
+	$cmd .= $1;
+	$dat->{'cmd'} = unhtmlify($cmd);
+    } elsif (m!^\*CustomPageSize\s+True:\s*\"(.*)$!) {
+	# "*CustomPageSize True: <code>"
+	my $argname = "PageSize";
+	my $setting = "Custom";
+	my $translation = "Custom Size";
+	my $line = $1;
+	# Make sure that the argument is in the data structure
+	checkarg ($dat, $argname);
+	# Make sure that the setting is in the data structure
+	checksetting ($dat, $argname, $setting);
+	$dat->{'args_byname'}{$argname}{'vals_byname'}{$setting}{'comment'} = $translation;
+	# Store the value
+	# Code string can have multiple lines, read all of them
+	my $code = "";
+	while ($line !~ m!\"!) {
+	    if ($line =~ m!&&$!) {
+		# line continues in next line
+		$code .= substr($line, 0, -2);
+	    } else {
+		# line ends here
+		$code .= "$line\n";
+	    }
+	    # Read next line
+	    $line = <PPD>;
+	    chomp $line;
+	}
+	$line =~ m!^([^\"]*)\"!;
+	$code .= $1;
+	if ($code !~ m!^%% FoomaticRIPOptionSetting!m) {
+	    $dat->{'args_byname'}{$argname}{'vals_byname'}{$setting}{'driverval'} = $code;
+	}
+    } elsif (m!^\*OpenUI\s+\*([^:]+):\s*(\S+)\s*$!) {
+	# "*OpenUI *<option>[/<translation>]: <type>"
+	my $argnametrans = $1;
+	my $argtype = $2;
+	my $argname;
+	my $translation = "";
+	if ($argnametrans =~ m!^([^:/\s]+)/([^:]*)$!) {
+	    $argname = $1;
+	    $translation = $2;
+	} else {
+	    $argname = $argnametrans;
+	}
+	# Make sure that the argument is in the data structure
+	checkarg ($dat, $argname);
+	# Store the values
+	$dat->{'args_byname'}{$argname}{'comment'} = $translation;
+	# Set the argument type only if not defined yet, a
+	# definition in "*FoomaticRIPOption" has priority
+	if (!defined($dat->{'args_byname'}{$argname}{'type'})) {
+	    if ($argtype eq "PickOne") {
+		$dat->{'args_byname'}{$argname}{'type'} = 'enum';
+	    } elsif ($argtype eq "PickMany") {
+		$dat->{'args_byname'}{$argname}{'type'} = 'pickmany';
+	    } elsif ($argtype eq "Boolean") {
+		$dat->{'args_byname'}{$argname}{'type'} = 'bool';
+	    }
+	}
+	# Mark in which argument we are currently, so that we can find
+	# the entries for the choices
+	$currentargument = $argname;
+    } elsif (m!^\*CloseUI:\s+\*([^:/\s]+)\s*$!) {
+	# "*CloseUI *<option>"
+	my $argname = $1;
+	# Unmark the current argument to do not mis-interpret any keywords
+	# as choices
+	$currentargument = "";
+    } elsif ((m!^\*FoomaticRIPOption ([^/:\s]+):\s*(\S+)\s+(\S+)\s+(\S)\s*$!) ||
+	     (m!^\*FoomaticRIPOption ([^/:\s]+):\s*(\S+)\s+(\S+)\s+(\S)\s+(\S+)\s*$!)){
+	# "*FoomaticRIPOption <option>: <type> <style> <spot> [<order>]"
+	# <order> only used for 1-choice enum options
+	my $argname = $1;
+	my $argtype = $2;
+	my $argstyle = $3;
+	my $spot = $4;
+	my $order = $5;
+	# Make sure that the argument is in the data structure
+	checkarg ($dat, $argname);
+	# Store the values
+	$dat->{'args_byname'}{$argname}{'type'} = $argtype;
+	if ($argstyle eq "PS") {
+	    $dat->{'args_byname'}{$argname}{'style'} = 'G';
+	} elsif ($argstyle eq "CmdLine") {
+	    $dat->{'args_byname'}{$argname}{'style'} = 'C';
+	} elsif ($argstyle eq "JCL") {
+	    $dat->{'args_byname'}{$argname}{'style'} = 'J';
+	    $dat->{'pjl'} = 1;
+	} elsif ($argstyle eq "Collective") {
+	    $dat->{'args_byname'}{$argname}{'style'} = 'X';
+	}
+	$dat->{'args_byname'}{$argname}{'spot'} = $spot;
+	# $order only defined here for 1-choice enum options
+	if ($order) {
+	    $dat->{'args_byname'}{$argname}{'order'} = $order;
+	}
+    } elsif (m!^\*FoomaticRIPOptionPrototype\s+([^/:\s]+):\s*\"(.*)$!) {
+	# "*FoomaticRIPOptionPrototype <option>: <code>"
+	# Used for numerical options only
+	my $argname = $1;
+	my $line = $2;
+	# Make sure that the argument is in the data structure
+	checkarg ($dat, $argname);
+	# Store the value
+	# Code string can have multiple lines, read all of them
+	my $proto = "";
+	while ($line !~ m!\"!) {
+	    if ($line =~ m!&&$!) {
+		# line continues in next line
+		$proto .= substr($line, 0, -2);
+	    } else {
+		# line ends here
+		$proto .= "$line\n";
+	    }
+	    # Read next line
+	    $line = <PPD>;
+	    chomp $line;
+	}
+	$line =~ m!^([^\"]*)\"!;
+	$proto .= $1;
+	$dat->{'args_byname'}{$argname}{'proto'} = unhtmlify($proto);
+    } elsif (m!^\*FoomaticRIPOptionRange\s+([^/:\s]+):\s*(\S+)\s+(\S+)\s*$!) {
+	# "*FoomaticRIPOptionRange <option>: <min> <max>"
+	# Used for numerical options only
+	my $argname = $1;
+	my $min = $2;
+	my $max = $3;
+	# Make sure that the argument is in the data structure
+	checkarg ($dat, $argname);
+	# Store the values
+	$dat->{'args_byname'}{$argname}{'min'} = $min;
+	$dat->{'args_byname'}{$argname}{'max'} = $max;
+    } elsif (m!^\*OrderDependency:\s*(\S+)\s+(\S+)\s+\*([^:/\s]+)$!) {
+	# "*OrderDependency: <order> <section> *<option>"
+	my $order = $1;
+	my $section = $2;
+	my $argname = $3;
+	# Make sure that the argument is in the data structure
+	checkarg ($dat, $argname);
+	# Store the values
+	$dat->{'args_byname'}{$argname}{'order'} = $order;
+	$dat->{'args_byname'}{$argname}{'section'} = $section;
+    } elsif (m!^\*Default([^/:\s]+):\s*([^/:\s]+)\s*$!) {
+	# "*Default<option>: <value>"
+	my $argname = $1;
+	my $default = $2;
+	# Make sure that the argument is in the data structure
+	checkarg ($dat, $argname);
+	# Store the value
+	$dat->{'args_byname'}{$argname}{'default'} = $default;
+    } elsif (m!^\*$currentargument\s+([^:]+):\s*\"(.*)$!) {
+	# "*<option> <choice>[/<translation>]: <code>"
+	my $settingtrans = $1;
+	my $line = $2;
+	my $translation = "";
+	if ($settingtrans =~ m!^([^:/\s]+)/([^:]*)$!) {
+	    $setting = $1;
+	    $translation = $2;
+	} else {
+	    $setting = $settingtrans;
+	}
+	# Make sure that the argument is in the data structure
+	checkarg ($dat, $currentargument);
+	# Make sure that the setting is in the data structure (enum options)
+	my $bool =
+	    ($dat->{'args_byname'}{$currentargument}{'type'} eq 'bool');
+	if ($bool) {
+	    if (lc($setting) eq "true") {
+		$dat->{'args_byname'}{$currentargument}{'comment'} =
+		    $translation;
+	    } else {
+		$dat->{'args_byname'}{$currentargument}{'comment_false'} =
+		    $translation;
+	    }
+	} else {
+	    checksetting ($dat, $currentargument, $setting);
+	    $dat->{'args_byname'}{$currentargument}{'vals_byname'}{$setting}{'comment'} = $translation;
+	}
+	# Store the value
+	# Code string can have multiple lines, read all of them
+	my $code = "";
+	while ($line !~ m!\"!) {
+	    if ($line =~ m!&&$!) {
+		# line continues in next line
+		$code .= substr($line, 0, -2);
+	    } else {
+		# line ends here
+		$code .= "$line\n";
+	    }
+	    # Read next line
+	    $line = <PPD>;
+	    chomp $line;
+	}
+	$line =~ m!^([^\"]*)\"!;
+	$code .= $1;
+	if ($code !~ m!^%% FoomaticRIPOptionSetting!) {
+	    if ($bool) {
+		if (lc($setting) eq "true") {
+		    $dat->{'args_byname'}{$currentargument}{'proto'} = $code;
+		} else {
+		    $dat->{'args_byname'}{$currentargument}{'protof'} = $code;
+		}
+	    } else {
+		$dat->{'args_byname'}{$currentargument}{'vals_byname'}{$setting}{'driverval'} = $code;
+	    }
+	}
+    } elsif ((m!^\*FoomaticRIPOptionSetting\s+([^/:=\s]+)=([^/:=\s]+):\s*\"(.*)$!) ||
+	     (m!^\*FoomaticRIPOptionSetting\s+([^/:=\s]+):\s*\"(.*)$!)) {
+	# "*FoomaticRIPOptionSetting <option>[=<choice>]: <code>"
+	# For boolean options <choice> is not given
+	my $argname = $1;
+	my $setting = $2;
+	my $line = $3;
+	my $bool = 0;
+	if (!$line) {
+	    $line = $setting;
+	    $bool = 1;
+	}
+	# Make sure that the argument is in the data structure
+	checkarg ($dat, $argname);
+	# Make sure that the setting is in the data structure (enum options)
+	if (!$bool) {
+	    checksetting ($dat, $argname, $setting);
+	}
+	# Store the value
+	# Code string can have multiple lines, read all of them
+	my $code = "";
+	while ($line !~ m!\"!) {
+	    if ($line =~ m!&&$!) {
+		# line continues in next line
+		$code .= substr($line, 0, -2);
+	    } else {
+		# line ends here
+		$code .= "$line\n";
+	    }
+	    # Read next line
+	    $line = <PPD>;
+	    chomp $line;
+	}
+	$line =~ m!^([^\"]*)\"!;
+	$code .= $1;
+	if ($bool) {
+	    $dat->{'args_byname'}{$argname}{'proto'} = unhtmlify($code);
+	} else {
+	    $dat->{'args_byname'}{$argname}{'vals_byname'}{$setting}{'driverval'} = unhtmlify($code);
+	}
+    } elsif (m!^\*CloseUI:\s+\*([^:/\s]+)\s*$!) {
+	# "*CloseUI: *<option>"
+	my $argname = $1;
+	# Unmark the current argument to do not mis-interpret any keywords
+	# as choices
+	$currentargument = "";
+    }
+}
+close PPD;
+
+## Remove PostScript options, they do not need to be treated by this
+## program, they are treated by the spooler-specific filter or by the
+## spooler itself.
+
+removepsargs($dat);
+
+my $dontparse = 0;
+if ((!defined(@{$dat->{'args'}})) ||
+    ($#{$dat->{'args'}} < 0)) {
+    # We have no Foomatic options, so we do not need to parse the
+    # PostScript data
+    $dontparse = 1;
+}
+
+## First, for arguments with a default, stick the default in as the
+## initial value for the "header" option set, this option set consists
+## of the PPD defaults and the options set in the header part of the
+## PostScript file (all before the first page begins). Let the default
+## value of a boolean option being 0 or 1 instead of "True" or
+## "False", range-check the defaults of all options and issue warnings
+## if the values are not valid
+
+checkoptions($dat, 'default');
+copyoptions($dat, 'default', 'header');
+
+# Was the RIP command line defined in the PPD file? If not, we assume a
+# PostScript printer and do not render/translate the input data
+if (!defined($dat->{'cmd'})) {
+    $dat->{'cmd'} = "cat%A%B%C%D%E%F%G%H%I%J%K%L%M%Z";
+}
+
+## Next, examine the PostScript job for traces of command-line and PJL
+## options. The spooler-specific Foomatic filter and filters of the
+## spooler stuff the settings directly into the file, they do not send
+## PPD options by the command line.
+
+# Examination strategy: read lines from STDIN until the first %%Page:
+# comment appears and save them as $psheader. This is the
+# page-independent header part of thr PostScript file. The PostScript
+# interpreter (renderer) must execute this part once before rendering
+# any assortment of pages. Then pages can be printed in any arbitrary
+# selection or order. All option settings we find here will be
+# collected in the default option set for the RIP command line.
+
+# Now the pages will be read and sent to the renderer, one after the
+# other. Every page is read into memory until the %%EndPageSetup
+# comment appears. So we can get option settings only valid for this
+# page. If we have such settings we set them in the modified command
+# set for this page.
+
+# If the renderer is not running yet (first page) we start it with the
+# command line built from the current modified command set and send
+# the first page to it, in the end we leave the renderer running and
+# keep input and output pipes open, so that it can accept further
+# pages. If the renderer is still running from the previous page and
+# the current modified command set is the same as the one for the
+# previous page, we send the page. If the command set is different, we
+# close the renderer, re-start it with the command line built from the
+# new modified command set, send the header again, and then the page.
+
+# After the last page the trailer (%%Trailer) is sent.
+
+# The output pipe of this program stays open all the time so that the
+# spooler does not assume that the job has finished when the renderer
+# is re-started.
+
+# Non DSC-conforming documents will be read until a certain line
+# number is reached. Command line or JCL options inserted later will
+# be ignored.
+
+print $logh "Reading PostScript input ...\n";
+my $maxlines = 1000;            # Maximum number of lines to be read when
+                                # the documenent is not DSC-conforming.
+                                # "$maxlines = 0" means that all will be
+                                # read and examined. If it is discovered
+                                # that the input file is DSC-conforming,
+                                # this will be set to 0.
+my $maxlinestopsstart = 200;    # That many lines are allowed until the
+                                # "%!" indicating PS comes. These additional
+                                # lines in the beginning are usually JCL
+                                # commands. The lines will be ignored by
+                                # our parsing but passed through.
+my $nonpslines = 0;             # lines before "%!" found yet.
+my $more_stuff = 1;             # there is more stuff in stdin.
+my $linect = 0;                 # how many lines have we examined?
+my $onelinebefore = "";         # The line before the current line
+                                # (Non-DSC comments are ignored)
+my $twolinesbefore = "";        # The line two lines before the current line
+                                # (Non-DSC comments are ignored)
+my @psheader;                   # The header of the PostScript file, to be
+                                # sent after each start of the renderer
+my @psfifo;                     # The input FIFO, data which we have pulled
+                                # from stdin for examination, but not sent
+                                # to the renderer yet.
+my $passthru = 0;               # 0: write data into $psfifo; 1: pass data
+                                # directly to the renderer
+my $isdscjob = 0;               # Is the job DSC conforming
+my $inheader = 1;               # Are we still in the header, before first
+                                # "%%Page:" comment?
+my $optionset = 'header';       # Where do the option settings, which we 
+                                # have found, go?
+my $nestinglevel = 0;           # Are we in the main document (0) or in an
+                                # embedded document  bracketed by
+                                # "%%BeginDocument" and "%%EndDocument" (>0)
+                                # We do not parse the PostScript in an
+                                # embedded document.
+my $inpageheader = 0;           # Are we in the header of a page, between
+                                # "%%BeginPageSetup" and "%%EndPageSetup"
+                                # (1) or not (0).
+my $lastpassthru = 0;           # State of $passthru in previous line (to
+                                # allow debug output when $passthru
+                                # switches.
+my $ignorepageheader = 0;       # Will be set to 1 as soon as active code
+                                # (not between "%%BeginPageSetup" and
+                                # "%%EndPageSetup") appears after a
+                                # "%%Page:" comment. In this case
+                                # "%%BeginPageSetup" and "%%EndPageSetup"
+                                # is not allowed any more on this page
+                                # and will be ignored. Will be set to 0
+                                # when a new "%%Page:" comment appears.
+my $rendererhandle;             # File handle to the renderer process\
+my $rendererpid = 0;            # PID of the renderer process
+
+if ($dontparse) {
+    # We do not parse the PostScript to find Foomatic options, we check
+    # only whether we have PostScript.
+    $maxlines = 1;
+}
+
+# Open debug output file
+if ($debug) {
+    open DRIVERINPUT, "> /tmp/prnjob"
+	or rip_die ("error opening /tmp/prnjob",
+		    $EXIT_PRNERR_NORETRY_BAD_SETTINGS);
+}
+
+
+do {
+    my $line;                   # Line to be read from stdin
+    my $ignoreline = 0;         # Comment line to be ignored when
+                                # determining the last active line and the
+                                # one before the last
+
+    if ($line=<STDIN>) {
+
+	# Debug output
+	if ($debug) {
+	    print DRIVERINPUT $line;
+	}
+
+        if ($linect == $nonpslines) {
+            # In the beginning should be the postscript leader, sometimes
+	    # after some JCL commands
+	    if ($line !~ m/^.?%!/) { # There can be a Windows control char
+	                             # before "%!"
+		$nonpslines ++;
+		if ($maxlines == $nonpslines) {
+		    $maxlines ++;
+		}
+		if ($nonpslines > $maxlinestopsstart) {
+		    rip_die
+			('Job does not start with "%!", is it PostScript?',
+			 $EXIT_JOBERR);
+		}
+	    } else {
+		# Do we have a DSC-conforming document?
+		if (($line =~ m/^.?%!PS-Adobe-/) && ($line !~ m/EPSF/)) {
+		    # Do not stop parsing the document
+		    if (!$dontparse) {
+			$maxlines = 0;
+			$isdscjob = 1;
+		    }
+		    print $logh "--> This document is DSC-conforming!\n";
+		}
+	    }
+        } else {
+	    if ($line =~ m/\%\%BeginDocument[: ]/) {
+		# Beginning of an embedded document
+		# Note that Adobe Acrobat has a bug and so uses
+		# "%%BeginDocument " instead of "%%BeginDocument:"
+		$nestinglevel ++;
+		print $logh "Embedded document, " .
+		    "nesting level now: $nestinglevel\n";
+	    } elsif (($line =~ m/\%\%EndDocument/) &&
+		     ($nestinglevel > 0)) {
+		# End of an embedded document
+		$nestinglevel --;
+		print $logh "End of Embedded document, " .
+		    "nesting level now: $nestinglevel\n";
+	    } elsif (($line =~ m/\%\%Page:(.*)$/) &&
+		     ($nestinglevel == 0)) {
+		print $logh "\n-----------\nNew page: $1\n";
+		# Here begins a new page
+		if ($inheader) {
+		    # The first page starts, so the header ends
+		    $inheader = 0;
+		    # Option setting should go into the page-specific
+		    # option set now
+		    $optionset = 'currentpage';
+		} else {
+		    # Save the option setting of the previous page
+		    copyoptions($dat, 'currentpage', 'previouspage');
+		    deleteoptions($dat, 'currentpage');
+		}
+		# Initialize the option set
+		copyoptions($dat, 'header', 'currentpage');
+		# Now the page header comes, so buffer the data, because
+		# we must perhaps shut down and restart the renderer
+		$passthru = 0;
+		$ignorepageheader = 0;
+	    } elsif (($line =~ m/\%\%BeginPageSetup/) &&
+		     ($nestinglevel == 0) &&
+		     (!$ignorepageheader))  {
+		# Start of the page header, up to %%EndPageSetup
+		# nothing of the page will bedrawn, page-specific
+		# option settngs (as letter-head paper for page 1)
+		# go here
+		$passthru = 0;
+		$inpageheader = 1;
+		
+	    } elsif (($line =~ m/\%\%EndPageSetup/) &&
+		     ($nestinglevel == 0) &&
+		     (!$ignorepageheader)) {
+		# End of the page header, the page is ready to be printed
+		print $logh "End of page header\n";
+		$passthru = 1;
+		$inpageheader = 0;
+            } elsif ((($line =~ m/\%\%(BeginFeature):\s+\*?([^\s=]+)\s+(\S.*)$/) ||
+		      ($line =~ m/\%\%\s*(FoomaticRIPOptionSetting):\s*([^\s=]+)\s*=\s*(\S.*)$/)) &&
+		     ($nestinglevel == 0) && 
+		     ((!$passthru) || (!$isdscjob))) {
+                my ($linetype, $option, $value) = ($1, $2, $3);
+
+                # OK, we have an option.  If it's not a
+                # *ostscript-style option (ie, it's command-line or
+                # PJL) then we should note that fact, since the
+                # attribute-to-filteroption passing in CUPS is kind of
+                # funky, especially wrt boolean options.  
+
+		print $logh "Found: $line";
+                if ($arg=argbyname($option)) {
+		    print $logh "   Option: $option=$value";
+                    if ($arg->{'style'} ne 'G') {
+			print $logh " --> Setting option\n";
+                        if ($arg->{'type'} eq 'bool') {
+                            # Boolean options are 1 or 0
+                            if ($value eq 'True') {
+                                $arg->{$optionset} = 1;
+                            } elsif ($value eq 'False') {
+                                $arg->{$optionset} = 0;
+                            } else {
+                                print $logh "job contained boolean option",
+                                " with neither True nor False value!?";
+                            }
+                        } elsif (($arg->{'type'} eq 'enum') ||
+				 ($arg->{'type'} eq 'int') ||
+				 ($arg->{'type'} eq 'float')) {
+                            # enum options go as the value, unless 
+                            # they were Unknown...
+			    # Same with numerical options.
+
+                            if (lc($value) eq 'unknown') {
+				# Ignore "unknown" settings
+                                #$arg->{$optionset} = undef;
+                            } else {
+				if ((($option eq 'PageSize') ||
+				     ($option eq 'PageRegion')) &&
+				    ($value =~ /^Custom/)) {
+				    if ($linetype eq 'FoomaticRIPOptionSetting') {
+					$twolinesbefore =~
+					    /^\s*([\d\.]+)\s+([\d\.]+)\s+([\d\.]+)\s+([\d\.]+)\s+([\d\.]+)\s*$/;
+					my ($w, $h) = ($1, $2);
+					if (($w) && ($h) && 
+					    ($w != 0) && ($h != 0)) {
+					    $arg->{$optionset} =
+					        "$value.$wx$h";
+					}
+				    }
+				} else {
+				    $arg->{$optionset} = $value;
+				}
+                            }
+                        }
+                    } else {
+                        # it is a postscript style option, presuemably
+                        # all applied for us and such...
+			print $logh " --> Option will be set by PostScript interpreter\n";
+                    }
+		} else {
+                    # This option is unknown to us.  WTF?
+                    print $logh "unknown option $option=$value found in the job\n";
+                }
+	    } elsif (($line =~ m/^\s*\%/) || ($line =~ m/^\s*$/)) {
+		# This is an unknown PostScript comment or a blank line,
+		# no active code
+		$ignoreline = 1;
+            } else {
+		# This line is active PostScript code
+		if ((!$inheader) && (!$inpageheader)) {
+		    # PostScript code inside a page, but not between
+		    # "%%BeginPageSetup" and "%%EndPageSetup", so we are
+		    # drawing onto a page now
+		    if ($onelinebefore =~ m/\%\%Page:/) {
+			print $logh "No page header\n";
+		    }
+		    $passthru = 1;
+		    # If there comes a page header now, ignore it
+		    $ignorepageheader = 1;
+		}
+	    }
+        }
+	
+	if ($lastpassthru != $passthru) {
+	    if ($passthru) {
+		print $logh "Found:\n   $twolinesbefore   $onelinebefore" .
+		    "   $line" . 
+		    " --> Output goes directly to the renderer now.\n";
+	    } else {
+		print $logh "Found:\n   $twolinesbefore   $onelinebefore" .
+		    "   $line" . 
+		    " --> Output goes to the FIFO buffer now.\n";
+	    }
+	}
+
+	# Store or send the current line
+	if (($inheader) && ($isdscjob)) {
+	    # We are still in the PostScript header, collect all lines in
+	    # $psheader
+	    push (@psheader, $line);
+	} else {
+	    if (($passthru) && ($isdscjob)) {
+		if (!$lastpassthru) {
+		    # We enter passthru mode with this line, so the command
+		    # line can have changed, check it and close the renderer
+		    # if needed
+		    if (($rendererpid) &&
+			(!optionsequal($dat, 'currentpage',
+				       'previouspage'))) {
+			print $logh "Command line/JCL options changed, " .
+			    "restarting renderer\n";
+			$retval = closerendererhandle
+			    ($rendererhandle, $rendererpid);
+			if ($retval != $EXIT_PRINTED) {
+			    rip_die ("Error closing renderer",
+				     $retval);
+			}
+			$rendererpid = 0;
+		    }
+		}
+		# Flush $psfifo and send line directly to the renderer
+		if (!$rendererpid) {
+		    # No renderer running, start it
+		    ($rendererhandle, $rendererpid) =
+			getrendererhandle
+			($dat, join('', @psheader, @psfifo));
+		    if ($retval != $EXIT_PRINTED) {
+			rip_die ("Error opening renderer",
+				 $retval);
+		    }
+		    # $psfifo is sent out, flush it.
+		    @psfifo = ();
+		}
+		if ($#psfifo >= 0) {
+		    # Send $psfifo to renderer
+		    print $rendererhandle join('', @psfifo);
+		    # flush $psfifo
+		    @psfifo = ();
+		}
+		# Send line to renderer
+		print $rendererhandle $line;
+	    } else {
+		# Push the line onto the stack for later spitting up...
+		push (@psfifo, $line);
+	    }
+	}
+	    
+        $linect++;
+
+    } else {
+        # EOF!
+        $more_stuff = 0;
+    }
+
+    $lastpassthru = $passthru;
+
+    if (!$ignoreline) {
+	$twolinesbefore = $onelinebefore;
+	$onelinebefore = $line;
+    }
+
+    #print  "##### Page $linect\n";
+
+} while ((($maxlines == 0) or ($linect < $maxlines)) and
+	 ($more_stuff != 0));
+
+if (($more_stuff != 0) || ($#psfifo >= 0)) {
+    # Flush $psfifo and send the remaining data to the renderer, this only
+    # happens with non-DSC-conforming jobs or non-Foomatic PPDs
+    print $logh "Stopped parsing the PostScript data, sending rest directly to renderer."; 
+    ($rendererhandle, $rendererpid) =
+	getrendererhandle($dat, join('', @psheader, @psfifo));
+    if ($retval != $EXIT_PRINTED) {
+	rip_die ("Error opening renderer",
+		 $retval);
+    }
+    if ($more_stuff) {
+        while (<STDIN>) {
+            print $rendererhandle $_;
+        }
+    }
+}
+
+# Close the renderer
+if ($rendererpid) {
+    $retval = closerendererhandle ($rendererhandle, $rendererpid);
+    if ($retval != $EXIT_PRINTED) {
+	rip_die ("Error opening renderer",
+		 $retval);
+    }
+}
+
+# Close debug output file
+if ($debug) {
+    close DRIVERINPUT 
+	or rip_die ("error closing /tmp/prnjob",
+		    $EXIT_PRNERR_NORETRY_BAD_SETTINGS);
+}
+
+
+# Only for debugging
+if ($debug) {
+    use Data::Dumper;
+    local $Data::Dumper::Purity=1;
+    local $Data::Dumper::Indent=1;
+    print $logh Dumper($dat);
+}
+
+print $logh "Closing foomatic-rip.";
+
+exit $retval;
+
+
+## This function runs the renderer command line and returns a file handle
+## for stuffing in the PostScript data.
+
+sub getrendererhandle {
+
+    my ($dat, $prepend) = @_;
+
+    print $logh "\nStarting renderer\n";
+
+    # Catch signals
+
+    $retval = $EXIT_PRINTED;
+    use sigtrap qw(handler set_exit_prnerr USR1 
+		   handler set_exit_prnerr_noretry USR2
+		   handler set_exit_engaged TTIN);
+
+    # Variables for the kid processes reporting their state
+
+    # Set up a pipe for the kids to pass their exit stat to the main process
+    pipe KID_MESSAGE, KID_MESSAGE_IN;
+
+    # When one kid fails put the exit stat here
+    $kidfailed = 0;
+
+    # When a kid exits successfully, mark it here
+    $kid3finished = 0;
+    $kid4finished = 0;
+
+    # Build the command line and get the PJL commands
+    buildcommandline($dat, 'currentpage');
+    $commandline = $dat->{'currentcmd'};
+    @pjlprepend = @{$dat->{'pjlprepend'}};
+    @pjlappend = @{$dat->{'pjlappend'}};
+
+    use IO::Handle;
+    pipe KID3_IN, KID3;
+    KID3->autoflush(1);
+    my $pid3 = fork();
+    if (!defined($pid3)) {
+        print $logh "$0: cannot fork for kid3!\n";
+	rip_die ("can't fork for kid3",
+		 $EXIT_PRNERR_NORETRY_BAD_SETTINGS);
+    }
+    if ($pid3) {
+
+        # we are the parent; return a glob to the filehandle
+        close KID3_IN;
+
+	# Feed in the PostScript header and the FIFO contents
+	print KID3 $prepend;
+
+        KID3->flush();
+        return ( *KID3, $pid3 );
+
+    } else {
+        close KID3;
+
+        pipe KID4_IN, KID4;
+	KID4->autoflush(1);
+        my $pid2 = fork();
+        if (!defined($pid2)) {
+            print $logh "$0: cannot fork for kid4!\n";
+	    close KID_MESSAGE;
+	    print KID_MESSAGE_IN "3 $EXIT_PRNERR_NORETRY_BAD_SETTINGS\n";
+	    rip_die ("can't fork for kid4",
+		     $EXIT_PRNERR_NORETRY_BAD_SETTINGS);
+        }
+        
+        if ($pid2) {
+            # parent, child of primary task; we are |commandline|
+            close KID4_IN;
+
+            print $logh "renderer PID pid2=$pid2\n";
+	    print $logh "renderer command: $commandline\n";
+            
+            if (!close STDIN) {
+		close KID_MESSAGE;
+		print KID_MESSAGE_IN "3 $EXIT_PRNERR_NORETRY_BAD_SETTINGS\n";
+		rip_die ("Couldn't close STDIN in $pid2",
+			 $EXIT_PRNERR_NORETRY_BAD_SETTINGS);
+	    }
+            if (!open (STDIN, "<&KID3_IN")) {
+		close KID_MESSAGE;
+		print KID_MESSAGE_IN "3 $EXIT_PRNERR_NORETRY_BAD_SETTINGS\n";
+		rip_die ("Couldn't dup KID3_IN",
+			 $EXIT_PRNERR_NORETRY_BAD_SETTINGS);
+	    }
+            if (!close STDOUT) {
+		close KID_MESSAGE;
+		print KID_MESSAGE_IN "3 $EXIT_PRNERR_NORETRY_BAD_SETTINGS\n";
+		rip_die ("Couldn't close STDOUT in $pid2",
+			 $EXIT_PRNERR_NORETRY_BAD_SETTINGS);
+	    }
+            if (!open (STDOUT, ">&KID4")) {
+		close KID_MESSAGE;
+		print KID_MESSAGE_IN "3 $EXIT_PRNERR_NORETRY_BAD_SETTINGS\n";
+		rip_die ("Couldn't dup KID4",
+			 $EXIT_PRNERR_NORETRY_BAD_SETTINGS);
+	    }
+	    if ($debug) {
+		if (!open (STDERR, ">&$logh")) {
+		    close KID_MESSAGE;
+		    print KID_MESSAGE_IN "3 $EXIT_PRNERR_NORETRY_BAD_SETTINGS\n";
+		    rip_die ("Couldn't dup logh to stderr",
+			     $EXIT_PRNERR_NORETRY_BAD_SETTINGS);
+		}
+	    }
+
+	    # Massage commandline to execute foomatic-gswrapper
+	    my $havewrapper = 0;
+	    for (split(':', $ENV{'PATH'})) {
+		if (-x "$_/foomatic-gswrapper") {
+		    $havewrapper=1;
+		    last;
+		}
+	    }
+	    if ($havewrapper) {
+		$commandline =~ s!^\s*gs !foomatic-gswrapper !;
+		$commandline =~ s!(\|\s*)gs !\|foomatic-gswrapper !;
+		$commandline =~ s!(;\s*)gs !; foomatic-gswrapper !;
+	    }
+	    
+	    # Actually run the thing...
+	    system("$commandline");
+            if ($? != 0) {
+		my $rendererretval = $? >> 8;
+		print $logh "renderer return value: $rendererretval\n";
+		my $renderersignal = $? & 127;
+		print $logh "renderer received signal: $rendererretval\n";
+		# Handle signals
+		if ($renderersignal == $SIGUSR1) {
+		    $retval = $EXIT_PRNERR;
+		} elsif ($renderersignal == $SIGUSR2) {
+		    $retval = $EXIT_PRNERR_NORETRY;
+		} elsif ($renderersignal == $SIGTTIN) {
+		    $retval = $EXIT_ENGAGED;
+		}
+		if ($retval != $EXIT_PRINTED) {
+		    close KID_MESSAGE;
+		    print KID_MESSAGE_IN "3 $retval\n";
+		    exit $retval;
+		}
+		# Evaluate renderer result
+		if ($rendererretval == 0) {
+		    # Success, exit with 0 and inform main process
+		    close KID_MESSAGE;
+		    print KID_MESSAGE_IN "3 $EXIT_PRINTED\n";
+		    exit $EXIT_PRINTED;
+		} elsif ($rendererretval == 1) {
+		    # Syntax error? PostScript error?
+		    close KID_MESSAGE;
+		    print KID_MESSAGE_IN "3 $EXIT_JOBERR\n";
+		    rip_die ("Possible error on renderer command line or PostScript error. Check options.",
+			     $EXIT_JOBERR);
+		} elsif ($rendererretval == 139) {
+		    # Seems to indicate a core dump
+		    close KID_MESSAGE;
+		    print KID_MESSAGE_IN "3 $EXIT_JOBERR\n";
+		    rip_die ("The renderer may have dumped core.",
+			     $EXIT_JOBERR);
+		} elsif ($rendererretval == 141) {
+		    # Broken pipe, presumably additional filter interface
+		    # exited.
+		    close KID_MESSAGE;
+		    print KID_MESSAGE_IN "3 $EXIT_PRNERR\n";
+		    rip_die ("A filter used in addition to the renderer itself may have failed.",
+			     $EXIT_PRNERR);
+		} elsif (($rendererretval == 243) || ($retval == 255)) {
+		    # PostScript error?
+		    close KID_MESSAGE;
+		    print KID_MESSAGE_IN "3 $EXIT_JOBERR\n";
+		    exit $EXIT_JOBERR;
+		} else {
+		    # Unknown error
+		    close KID_MESSAGE;
+		    print KID_MESSAGE_IN "3 $EXIT_PRNERR\n";
+		    rip_die ("The renderer command line returned an unrecognized error code $retval.",
+			     $EXIT_PRNERR);
+		}
+	    }
+	    close STDOUT;
+	    close KID4;
+	    close STDIN;
+	    close KID3_IN;
+	    # When arrived here the renderer command line was successful
+	    # So exit with zero exit value here and inform the main process
+	    close KID_MESSAGE;
+	    print KID_MESSAGE_IN "3 $EXIT_PRINTED\n";
+	    close KID_MESSAGE_IN;
+	    # Wait for output child
+	    waitpid($pid2, 0);
+	    print $logh "KID3 finished\n";
+	    exit $EXIT_PRINTED;
+        } else {
+            # child, trailing task on the pipe; we write pjl stuff
+            close KID4;
+	    close KID3_IN;
+
+            my $fileh = *STDOUT;
+
+	    # Debug output
+	    print $logh "PJL: " . join("", @pjlprepend) . "<job data>\n" .
+		join("", @pjlappend) . "\n";
+
+            # wrap the PJL around the job data, if there are any
+            # options specified...
+	    if ( @pjlprepend > 1 ) {
+		print $fileh @pjlprepend;
+	    }
+            while (<KID4_IN>) {
+                print $fileh $_;
+            }
+	    if ( @pjlprepend > 1 ) {
+		print $fileh @pjlappend;
+	    }
+            
+            if (!close $fileh) {
+		close KID_MESSAGE;
+		print KID_MESSAGE_IN "4 $EXIT_PRNERR_NORETRY_BAD_SETTINGS\n";
+		rip_die ("error closing $fileh",
+			 $EXIT_PRNERR_NORETRY_BAD_SETTINGS);
+	    }
+	    close KID4_IN;
+
+            print $logh "tail process done writing data to $fileh\n";
+
+	    # Handle signals of the backend interface
+	    if ($retval != $EXIT_PRINTED) {
+		close KID_MESSAGE;
+		print KID_MESSAGE_IN "4 $retval\n";
+		exit $retval;
+	    }
+
+	    # Successful exit, inform main process
+	    close KID_MESSAGE;
+	    print KID_MESSAGE_IN "4 $EXIT_PRINTED\n";
+	    close KID_MESSAGE_IN;
+
+	    print $logh "KID4 finished\n";
+            exit($EXIT_PRINTED);
+        }
+    }
+}
+
+## Close the renderer process and wait untill all kid processes
+## finish.
+
+sub closerendererhandle {
+
+    my ($rendererhandle, $rendererpid) = @_;
+
+    print $logh "\nClosing renderer\n";
+
+    # Do it!
+    close $rendererhandle;
+
+    # Wait for all kid processes to finish or one kid process to fail
+    close KID_MESSAGE_IN;
+    while ((!$kidfailed) &&
+	   !(($kid3finished) &&
+	     ($kid4finished))) {
+	my $message = <KID_MESSAGE>;
+	chomp $message;
+	if ($message =~ /(\d+)\s+(\d+)/) {
+	    my $kid_id = $1;
+	    my $exitstat = $2;
+	    print $logh "KID$kid_id exited with status $exitstat\n";
+	    if ($exitstat > 0) {
+		$kidfailed = $exitstat;
+	    } elsif ($kid_id == 3) {
+		$kid3finished = 1;
+	    } elsif ($kid_id == 4) {
+		$kid4finished = 1;
+	    }
+	}
+    }
+
+    close KID_MESSAGE;
+
+    # If a kid failed, return the exit stat of this kid
+    if ($kidfailed != 0) {
+	$retval = $kidfailed;
+    }
+
+    print $logh "Renderer exit stat: $retval\n";
+    # Wait for renderer child
+    waitpid($rendererpid, 0);
+    print $logh "Renderer process finished\n";
+    return ($retval);
+}
+
+# Find an argument by name in a case-insensitive way
+sub argbyname {
+    my $name = @_[0];
+
+    my $arg;
+    for $arg (@{$dat->{'args'}}) {
+        return $arg if (lc($name) eq lc($arg->{'name'}));
+    }
+
+    return undef;
+}
+
+sub valbyname {
+    my ($arg,$name) = @_;
+
+    my $val;
+    for $val (@{$arg->{'vals'}}) {
+        return $val if (lc($name) eq lc($val->{'value'}));
+    }
+
+    return undef;
+}
+
+# Write a Good-Bye letter before committing suicide (send error
+# message to caller)
+
+sub rip_die {
+    my ($message, $exitstat) = @_;
+    print $logh "Process dieing with \"$message\", exit stat: $exitstat\n";
+    print STDERR $message . "\n";
+    exit $exitstat;
+}
+
+# Signal handling routines
+
+sub set_exit_prnerr {
+    $retval = $EXIT_PRNERR;
+}
+
+sub set_exit_prnerr_noretry {
+    $retval = $EXIT_PRNERR_NORETRY;
+}
+
+sub set_exit_engaged {
+    $retval = $EXIT_ENGAGED;
+}
+
+sub readConfFile {
+    my ($file) = @_;
+
+    my %conf;
+    # Read config file if present
+    if (open CONF, "< $file") {
+	while (<CONF>)
+	{
+	    $conf{$1}="$2" if (m/^\s*([^\#\s]\S*)\s*:\s*(.*)\s*$/);
+	}
+	close CONF;
+    }
+
+    return %conf;
+}
+
+sub unhtmlify {
+    # Replace HTML/XML entities by the original characters
+    my $str = $_[0];
+    $str =~ s/\&apos;/\'/g;
+    $str =~ s/\&quot;/\"/g;
+    $str =~ s/\&gt;/\>/g;
+    $str =~ s/\&lt;/\</g;
+    $str =~ s/\&amp;/\&/g;
+    return $str;
+}
+
+sub checkarg {
+    # Check if there is already an argument record $argname in $dat, if
+    # create one
+    my ($dat, $argname) = @_;
+    return if defined($dat->{'args_byname'}{$argname});
+    # argument record
+    my $rec;
+    $rec->{'name'} = $argname;
+    # Insert record in 'args' array for browsing all arguments
+    push(@{$dat->{'args'}}, $rec);
+    # 'args_byname' hash for looking up arguments by name
+    $dat->{'args_byname'}{$argname} = $dat->{'args'}[$#{$dat->{'args'}}];
+    # Default execution style is 'G' (PostScript) since all arguments for
+    # which we don't find "*Foomatic..." keywords are usual PostScript
+    # options
+    $dat->{'args_byname'}{$argname}{'style'} = 'G';
+    # Default prototype for code to insert, used by enum options
+    $dat->{'args_byname'}{$argname}{'proto'} = '%s';
+    print $logh "Added option $argname\n";
+}
+
+sub checksetting {
+    # Check if there is already an argument record $argname in $dat, if
+    # create one
+    my ($dat, $argname, $setting) = @_;
+    return if 
+	defined($dat->{'args_byname'}{$argname}{'vals_byname'}{$setting});
+    # setting record
+    my $rec;
+    $rec->{'value'} = $setting;
+    # Insert record in 'vals' array for browsing all settings
+    push(@{$dat->{'args_byname'}{$argname}{'vals'}}, $rec);
+    # 'vals_byname' hash for looking up settings by name
+    $dat->{'args_byname'}{$argname}{'vals_byname'}{$setting} = 
+	$dat->{'args_byname'}{$argname}{'vals'}[$#{$dat->{'args_byname'}{$argname}{'vals'}}];
+}
+
+sub removearg {
+    # remove the argument record $argname from $dat
+    my ($dat, $argname) = @_;
+    return if !defined($dat->{'args_byname'}{$argname});
+    # Remove 'args_byname' hash for looking up arguments by name
+    delete $dat->{'args_byname'}{$argname};
+    # Remove argument itself
+    for (my $i = 0; $i <= $#{$dat->{'args'}}; $i ++) {
+	if ($dat->{'args'}[$i]{'name'} eq $argname) {
+	    print $logh "Removing option " .
+		$argname . "\n";
+	    splice(@{$dat->{'args'}}, $i, 1);
+	    last;
+	}
+    }
+}
+
+sub removepsargs {
+    # remove all records of PostScript arguments from $dat
+    my ($dat) = @_;
+    return if !defined($dat);
+    for (my $i = 0; $i <= $#{$dat->{'args'}}; $i ++) {
+	if ($dat->{'args'}[$i]{'style'} eq 'G') {
+	    print $logh "Removing PostScript option " .
+		$dat->{'args'}[$i]{'name'} . "\n";
+	    # Remove 'args_byname' hash for looking up arguments by name
+	    delete $dat->{'args_byname'}{$dat->{'args'}[$i]{'name'}};
+	    # Remove argument itself
+	    splice(@{$dat->{'args'}}, $i, 1);
+	    $i --;
+	}
+    }
+}
+
+sub checkoptions {
+
+    ## Let the values of a boolean option being 0 or 1 instead of
+    ## "True" or "False", range-check the defaults of all options and
+    ## issue warnings if the values are not valid
+
+    # Option set to be examined
+    my ($dat, $optionset) = @_;
+
+    for $arg (@{$dat->{'args'}}) {
+	if (defined($arg->{$optionset})) {
+	    if ($arg->{'type'} eq 'bool') {
+		if (lc($arg->{$optionset}) eq 'true') {
+		    $arg->{$optionset} = 1;
+		} elsif (lc($arg->{$optionset}) eq 'false') {
+		    $arg->{$optionset} = 0;
+		} else {
+		    my $name = $arg->{'name'};
+		    my $default = $arg->{$optionset};
+		    # This maps Unknown to mean False.  Good?  Bad?
+		    # It was done so in Foomatic 2.0.x, too.
+		    $arg->{$optionset} = 0;
+		    print $logh 
+			"PPD default value $default for $name is not a " .
+			"choice!\n" .
+			" --> Using False instead!\n";
+		}
+	    } elsif ($arg->{'type'} eq 'enum') {
+		if (!defined($arg->{'vals_byname'}{$arg->{$optionset}})) {
+		    # wtf!?  that's not a choice!
+		    my $name = $arg->{'name'};
+		    my $default = $arg->{$optionset};
+		    $arg->{$optionset} = $arg->{'vals'}[0]{'value'};
+		    print $logh 
+			"PPD default value $default for $name is not a " .
+			"choice!\n" .
+			" --> Using $arg->{$optionset} instead!\n";
+		}
+	    } elsif (($arg->{'type'} eq 'int') ||
+		     ($arg->{'type'} eq 'float')) {
+		if (($arg->{$optionset} > $arg->{'max'}) ||
+		    ($arg->{$optionset} < $arg->{'min'})) {
+		    my $name = $arg->{'name'};
+		    my $default = $arg->{$optionset};
+		    if ($arg->{$optionset} > $arg->{'max'}) {
+			$arg->{$optionset} = $arg->{'max'}
+		    } elsif ($arg->{$optionset} < $arg->{'min'}) {
+			$arg->{$optionset} = $arg->{'min'}
+		    }
+		    print $logh 
+			"PPD default value $default for $name is out of " .
+			"range!\n" .
+			" --> Using $arg->{$optionset} instead!\n";
+		}
+	    }
+	}
+    }
+}
+
+sub copyoptions {
+
+    ## Copy one option set into another one
+
+    # Source and destination option sets
+    my ($dat, $srcoptionset, $destoptionset) = @_;
+
+    for $arg (@{$dat->{'args'}}) {
+	if (defined($arg->{$srcoptionset})) {
+	    $arg->{$destoptionset} = $arg->{$srcoptionset};
+	}
+    }
+}
+
+sub deleteoptions {
+
+    ## Delete an option set
+
+    # option set to be removed
+    my ($dat, $optionset) = @_;
+
+    for $arg (@{$dat->{'args'}}) {
+	if (defined($arg->{$srcoptionset})) {
+	    delete($arg->{$optionset});
+	}
+    }
+}
+
+sub optionsequal {
+
+    ## Compare two option sets, if they are equal, return 1, otherwise 0
+
+    # Option sets to be compared
+    my ($dat, $firstoptionset, $secondoptionset) = @_;
+
+    for $arg (@{$dat->{'args'}}) {
+	if ((defined($arg->{$firstoptionset})) &&
+	    (defined($arg->{$secondoptionset}))) {
+	    # Both entries exist
+	    return 0 if $arg->{$firstoptionset} ne $arg->{$secondoptionset};
+	} elsif ((defined($arg->{$firstoptionset})) ||
+		 (defined($arg->{$secondoptionset}))) {
+	    # One entry exists
+	    return 0;
+	}
+	# If no entry exists, the non-existing entries are considered as
+	# equal
+    }
+    return 1;
+}
+
+sub buildcommandline {
+
+    ## Build a renderer command line, based in the given option set
+
+    # Foomatic data and name of the option set to apply
+    my ($dat, $optionset) = @_;
+
+    # Construct the proper command line.
+    $dat->{'currentcmd'} = $dat->{'cmd'};
+    my @pjlprepend;
+    my @pjlappend;
+    my $arg;
+
+    for $arg (sort { $a->{'order'} <=> $b->{'order'} } 
+	      @{$dat->{'args'}}) {
+	
+	my $name = $arg->{'name'};
+	my $spot = $arg->{'spot'};
+	my $cmd = $arg->{'proto'};
+	my $type = $arg->{'type'};
+	my $cmdvar = "";
+	my $userval = $arg->{$optionset};
+        
+	if ($type eq 'bool') {
+
+	    # If true, stick the proto into the command line
+	    if (defined($userval) && $userval == 1) {
+		$cmdvar = $cmd;
+	    }
+
+	} elsif ($type eq 'int' or $type eq 'float') {
+
+	    # If defined, process the proto and stick the result into
+	    # the command line or postscript queue.
+	    if (defined($userval)) {
+		my $min = $arg->{'min'};
+		my $max = $arg->{'max'};
+		if ($userval >= $min and $userval <= $max) {
+		    my $sprintfcmd = $cmd;
+		    $sprintfcmd =~ s!\%([^s])!\%\%$1!g;
+		    $cmdvar = sprintf($sprintfcmd,
+				      ($type eq 'int' 
+				       ? sprintf("%d", $userval)
+				       : sprintf("%f", $userval)));
+		} else {
+		    print $logh "Value $userval for $name is out of range $min<=x<=$max.\n";
+		}
+	    }
+
+	} elsif ($type eq 'enum') {
+
+	    # If defined, stick the selected value into the proto and
+	    # thence into the commandline
+	    if (defined($userval)) {
+		# CUPS assumes that options with the choises "Yes", "No",
+		# "On", "Off", "True", or "False" are boolean options and
+		# maps "-o Option=On" to "-o Option" and "-o Option=Off"
+		# to "-o noOption", which cupsomatic maps to "0" and "1".
+		# So when "0" or "1" is unavailable in the option, we try
+		# "Yes", "No", "On", "Off", "True", and "False".
+		my $found = 0;
+		my $val;
+		if ($val=valbyname($arg,$userval)) {
+		    $found = 1;
+		} elsif ($userval =~ /^Custom\.[\d\.]+x[\d\.]+[A-Za-z]*$/) {
+		    # Custom paper size
+		    $val = valbyname($arg,"Custom");
+		    $found = 1;
+		} elsif ($userval eq '0') {
+		    foreach (qw(No Off False None)) {
+			if ($val=valbyname($arg,$_)) {
+			    $userval = $_;
+			    $arg->{$optionset} = $userval;
+			    $found = 1;
+			    last;
+			}
+		    }
+		} elsif ($userval eq '1') {
+		    foreach (qw(Yes On True)) {
+			if ($val=valbyname($arg,$_)) {
+			    $userval = $_;
+			    $arg->{$optionset} = $userval;
+			    $found = 1;
+			    last;
+			}
+		    }
+		} elsif ($userval eq 'LongEdge') {
+		    # Handle different names for the choices of the
+		    # "Duplex" option
+		    foreach (qw(LongEdge DuplexNoTumble)) {
+			if ($val=valbyname($arg,$_)) {
+			    $userval = $_;
+			    $arg->{$optionset} = $userval;
+			    $found = 1;
+			    last;
+			}
+		    }
+		} elsif ($userval eq 'ShortEdge') {
+		    foreach (qw(ShortEdge DuplexTumble)) {
+			if ($val=valbyname($arg,$_)) {
+			    $userval = $_;
+			    $arg->{$optionset} = $userval;
+			    $found = 1;
+			    last;
+			}
+		    }
+		}
+		if ($found) {
+		    my $sprintfcmd = $cmd;
+		    $sprintfcmd =~ s!\%([^s])!\%\%$1!g;
+		    $cmdvar = sprintf($sprintfcmd,
+				      (defined($val->{'driverval'})
+				       ? $val->{'driverval'}
+				       : $val->{'value'}));
+		    # Custom paper size
+		    if ($userval =~ /^Custom\.([\d\.]+)x([\d\.]+)([A-Za-z]*)$/) {
+			my $width = $1;
+			my $height = $2;
+			my $unit = $3;
+			# convert width and height to PostScript points
+			if (lc($unit) eq "in") {
+			    $width *= 72.0;
+			    $height *= 72.0;
+			} elsif (lc($unit) eq "cm") {
+			    $width *= (72.0/2.54);
+			    $height *= (72.0/2.54);
+			} elsif (lc($unit) eq "mm") {
+			    $width *= (72.0/25.4);
+			    $height *= (72.0/25.4);
+			}
+			# Round width and height
+			$width =~ s/\.[0-4].*$// or
+			    $width =~ s/\.[5-9].*$// and $width += 1;
+			$height =~ s/\.[0-4].*$// or
+			    $height =~ s/\.[5-9].*$// and $height += 1;
+			# Insert width and height into the prototype
+			$cmdvar =~ s/\%0/$width/ or
+			    $cmdvar =~ s/(\W)0(\W)/$1$width$2/ or
+			    $cmdvar =~ s/^0(\W)/$width$1/m or
+			    $cmdvar =~ s/(\W)0$/$1$width/m or
+			    $cmdvar =~ s/^0$/$width/m;
+			$cmdvar =~ s/\%1/$height/ or
+			    $cmdvar =~ s/(\W)0(\W)/$1$height$2/ or
+			    $cmdvar =~ s/^0(\W)/$height$1/m or
+			    $cmdvar =~ s/(\W)0$/$1$height/m or
+			    $cmdvar =~ s/^0$/$height/m;
+		    }
+		} else {
+		    # User gave unknown value?
+		    print $logh "Value $userval for $name is not a valid choice.\n";
+		}
+	    }
+
+	} else {
+                    
+	    print $logh "unknown type for argument $name!?\n";
+	    # die "evil type!?";
+                    
+	}
+        
+	if ($arg->{'style'} eq 'G') {
+	    # Place this Postscript command onto the prepend queue.
+	    push (@prepend, "$cmdvar\n") if $cmdvar;
+
+	} elsif ($arg->{'style'} eq 'J') {
+
+	    if (defined($dat->{'pjl'})) {
+		# put PJL commands onto PJL stack...
+		push (@pjlprepend, "\@PJL $cmdvar\n") if $cmdvar;
+	    }
+
+	} elsif ($arg->{'style'} eq 'C') {
+	    # command-line argument
+
+	    # Insert the processed argument in the commandline
+	    # just before the spot marker.
+	    $dat->{'currentcmd'} =~ s!\%$spot!$cmdvar\%$spot!;
+	}
+        
+    }
+    
+
+    ### Tidy up after computing option statements for all of P, J, and
+    ### C types:
+
+    ## C type finishing
+    # Pluck out all of the %n's from the command line prototype
+    my @letters = qw/A B C D E F G H I J K L M Z/;
+    for $spot (@letters) {
+	# Remove the letter marker from the commandline
+	$dat->{'currentcmd'} =~ s!\%$spot!!;
+    }
+
+    ## J type finishing
+    # Compute the proper stuff to say around the job
+
+    if (defined($dat->{'pjl'})) {
+
+	# PJL "frame" with "JOB" and "EOJ" commands
+
+	# Stick beginning of job cruft on the front of the pjl stuff...
+	#unshift (@pjlprepend,
+	#         "\033%-12345X\@PJL JOB NAME=\"FOOMATIC-RIP\"\n");
+
+	# Arrange for PJL EOJ command at end of job
+	#push (@pjlappend,
+	#      "\33%-12345X\@PJL RESET\n\@PJL EOJ\n");
+
+	# PJL "frame" without "JOB" and "EOJ" commands. We use this because
+	# some printers do not support these commands
+
+	# Stick beginning of job cruft on the front of the pjl stuff...
+	unshift (@pjlprepend,
+             "\033%-12345X\@PJL\n");
+
+	# Arrange for PJL RESET command at end of job
+	push (@pjlappend,
+	      "\33%-12345X\@PJL RESET\n");
+
+	# Put the PJL stuff into the data structure
+	@{$dat->{'pjlprepend'}} = @pjlprepend;
+	@{$dat->{'pjlappend'}} = @pjlappend;
+    }
+}
+
+
+# Emacs tabulator/indentation
+
+### Local Variables:
+### tab-width: 8
+### perl-indent-level: 4
+### End:
