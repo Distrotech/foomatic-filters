@@ -17,8 +17,13 @@ grep (m!\-sOutputFile=\-!
 	  # Send the job to fd 3; errors will be on 2(stderr) and job
 	  # ps program interpreter output on 1(stdout)
 	  # The /dev/fd/3 is equivalent to "| cat >&3" but it works with
-	  # all versions of GhostScript under every shell and every Unix.
-	  $_ = '-sOutputFile=/dev/fd/3';	# quoted properly below...
+	  # all versions of GhostScript under every shell and nearly
+	  # every Unix configuration. For the rare case that there is no
+	  # /dev/fd/ file descriptor directory we fall back to the good 
+	  # old "| cat >&3".
+	  $_ = '-sOutputFile=' . 
+	      ((-e "/dev/fd/0") ? "/dev/fd/3" : "| cat >&3");
+	  # quoted properly below...
       }, @ARGV);
 
 grep (m!^\-$! 
@@ -26,16 +31,17 @@ grep (m!^\-$!
 	  # Get the input from fd 0; The /dev/fd/0 is equivalent to
 	  # "-" but there are some pesky PostScript files which do not
 	  # work with "-". This works with all versions of GhostScript
-	  # under every shell and every Unix.
-	  $_ = '/dev/fd/0';
+	  # under every shell and every Unix. For the rare case that 
+	  # there is no /dev/fd/ file descriptor directory we fall back 
+	  # to the good old "-".
+	  $_ = ((-e "/dev/fd/0") ? "/dev/fd/0" : "-");
       }, @ARGV);
 
 # Turn *off* -q (quiet!); now that stderr is useful! :)
 my @myargs = grep (! m!^\-q$!, @ARGV);
 
 # Escape any quotes, and then quote everything just to be sure...
-grep (s!\'!\\'!g, @myargs);
-#'# Fix Emacs syntax highlighting
+grep (s!\'!\\\'!g, @myargs);
 my $args = "'" . join("' '", @myargs) . "'";
 
 # Execute Ghostscript, with both job and gs errors on stderr, and job
