@@ -1,3 +1,11 @@
+2002-12-01  Till Kamppeter <till.kamppeter@gmx.net>
+
+	* foomatic-gswrapper.in: If there is no /dev/fd/0, don't use
+	  /dev/fd/* for standard input, standard output, and standard
+	  error. Support of block reading from standard input ("-_"
+	  instead of "-" on GhostScript command line), use block
+	  reading preferrably.
+
 2002-11-29  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* *: Tagged CVS for the release of foomatic-filters 2.9.0pre1. 

@@ -26,15 +26,15 @@ grep (m!\-sOutputFile=\-!
 	  # quoted properly below...
       }, @ARGV);
 
-grep (m!^\-$! 
+grep (((m!^\-$!) || (m!^\-_$!))
       && do {
 	  # Get the input from fd 0; The /dev/fd/0 is equivalent to
 	  # "-" but there are some pesky PostScript files which do not
 	  # work with "-". This works with all versions of GhostScript
 	  # under every shell and every Unix. For the rare case that 
 	  # there is no /dev/fd/ file descriptor directory we fall back 
-	  # to the good old "-".
-	  $_ = ((-e "/dev/fd/0") ? "/dev/fd/0" : "-");
+	  # to "-_" (as "-" but block instead of character reading).
+	  $_ = ((-e "/dev/fd/0") ? "/dev/fd/0" : "-_");
       }, @ARGV);
 
 # Turn *off* -q (quiet!); now that stderr is useful! :)
