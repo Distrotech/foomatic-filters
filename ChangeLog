@@ -1,3 +1,9 @@
+2003-07-30  Till Kamppeter <till.kamppeter@gmx.net>
+
+	* foomatic-rip.in: If a printer/driver combo has Foomatic-defined
+	  JCL options and the driver already generates a JCL header, the
+	  JCL options are merged into the header produced by the driver.
+
 2003-06-26  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* configure.in, makeMan.in, foomatic-rip.in: Support for IRIX.

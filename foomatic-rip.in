@@ -3355,12 +3355,93 @@ sub getrendererhandle {
 
             # wrap the JCL around the job data, if there are any
             # options specified...
+	    # Should the driver already have inserted JCL commands we merge
+	    # our JCL header with the one from the driver
 	    if ( @jclprepend > 1 ) {
-		print $fileh @jclprepend;
+		# JCL header read from renderer output
+		my @jclheader = ();
+		# Determine magic string of JCL in use (usually "@PJL")
+		# For that we take the first part of the second JCL line up
+		# to the first space
+		if ($jclprepend[1] =~ /^(\S+)/) {
+		    $jclstr = $1;
+		    # Read from the renderer output until the first non-JCL
+		    # line appears
+		    while (my $line = <KID4_IN>) {
+			push(@jclheader, $line);
+			last if ($line !~ /$jclstr/);
+		    }
+		    # If we had read at least two lines, at least one is
+		    # a JCL header, so do the merging
+		    if (@jclheader > 1) {
+			# Discard the first and the last entry of the
+			# @jclprepend array, we only need the option settings
+			# to merge them in
+			pop(@jclprepend);
+			shift(@jclprepend);
+			# Go through every JCL command in @jclprepend
+			for my $line (@jclprepend) {
+			    # Search the command in the JCL header from the
+			    # driver. As search term use only the string from
+			    # the beginning of the line to the "=", so the
+			    # command will also be found when it has another
+			    # value
+			    $line =~ /^([^=]+)/;
+			    $cmd = $1;
+			    my $cmdfound = 0;
+			    for (@jclheader) {
+				# If the command is there, replace it
+				$_ =~ s/$cmd.*(\r\n|\n|\r)/$line/ and 
+				    $cmdfound = 1;
+			    }
+			    if (!$cmdfound) {
+				# If the command is not found, insert it
+				if (@jclheader > 2) {
+				    # @jclheader has more than one line,
+				    # insert the new command right after
+				    # the first line
+				    splice(@jclheader, 1, 0, $line);
+				} else {
+				    # If we have only one line of JCL it
+				    # is probably something like the
+				    # "@PJL ENTER LANGUAGE=..." line
+				    # which has to be in the end, but
+				    # it also contains the
+				    # "<esc>%-12345X" which has to be in the
+				    # beginning of the job. So we split the
+				    # line right before the $jclstr and
+				    # append our command to the end of the
+				    # first part and let the second part
+				    # be a second JCL line.
+				    $jclheader[0] =~ 
+					/^(.*?)($jclstr.*(\r\n|\n|\r))/;
+				    my $first = "$1$line";
+				    my $second = "$2";
+				    my $third = $jclheader[1];
+				    @jclheader = ($first, $second, $third);
+				}
+			    }
+			}
+			# Now pass on the merged JCL header
+			print $fileh @jclheader;
+		    } else {
+			# The driver didn't create a JCL header, simply
+			# prepend ours and then pass on the line which we
+			# already have read
+			print $fileh @jclprepend, @jclheader;
+		    }
+		} else {
+		    # No merging of JCL header possible, simply prepend it
+		    print $fileh @jclprepend;
+		}
 	    }
+
+	    # The rest of the job data
             while (<KID4_IN>) {
                 print $fileh $_;
             }
+
+	    # A JCL trailer
 	    if ( @jclprepend > 1 ) {
 		print $fileh @jclappend;
 	    }
