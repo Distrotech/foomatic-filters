@@ -2359,7 +2359,7 @@ File: $file
 			    if ($arg->{'style'} ne 'G') {
 				# "Controlled by '<Composite>'" setting of
 				# a member option of a composite option
-				if ($fromcompsite) {
+				if ($fromcomposite) {
 				    $value = "From$value";
 				}
 				# Non-PostScript option
