@@ -1,6 +1,12 @@
 2003-03-07  Till Kamppeter <till.kamppeter@gmx.net>
 
-	* foomatic-rip.in: Fixed typo.
+	* foomatic-rip.in: Workaround for bug in OpenOffice.org.
+	  OpenOffice.org puts "%%BeginSetup...%%EndSetup" section with
+	  option settings valid for the whole document after the first
+	  "%%Page:..." line. So without the workaround all settings made
+	  with the "Properties" button in the "File"|"Print" dialog
+	  applied only to the first page, the other pages were printed
+	  with the printer's default settings. Fixed also some typos.
 
 2003-03-06  Till Kamppeter <till.kamppeter@gmx.net>
 

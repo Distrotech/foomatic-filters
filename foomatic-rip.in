@@ -1931,6 +1931,17 @@ File: $file
     my $optionset = 'header';       # Where do the option settings, which 
                                     # we have found, go?
 
+    my $optionsalsointoheader = 0;  # 1: We are in a "%%BeginSetup...
+                                    # %%EndSetup" section after the first
+                                    # "%%Page:..." line (OpenOffice.org
+                                    # does this and intends the options here
+                                    # apply to the whole document and not
+                                    # only to the current page). We have to
+                                    # add all lines also to the end of the
+                                    # @psheader now and we have to set
+                                    # non-PostScript options also in the
+                                    # "header" optionset. 0: otherwise.
+
     my $nestinglevel = 0;           # Are we in the main document (0) or
                                     # in an embedded document bracketed by
                                     # "%%BeginDocument" and "%%EndDocument"
@@ -2153,29 +2164,56 @@ File: $file
 		    # Beginning of Setup
 		    print $logh "\n-----------\nFound: \%\%BeginSetup\n";
 		    $insetup = 1;
+		    # We need to distinguish with the $inheader variable
+		    # here whether we are in the header or on a page, as
+		    # OpenOffice.org inserts a "%%BeginSetup...%%EndSetup"
+		    # section after the first "%%Page:..." line and assumes
+		    # this section to be valid for all pages.
 		    $postscriptsection = 'setup' if $inheader;
 		    $nondsclines = 0;
-		    # If there was no "Prolog" but there are options for
-		    # the "Prolog", push a "Prolog" with these options onto
-		    # the @psfifo here
-		    if (!$prologfound) {
-			# "Prolog" missing, insert it here
-			$line = makeprologsection($dat, $optionset, 1) .
-			    $line;
-			# Now we have a "Prolog"
-			$prologfound = 1;
+		    if ($inheader) {
+			# If there was no "Prolog" but there are
+			# options for the "Prolog", push a "Prolog"
+			# with these options onto the @psfifo here
+			if (!$prologfound) {
+			    # "Prolog" missing, insert it here
+			    $line = makeprologsection($dat, $optionset, 1) .
+				$line;
+			    # Now we have a "Prolog"
+			    $prologfound = 1;
+			}
+			# Insert options for "DocumentSetup" or "AnySetup"
+			if (!$setupfound) {
+			    $line .= makesetupsection($dat, $optionset, 0);
+			}
+			$setupfound = 1;
+		    } else {
+			# Found option settings must be stuffed into both
+			# the header and the currrent page now. They will
+			# be written into both the "header" and the
+			# "currentpage" optionsets and the PostScript code
+			# lines of this section will not only go into the
+			# output stream, but also added to the end of the
+			# @psheader, so that they get repeated (to preserve
+			# the embedded PostScript option settings) on a 
+			# restart of the renderer due to command line 
+			# option changes
+			$optionsalsointoheader = 1;
 		    }
-		    # Insert options for "DocumentSetup" or "AnySetup"
-		    if (!$setupfound) {
-			$line .= makesetupsection($dat, $optionset, 0);
-		    }
-		    $setupfound = 1;
 		} elsif (($line =~ m/^\%\%EndSetup/) &&
 			 ($nestinglevel == 0)) {
 		    # End of Setup
 		    print $logh "Found: \%\%EndSetup\n";
 		    $insetup = 0;
-		    $insertoptions = $linect + 1;
+		    if ($inheader) {
+			$insertoptions = $linect + 1;
+		    } else {
+			# The "%%BeginSetup...%%EndSetup" which
+			# OpenOffice.org has inserted after the first
+			# "%%Page:..." line ends here, so the following
+			# options go only onto the current page again
+			$optionsalsointoheader = 0;
+		    }
 		} elsif (($line =~ m/^\%\%Page:(.*)$/) &&
 			 ($nestinglevel == 0)) {
 		    if ((!$lastpassthru) && (!$inheader)) {
@@ -2206,7 +2244,7 @@ File: $file
 				$line = 
 				    makesetupsection($dat, $optionset, 1) .
 				    $line;
-				# Now we have a "setup"
+				# Now we have a "Setup"
 				$setupfound = 1;
 			    }
 			    # If there was no "Prolog" but there are
@@ -2262,6 +2300,7 @@ File: $file
 			# the renderer
 			$passthru = 0;
 			$ignorepageheader = 0;
+			$optionsalsointoheader = 0;
 		    }
 		} elsif (($line =~ m/^\%\%BeginPageSetup/) &&
 			 ($nestinglevel == 0) &&
@@ -2274,6 +2313,7 @@ File: $file
 		    $passthru = 0;
 		    $inpageheader = 1;		
 		    $postscriptsection = 'pagesetup';
+		    $optionsalsointoheader = 0;
 		} elsif (($line =~ m/^\%\%EndPageSetup/) &&
 			 ($nestinglevel == 0) &&
 			 (!$ignorepageheader)) {
@@ -2281,8 +2321,18 @@ File: $file
 		    # printed
 		    print $logh "Found: \%\%EndPageSetup\n";
 		    print $logh "End of page header\n";
-		    $passthru = 1;
+		    # We cannot for sure say that the page header ends here
+		    # OpenOffice.org puts (due to a bug) a "%%BeginSetup...
+		    # %%EndSetup" section after the first "%%Page:...". It
+		    # is possible that CUPS inserts a "%%BeginPageSetup...
+		    # %%EndPageSetup" before this section, which means that
+		    # the options in the "%%BeginSetup...%%EndSetup" section
+		    # are after the "%%EndPageSetup", so we continue for
+		    # searching options up to the buffer size limit
+		    # $maxlinesforpageoptions.
+		    $passthru = 0;
 		    $inpageheader = 0;
+		    $optionsalsointoheader = 0;
 		} elsif ((($line =~ m/^\%\%(BeginFeature):\s*\*?([^\*\s=]+)\s+()(\S[^\r\n]*)\r?\n?$/) ||
 			  ($line =~ m/^\s*\%\%\s*(FoomaticRIPOptionSetting):\s*([^\*\s=]+)\s*=\s*(\@?)([^\@\s][^\r\n]*)\r?\n?$/)) &&
 			 ($nestinglevel == 0) &&
@@ -2370,6 +2420,9 @@ File: $file
 				    print $logh " --> Setting option\n";
 				    # Valid choice, set it.
 				    $arg->{$optionset} = $newvalue;
+				    if ($optionsalsointoheader) {
+					$arg->{'header'} = $newvalue;
+				    }
 				    if (($arg->{'type'} eq 'enum') &&
 					(($option eq 'PageSize') ||
 					 ($option eq 'PageRegion')) &&
@@ -2384,6 +2437,10 @@ File: $file
 					    ($w != 0) && ($h != 0)) {
 					    $newvalue = "$newvalue.${w}x$h";
 					    $arg->{$optionset} = $newvalue;
+					    if ($optionsalsointoheader) {
+						$arg->{'header'} =
+						    $newvalue;
+					    }
 					}
 				    }
 				    # For a composite option insert the
@@ -2402,6 +2459,10 @@ File: $file
 				    # PageRegion, also set the other
 				    syncpagesize($dat, $option, $newvalue, 
 						 $optionset);
+				    if ($optionsalsointoheader) {
+					syncpagesize($dat, $option, 
+						     $newvalue, 'header');
+				    }
 				} else {
 				    # Invalid option, log it.
 				    print $logh " --> Invalid option " .
@@ -2422,6 +2483,9 @@ File: $file
 					"in composite option '$value'\n";
 				    # Valid choice, set it.
 				    $arg->{$optionset} = $newvalue;
+				    if ($optionsalsointoheader) {
+					$arg->{'header'} = $newvalue;
+				    }
 				    # Update composite options
 				    buildcommandline($dat, $optionset);
 				    # Substitute PostScript comment by
@@ -2535,12 +2599,13 @@ File: $file
 			    # placed not DSC-conforming
 			    if (scalar(@psfifo) >= 
 				$maxlinesforpageoptions) {
-				print $logh "Giving up searching a " .
-				    "DSC-conforming page header\n";
+				print $logh "Stopping search for " .
+				    "page header options\n";
 				$passthru = 1;
 				# If there comes a page header now, ignore 
 				# it
 				$ignorepageheader = 1;
+				$optionsalsointoheader = 0;
 			    }
 			}
 		    }
@@ -2563,6 +2628,13 @@ File: $file
 	    # the current line.
 	    if ($optionreplaced) {
 		$line = "";
+	    }
+
+	    # If we are in a  "%%BeginSetup...%%EndSetup" section after 
+	    # the first "%%Page:...", we have to copy the line also to the
+	    # @psheader.
+	    if ($optionsalsointoheader) {
+		push (@psheader, $line);
 	    }
 
 	    # Store or send the current line
