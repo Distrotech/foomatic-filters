@@ -1,3 +1,27 @@
+2003-04-07  Till Kamppeter <till.kamppeter@gmx.net>
+
+	* foomatic-rip.in: Currently, the renderer is re-started whenever
+	  an arbitrary option is changed from one page to the next one.
+	  For PostScript options this is not really needed when one resets
+	  the PostScript state from before the beginning of the page. Done
+	  tests with saving the state before and restoring it after every
+	  page, but this did not work as the "showpage" cannot be bracketed
+	  by "(g)save"/"(g)restore". See Adobe's "PostScript Language
+	  Document Structuring Convention (DSC) Specification Version 3.0"
+	  (http://partners.adobe.com/asn/developer/technotes/postscript.html),
+	  section 4.3, "Use of showpage" (p. 26). Problem is that "showpage",
+	  "(g)save", and "(g)restore" are often in macros/subroutines, so
+	  they are not easily visible so that one can easily insert option
+	  settings or saving/restoring of the PostScript state at the correct
+	  place. So for now inserting saving/restoring lines is commented out
+	  in foomatic-rip and the renderer is restarted at every option
+	  change ("optionsequal(, , , 0)") and not only after changes of
+	  JCL or command line options ("optionsequal(, , , 1)").
+
+	  Fixed bug of Prolog and DocumentSetup sections created by
+	  foomatic-rip when first "%%Page: ..." is found not being added
+	  to the PostScript header data .
+	
 2003-04-06  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* foomatic-rip.in: Added support for applying options only to

@@ -1876,7 +1876,6 @@ File: $file
     # the spooler, so the filter is only used for regular
     # printouts under LPD, LPRng, GNUlpr or without spooler.
 
-    print $logh "Reading PostScript input ...\n";
     my $maxlines = 1000;            # Maximum number of lines to be read
                                     # when the documenent is not
                                     # DSC-conforming. "$maxlines = 0"
@@ -1989,7 +1988,7 @@ File: $file
 
     my $printprevpage = 0;          # We set this when encountering
                                     # "%%Page:" and the previous page is not
-                                    # printed yet. Then it will printed and 
+                                    # printed yet. Then it will be printed and 
                                     # the new page will be prepared in the
                                     # next run of the loop (we don't read a
                                     # new line and don't increase the
@@ -2049,6 +2048,8 @@ File: $file
 	# only whether we have PostScript.
 	$maxlines = 1;
     }
+
+    print $logh "Reading PostScript input ...\n";
 
     my $line;                       # Line to be read from stdin
     do {
@@ -2260,16 +2261,21 @@ File: $file
 			# page setup section, as some apps do not use
 			# "%%PageSetup" tags.
 			$postscriptsection = 'pagesetup';
+			# Save PostScript state before beginning the page
+			#$line .= "/foomatic-saved-state save def\n";
 			# Here begins a new page
 			if ($inheader) {
+			    # Here we add some stuff which still belongs
+			    # into the header
+			    my $stillforheader;
 			    # If there was no "Setup" but there are
 			    # options for the "Setup", push a "Setup"
 			    # with these options onto the @psfifo here
 			    if (!$setupfound) {
 				# "Setup" missing, insert it here
-				$line = 
+				$stillforheader = 
 				    makesetupsection($dat, $optionset, 1) .
-				    $line;
+				    $stillforheader;
 				# Now we have a "Setup"
 				$setupfound = 1;
 			    }
@@ -2278,12 +2284,14 @@ File: $file
 			    # with these options onto the @psfifo here
 			    if (!$prologfound) {
 				# "Prolog" missing, insert it here
-				$line = 
+				$stillforheader = 
 				    makeprologsection($dat, $optionset, 1) .
-				    $line;
+				    $stillforheader;
 				# Now we have a "Prolog"
 				$prologfound = 1;
 			    }
+			    # Now we push this onto the header
+			    push (@psheader, $stillforheader);
 			    # The first page starts, so the header ends
 			    $inheader = 0;
 			    $nondsclines = 0;
@@ -2291,6 +2299,20 @@ File: $file
 			    # page-specific option set now
 			    $optionset = 'currentpage';
 			} else {
+			    # Restore PostScript state after completing the
+			    # previous page:
+			    # 
+			    #   foomatic-saved-state restore
+			    #   %%Page: ...
+			    #   /foomatic-saved-state save def
+			    #
+			    # Print this directly, so that if we need to
+			    # restart the renderer for this page due to
+			    # a command line change this is done under the
+			    # old instance of the renderer
+			    #print $rendererhandle
+			    #    "foomatic-saved-state restore\n";
+
 			    # Save the option settings of the previous page
 			    copyoptions($dat, 'currentpage',
 					'previouspage');
@@ -2848,6 +2870,14 @@ File: $file
 	    }
 	}
     }
+
+    # At every "%%Page:..." comment we have saved the PostScript state
+    # and we have increased the page number. So if the page number is
+    # non-zero we had at least one "%%Page:..." comment and so we have
+    # to give a restore the PostScript state.
+    #if ($currentpage > 0) {
+    #    print $rendererhandle "foomatic-saved-state restore\n";
+    #}
     
     # Close the renderer
     if ($rendererpid) {
