@@ -1,0 +1,153 @@
+
+Foomatic 2.9.0
+==============
+
+foomatic-filters
+----------------
+
+Filter scripts used by the spoolers to convert the incoming PostScript
+data into the printer's native format using a printer/driver specific
+PPD file (now there are still spooler-specific printer/driver description
+files but in the future spooler-independent PPD files will be used).
+
+
+Grant Taylor <gtaylor@picante.com>
+Till Kamppeter <till.kamppeter@gmx.net>
+
+http://www.linuxprinting.org/
+
+This README contains mainly info for developers. See the file USAGE if
+you want to know how to use Foomatic.
+
+Copying
+-------
+
+This package and also the other Foomatic packages are under the
+GPL. See http://www.gnu.org/.
+
+If you spot a data error or any other bug, send mail describing the bug to
+foomatic-devel@linuxprinting.org
+
+General discussion happens in the foomatic-devel forum/list thing at
+www.linuxprinting.org.
+
+Intro
+-----
+
+This is the development version of Foomatic. See
+
+http://www.linuxprinting.org/contribute.html#programming
+http://www.linuxprinting.org/pipermail/foomatic-devel/2002q3/thread.html
+http://www.linuxprinting.org/kpfeifle/LinuxKongress2002/Tutorial/IV.Foomatic-Developer/IV.tutorial-handout-foomatic-development.html
+
+Your suggestions, bug reports, patches, ... are welcome on
+
+http://www.linuxprinting.org/newsportal/thread.php3?name=linuxprinting.foomatic.devel
+
+Do not use this package in production environments, it can contain
+severe bugs or even be non-functional.
+
+See the README file of "foomatic-db-engine" for a (more or less)
+complete overview of Foomatic.
+
+Programs and important files from this package
+----------------------------------------------
+
+It is planned to modify the filter scripts so that they all work with
+PPD files and even with non-Foomatic PPD files as they come with
+PostScript printers. Then spooler-specific printer/driver description
+files will not be needed any more. This package does not require any
+other Foomatic package. it can be used with printer/driver description
+files/PPDs downloaded from linuxprinting.org or in the future also with
+non-Foomatic PPDs.
+
+Note: The scripts appear as ".in" files in the source tree and CVS,
+because the path for the Perl interpreter/the bourne shell is inserted
+by the "configure" script. For the filters there are ".pl.in" files in
+the "src" directory. The "configure" script makes ".pl" files from
+them with the inserted path of the Perl interpreter. The Makefile sets
+up the headers of the ".pl" files dependent on whether a regular
+installation or an "in-place" installation is done generating the
+final files in the main directory.
+
+configure.ac
+
+  The source from which GNU autoconf generates the "configure" script
+
+acinclude.m4
+
+  Additional macros for the "configure" script
+
+make_configure
+
+  Calls aclocal and autoconf to generate "configure" from "configure.ac" 
+  and "acinclude.m4"
+
+Makefile.in
+
+  The template from which "configure" generates the Makefile
+
+install-sh
+
+  Helper script for "configure"
+
+lpdomatic
+
+  Runs under LPD, VA's GNUlpr LPD variant, LPRng, and probably others.
+  Currently uses a plain Perl dump of the old-style combo data as
+  input.
+
+cupsomatic
+
+  Runs under CUPS.  The datafile is a Perl dump of the old-style combo
+  data embedded as comments at the end of an automatically generated
+  PPD.  The PPD reflects all the options, numerical options are mapped to
+  enumerated options. Some GUIs (KDE 3.x, XPP 1.1 and newer) show the
+  numerical options as numerical options anyway.
+
+ppromatic
+
+  Runs under PPR.  The datafile is a Perl dump of the old-style combo
+  data embedded as comments at the end of an automatically generated
+  PPD.  The PPD reflects all the options, numerical options are mapped to
+  enumerated options.
+
+pdqomatic
+
+  Not actually a standalone program at this time.  Rather, the
+  Foomatic::DB code directly generates PDQ driver declaration with
+  embedded shell script code to implement everything needed.
+
+mfomatic
+
+  Runs under magicfilter, mainly for LPRng use.  A derivative of this
+  is used by Red Hat (?).  Takes the old-style Perl dump as input.
+  Works together with a slightly modified magicfilter; code here
+  generates magicfilter definitions that process ascii properly and
+  pipe Postgres into mfomatic.  mfomatic is probably broken. I (Till)
+  never tested this, and in reality it is not needed. When one has
+  "a2ps" installed, one can print many different file types on a printer
+  set up with lpdomatic.
+
+directomatic
+
+  Filter for printing directly to the printer, without any spooler,
+  uses the same plain Perl dump as lpdomatic as input.
+
+foomatic-gswrapper
+
+  This is not really a backend filter, but it is used by all backend filters
+  when it is present. This is a wrapper around Ghostscript. It regularizes 
+  options if they differ between gs flavors. The filter scripts auto-detect
+  the presence of foomatic-gswrapper.
+
+
+Dependencies
+------------
+
+To build and run this package only a Perl interpreter (5.6.0 and
+newer) is needed.
+
+To connect to remote printers, you need additional connectivity
+software (as "rlpr", "nc", "smbspool', ...).
+

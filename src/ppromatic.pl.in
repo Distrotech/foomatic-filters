@@ -1,0 +1,1383 @@
+#!@PERL@
+#<INPLACE>
+
+# The above Perl path may vary on your system; fix it!!!
+
+# Ppromatic is intended to be used as a PPR interface for printers
+# defined in a PPD-O-Matic PPD file obtained from the Linux Printing 
+# Database.
+
+# Save it somewhere, mark it executable, and point your LPD/GNUlpr
+# queue's if= attribute at it.	Also, point the af= attribute at an
+# LPD-O-Matic printer definition file obtained from the Linux Printing
+# website.  If using LPRng, see the website for extra tips.
+
+# See http://www.linuxprinting.org/ppr-doc.html
+
+# ==========================================================================
+#
+#    User-configurable settings, edit them if needed
+#
+# ==========================================================================
+
+# What path to use for filter programs and such.  Your printer driver
+# must be in the path, as must be Ghostscript, $enscriptcommand, and
+# possibly other stuff.	 The default path is often fine on Linux, but
+# may not be on other systems.
+#
+my $execpath = "/usr/local/bin:/usr/bin:/bin";
+
+# Location of the configuration file "filter.conf", this file can be
+# used for settings which should apply to all filters (lpdomatic,
+# cupsomatic, ...). 
+# This variable must contain the full pathname of the directory which
+# contains the configuration file, usually "/etc/foomatic".
+my $configpath = "/etc/foomatic";
+
+# For the stuff below, the settings in the configuration file have priority.
+
+# Enter here your personal command for converting non-postscript files
+# (especially text) to PostScript. If you leave it blank, at first the
+# line "textfilter: ..." from /etc/foomatic/filter.conf is read and
+# then the commands given on the list below are tried, beginning with
+# the first one.
+# You can set this to "a2ps", "enscript" or "mpage" to select one of the 
+# default command strings.
+my $enscriptcommand = "";
+
+# Prefix of PPR installation, change to /usr/local/share/ppr if needed.
+my $sharedir="/usr/share/ppr";
+
+# What 'echo' program to use.  It needs -e and -n.  Linux's builtin
+# and regular echo work fine; non-GNU platforms may need to install
+# gnu echo and put gecho here or something.
+#
+my $myecho = 'echo';
+
+# Set debug to 1 to enable the debug logfile for this filter; it will
+# appear as /tmp/prnlog It will contain status from this filter, plus
+# Ghostscript stderr output. You can also add a line "debug: 1" to
+# your /etc/foomatic/filter.conf to get all your Foomatic filters into
+# debug mode.
+#
+# WARNING: This logfile is a security hole; do not use in production.
+my $debug=0;
+
+# This is the location of the debug logfile in case you have enabled debugging
+# above.
+my $logfile = "/tmp/prnlog";
+
+# End interesting enduser options
+
+# ==========================================================================
+#<!INPLACE>
+#
+# ppromatic Perl Foomatic interface script for PPR
+#
+# Copyright 2001 Grant Taylor <gtaylor@picante.com>
+#		 & Till Kamppeter <till.kamppeter@gmx.net>
+#
+#  This program is free software; you can redistribute it and/or modify it
+#  under the terms of the GNU General Public License as published by the Free
+#  Software Foundation; either version 2 of the License, or (at your option)
+#  any later version.
+#
+#  This program is distributed in the hope that it will be useful, but
+#  WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+#  or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License
+#  for more details.
+#
+#  You should have received a copy of the GNU General Public License
+#  along with this program; if not, write to the Free Software
+#  Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+#
+#<PACKAGE>
+
+my $configpath = "$ETCDIR";
+my $enscriptcommand = "";
+my $execpath = "$EXECPATH";
+my $logfile = "$LOGPATH/$BASENAME.log";
+my $debug = 0;
+#<!PACKAGE>
+
+# Read config file if present
+%conf = readConfFile("$configpath/filter.conf");
+
+# Determine which filter to use for non-PostScript files to be converted
+# to PostScript
+
+my @enscriptcommands = 
+  ('a2ps -1 @@--medium=@@PAGESIZE@@ @@--center-title=@@JOBTITLE@@ -o - 2>/dev/null',
+   'enscript -G @@-M @@PAGESIZE@@ @@-b "Page $%|@@JOBTITLE@@ -p- 2>/dev/null',
+   'mpage -o -1 @@-b @@PAGESIZE@@ @@-H -h @@JOBTITLE@@ -P- -');
+
+if (defined(%conf) and $conf{textfilter})
+{
+    $enscriptcommand = $conf{textfilter};
+    $enscriptcommand eq 'a2ps' and $enscriptcommand = $enscriptcommands[0];
+    $enscriptcommand eq 'enscript' and $enscriptcommand = $enscriptcommands[1];
+    $enscriptcommand eq 'mpage' and $enscriptcommand = $enscriptcommands[2];
+}
+
+if ($execpath) {$ENV{'PATH'} = $execpath;}
+
+# Set debug mode
+$debug = $conf{debug} if defined(%conf) and defined $conf{debug};
+
+# Where to send debugging log output to
+if ($debug) {
+    # Grotesquely unsecure; use for debugging only
+    open LOG, ">$logfile";
+    $logh = *LOG;
+
+    use IO::Handle;
+    $logh->autoflush(1);
+} else {
+    $logh=*STDERR;
+}
+
+
+# Flush everything immediately.
+$|=1;
+
+my $comversion='$Revision$';
+#'# Fix emacs syntax highlighting
+print $logh "Ppromatic backend version $comversion running...\n";
+print $logh "called with arguments: '",join("','",@ARGV),"'\n";
+
+# Read the command line options
+my $ppr_printer = $ARGV[0];
+my $ppr_address = $ARGV[1];
+my $ppr_options = $ARGV[2];
+my $ppr_jobbreak = $ARGV[3];
+my $ppr_feedback = $ARGV[4];
+my $ppr_codes = $ARGV[5];
+my $ppr_jobname = $ARGV[6];
+my $ppr_routing = $ARGV[7];
+my $ppr_for = $ARGV[8];
+my $ppr_filetype = $ARGV[9];
+
+# Read interface.sh so we will know
+# the correct exit codes and also signal.sh for the signal codes
+my @definitions; # Exit code/signal definitions
+for my $file (("lib/interface.sh", "lib/signal.sh")) {
+
+    open FILE, "$file" || do {
+	print $logh "error opening $file.\n";
+	ppr_die ($ppr_printer, "Unable to open definition file $file", 9);
+    };
+
+    while(my $line = <FILE>) {
+	# Translate the shell script to Perl
+	if (($line !~ m/^\s*$/) && ($line !~ m/^\s*\#/)) {
+	    $line =~ s/^\s*([^\#\s]*)/\$$1;/;
+	    push (@definitions, $line);
+	}
+    }
+    close FILE
+}
+
+# OK, we have the definitions
+eval join('',@definitions) || do {
+    print $logh "unable to evaluate definitions\n";
+    ppr_die ($ppr_printer, "error in definitions eval", 9);
+};
+
+# Get the path of the PPD file from the queue configuration
+my $ppdfile = `LANG=en_US; ppad show $ppr_printer | grep PPDFile`;
+$ppdfile =~ s/PPDFile:\s+//;
+if ($ppdfile !~ m!^/!) {
+    $ppdfile = "$sharedir/PPDFiles/$ppdfile";
+} 
+print $logh "ppd=$ppdfile\n";
+
+# Load the Foomatic data structure from the PPD file
+# Load also the defaults from the PPD syntax...
+open PPD, "$ppdfile" || do {
+    print $logh "error opening $ppdfile.\n";
+    ppr_die ($ppr_printer, "unable to open PPD file $ppdfile",
+	     $EXIT_PRNERR_NORETRY_BAD_SETTINGS);
+};
+
+my @datablob;                   # embedded data
+my %ppddefaults;                # defaults from PPD
+while(<PPD>) {
+    if (s!^\*\% COMDATA \#!!) {
+        push (@datablob, $_);
+    } elsif (m!^\*Default(\w+): ([\w\.\+]+)!) { 
+	     # The dot in the default value is needed to support float
+	     # options
+        $ppddefaults{$1} = $2;
+    }
+}
+close PPD;
+
+# OK, we have the datablob
+eval join('',@datablob) || do {
+    print $logh "unable to evaluate datablob\n";
+    ppr_die ($ppr_printer, "error in datablob eval",
+	     $EXIT_PRNERR_NORETRY_BAD_SETTINGS);
+};
+
+$dat = $VAR1;
+
+# Determine with which command non-PostScript files are converted to PostScript
+if ($enscriptcommand eq "") {
+    for my $c (@enscriptcommands) {
+	($c =~ m/^\s*(\S+)\s+/) || ($c = m/^\s*(\S+)$/);
+	$command = $1;
+	for (split(':', $ENV{'PATH'})) {
+	    if (-x "$_/$command") {
+		$enscriptcommand = $c;
+		last;
+	    }
+	}
+	if ($enscriptcommand ne "") {
+	    last;
+	}
+    }
+    if ($enscriptcommand eq "") {
+	$enscriptcommand = "echo \"Cannot convert file to PostScript!\" 1>&2";
+    }
+}
+
+## First, for arguments with a default, stick the default in as the
+## userval.  First take the defaults from the embedded data, then take
+## the defaults as found in the PPD file: some people modify the PPD
+## file directly to set new system-wide defaults.
+
+# from metadata
+for $arg (@{$dat->{'args'}}) {
+    if ($arg->{'default'}) {
+        $arg->{'userval'} = $arg->{'default'};
+    }
+}
+
+# from ppd file; these overwrite the standard defaults
+for $arg (@{$dat->{'args'}}) {
+    my $ppddef = $ppddefaults{$arg->{'name'}};
+    if (defined($ppddef)) {
+	my $name = $arg->{'name'};
+        if ($arg->{'type'} eq 'bool') {
+            # This maps Unknown to mean False.  Good?  Bad?
+            $arg->{'userval'} = ($ppddef eq 'True' ? '1' : '0');
+        } elsif ($arg->{'type'} eq 'enum') {
+            if (defined($arg->{'vals_byname'}{$ppddef})) {
+                $arg->{'userval'} = $ppddef;
+            } else {
+                # wtf!?  that's not a choice!
+                my $name=$arg->{'name'};
+                print $logh 
+                   "PPD default value $ppddef for $name is not a choice!\n";
+            }
+        } elsif (($arg->{'type'} eq 'int') ||
+		 ($arg->{'type'} eq 'float')) {
+	    if (($ppddef <= $arg->{'max'}) &&
+		($ppddef >= $arg->{'min'})) {
+		$arg->{'userval'} = $ppddef;
+	    } else {
+		print $logh 
+                   "PPD default value $ppddef for $name is out of range!\n";
+	    }
+	}
+    }
+}
+
+## We get various options as argument 3. These options are defined in the
+## config file of the queue. Parse them out and modify the defaults
+## appropriately, so that the user can set defaults with "ppad options
+## option1=value1 option2=value2 ...", also options for the "real" backend
+## interface (parallel, tcpip, atalk, ...) are allowed here, and the backend
+## interface choice is required here.
+
+my $optstr = $ppr_options;
+
+print $logh "options: ->$optstr<-\n";
+
+# Parse them.  They're foo='bar nut', or foo, or 'bar nut', or
+# foo:'bar nut' (when GPR was used) all with spaces between...
+
+my @opts;
+
+# Variable for backend interface name (parallel, tcpip, atalk, ...)
+
+$backend = "";
+
+# Array to collect unknown options so that they can get passed to the
+# backend interface
+
+@backendoptions = ();
+
+# foo='bar nut'
+while ($optstr =~ s!(\w+=\'.+?\') ?!!) {
+    push (@opts, $1);
+}
+
+# foo:'bar nut' (GPR separates option and setting with a colon ":")
+while ($optstr =~ s!(\w+:\'.+?\') ?!!) {
+    push (@opts, $1);
+}
+
+# 'bar nut'
+while ($optstr =~ s!(\'.+?\') ?!!) {
+    push (@opts, $1);
+}
+
+# foo
+push(@opts, split(/ /,$optstr));
+
+
+# Now actually process those pesky options...
+
+for (@opts) {
+    print $logh "Pondering option `$_'\n";
+
+    if (lc($_) eq 'docs') {
+        $do_docs = 1;
+        last;
+    }
+
+    my $arg;
+    if ((m!([^=]+)=\'?(.+)\'?!) || (m!([^=:]+):\'?(.+)\'?!)) {
+        my ($aname, $avalue) = ($1, $2);
+
+	# At first look for the "backend" option to determine the PPD 
+	# backend to use
+	if ($aname =~ m!^backend$!i){
+	    # Backend interface name
+	    $backend = $avalue;
+        } elsif ($aname =~ m!^media$!i) {
+
+	    # Standard arguments?
+	    # media=x,y,z
+	    # sides=one|two-sided-long|short-edge
+
+	    # Rummage around in the media= option for known media, source, 
+	    # etc types.
+	    # We ought to do something sensible to make the common manual
+	    # boolean option work when specified as a media= tray thing.
+	    # 
+	    # Note that this fails miserably when the option value is in
+	    # fact a number; they all look alike.  It's unclear how many
+	    # drivers do that.  We may have to standardize the verbose
+	    # names to make them work as selections, too.
+
+            my @values = split(',',$avalue);
+            for (@values) {
+                if ($dat->{'args_byname'}{'PageSize'}
+                    and $val=valbyname($dat->{'args_byname'}{'PageSize'},$_)) {
+                    $dat->{'args_byname'}{'PageSize'}{'userval'} = 
+                        $val->{'value'};
+                } elsif ($dat->{'args_byname'}{'MediaType'}
+                         and $val=valbyname($dat->{'args_byname'}{'MediaType'},$_)) {
+                    $dat->{'args_byname'}{'MediaType'}{'userval'} =
+                        $val->{'value'};
+                } elsif ($dat->{'args_byname'}{'InputSlot'}
+                         and $val=valbyname($dat->{'args_byname'}{'InputSlot'},$_)) {
+                    $dat->{'args_byname'}{'InputSlot'}{'userval'} = 
+                        $val->{'value'};
+                } elsif (lc($_) eq 'manualfeed') {
+                    # Special case for our typical boolean manual
+                    # feeder option if we didn't match an InputSlot above
+                    if (defined($dat->{'args_byname'}{'ManualFeed'})) {
+                        $dat->{'args_byname'}{'ManualFeed'}{'userval'} = 1;
+                    }
+                } else {
+                    print $logh "Unknown media= component $_.\n";
+                }
+            }
+
+        } elsif ($aname =~ m!^sides$!i) {
+            # Handle the standard duplex option, mostly
+            if ($avalue =~ m!^two-sided!i) {
+                if (defined($dat->{'args_byname'}{'Duplex'})) {
+		    # We set "Duplex" to '1' here, the real argument setting
+		    # will be done later
+                    $dat->{'args_byname'}{'Duplex'}{'userval'} = '1';
+		    # Check the binding: "long edge" or "short edge"
+		    if ($avalue =~ m!long-edge!i) {
+			if (defined($dat->{'args_byname'}{'Binding'})) {
+			    $dat->{'args_byname'}{'Binding'}{'userval'} =
+	  $dat->{'args_byname'}{'Binding'}{'vals_byname'}{'LongEdge'}{'value'};
+			} else {
+			    $dat->{'args_byname'}{'Duplex'}{'userval'} = 
+				'LongEdge';
+			}
+		    } elsif ($avalue =~ m!short-edge!i) {
+			if (defined($dat->{'args_byname'}{'Binding'})) {
+			    $dat->{'args_byname'}{'Binding'}{'userval'} =
+	 $dat->{'args_byname'}{'Binding'}{'vals_byname'}{'ShortEdge'}{'value'};
+			} else {
+			    $dat->{'args_byname'}{'Duplex'}{'userval'} = 
+				'ShortEdge';
+			}
+		    }
+                }
+            } elsif ($avalue =~ m!^one-sided!i) {
+                if (defined($dat->{'args_byname'}{'Duplex'})) {
+		    # We set "Duplex" to '0' here, the real argument setting
+		    # will be done later
+                    $dat->{'args_byname'}{'Duplex'}{'userval'} = '0';
+                }
+            }
+
+            # We should handle the other half of this option - the
+            # BindEdge bit.  Also, are there well-known ipp/cups
+            # options for Collate and StapleLocation?  These may be
+            # here...
+
+        } else {
+            # Various non-standard printer-specific options
+            if ($arg=argbyname($aname)) {
+                $arg->{'userval'} = $avalue;
+
+                # Special case for PPD undef in required defaults; etc.
+                # The user himself should never be specifying 'Unknown'.
+                if (lc($avalue) eq 'unknown') {
+                    $arg->{'userval'} = undef;
+                }
+            } else {
+                # Unknown option, pass it to the backend interface
+		push (@backendoptions, "$aname=$avalue");
+            }
+        }
+    } elsif (m!no(.+)!i) {
+        # standard bool args:
+        # landscape; what to do here?
+        # duplex; we should just handle this one OK now?
+
+        if ($arg=argbyname($1)) {
+            $arg->{'userval'} = 0;
+        } else {
+            print $logh "Unknown bool option $1.\n";
+        }
+    } elsif (m!(.+)!) {
+        if ($arg=argbyname($1)) {
+            $arg->{'userval'} = 1;
+        } else {
+            print $logh "Unknown bool option $1.\n";
+        }
+    }
+}
+
+## Set up the backend command line
+
+# Check whether a valid interface name has been chosen.
+if ($backend eq "") {
+    print $logh "No \"backend=...\" option given in queue configuration!\n";
+    ppr_die ($ppr_printer,
+	     'No backend interface defined\n("lpad options <printer> backend=<backend>",\n<backend>: parallel, serial, tcpip, atalk, ...)',
+	     $EXIT_PRNERR_NORETRY_BAD_SETTINGS);
+}
+
+if (!-x "interfaces/$backend") {
+    print $logh "The backend interface `$pwd`/interfaces/$backend does not exist/is not executable!\n";
+    ppr_die ($ppr_printer,
+	     'The backend interface `$pwd`/interfaces/$backend does not exist/is not executable!',
+	     $EXIT_PRNERR_NORETRY_BAD_SETTINGS);
+}
+
+if ($backend eq "ppromatic") {
+    print $logh "\"ppromatic\" cannot use itself as backend interface!\n";
+    ppr_die ($ppr_printer,
+	     '"ppromatic" cannot use itself as backend interface!',
+	     $EXIT_PRNERR_NORETRY_BAD_SETTINGS);
+}
+
+# Put the backend interface into the $postpipe
+
+$postpipe = "| ( interfaces/$backend \"$ppr_printer\" \"$ppr_address\" \"" .
+    join(" ",@backendoptions) . "\" \"$ppr_jobbreak\" \"$ppr_feedback\" " .
+    "\"$ppr_codes\" \"$ppr_jobname\" \"$ppr_routing\" \"$ppr_for\" \"\" )";
+
+print $logh "Backend interface command line: $postpipe\n";
+
+# so now what were the defaults? print them if debugging...
+if ($debug) {
+    for $arg (@{$dat->{'args'}}) {
+        my ($name, $val) = ($arg->{'name'}, $arg->{'userval'});
+        print $logh "Default for option $name is $val\n";
+    }
+}
+
+## Next, examine the postscript job itself for traces of command-line
+## and pjl options. PPR stuffs the settings directly into the file, it does
+## not send PPD options to the interface by the command line.
+
+# Examination strategy: read some lines from STDIN.  Put those lines
+# onto the stack @examined_stuff, which will be stuffed into
+# Ghostscript/whatever later on.
+
+print $logh "Searching job for option settings ...\n";
+my $maxlines = 1000;            # how many lines to examine?
+my $more_stuff = 1;             # there is more stuff in stdin.
+my $linect = 0;                 # how many lines have we examined?
+do {
+    my $line;
+    if ($line=<STDIN>) {
+        if ($linect == 0) {
+            # Line zero should be postscript leader
+            ppr_die ($ppr_printer,
+		     'job does not start with Postscript %! thing',
+		     $EXIT_JOBERR)
+                if $line !~ m/^.?%!/; # There can be a Windows control char
+	                              # before "%!"
+
+        } else {
+            if (($line =~ m/\%\%BeginFeature:\s+\*?([^\s=]+)\s+(\S.*)$/) ||
+		($line =~ m/\%\%\s*FoomaticOpt:\s*([^\s=]+)\s*=\s*(\S.*)$/)) {
+                my ($option, $value) = ($1, $2);
+
+                # OK, we have an option.  If it's not a
+                # *ostscript-style option (ie, it's command-line or
+                # PJL) then we should note that fact, since the
+                # attribute-to-filteroption passing in CUPS is kind of
+                # funky, especially wrt boolean options.  
+
+		print $logh "Found: $line";
+                if ($arg=argbyname($option)) {
+		    print $logh "   Option: $option=$value";
+                    if ($arg->{'style'} ne 'G') {
+			print $logh " --> Setting option\n";
+                        if ($arg->{'type'} eq 'bool') {
+                            # Boolean options are 1 or 0
+                            if ($value eq 'True') {
+                                $arg->{'userval'} = 1;
+                            } elsif ($value eq 'False') {
+                                $arg->{'userval'} = 0;
+                            } else {
+                                warn "job contained boolean option",
+                                " with neither True nor False value!?";
+                            }
+                        } elsif (($arg->{'type'} eq 'enum') ||
+				 ($arg->{'type'} eq 'int') ||
+				 ($arg->{'type'} eq 'float')) {
+                            # enum options go as the value, unless 
+                            # they were Unknown...
+			    # Same with numerical options, they can appear
+			    # here when the client has used the Adobe-
+			    # compliant PPD-O-MATIC PPD file.
+
+                            if (lc($value) eq 'unknown') {
+                                $arg->{'userval'} = undef;
+                            } else {
+                                $arg->{'userval'} = $value;
+                            }
+                        }
+                    } else {
+                        # it is a postscript style option, presuemably
+                        # all applied for us and such...
+			print $logh " --> Option will be set by PostScript interpreter\n";
+                    }
+		} elsif ($option eq "PageRegion") {
+		    # PPR uses "PageRegion" instead of "PageSize"
+		    print $logh "   Option: PageSize=$value";
+		    if (($arg = argbyname("PageSize")) &&
+			(lc($value) ne 'unknown')) {
+			if ($arg->{'style'} ne 'G') {
+			    print $logh " --> Setting option\n";
+			    $arg->{'userval'} = $value;
+			} else { 
+			    print $logh " --> Option will be set by PostScript interpreter\n";
+			}
+		    }
+                } else {
+                    # This option is unknown to us.  WTF?
+                    warn "unknown option $option=$value found in the job";
+                }       
+
+            }
+        }
+
+        # Push the line onto the stack for later spitting up...
+        push (@examined_stuff, $line);
+        $linect++;
+
+    } else {
+        # EOF!
+        $more_stuff = 0;
+    }
+
+} while (($linect < $maxlines) and ($more_stuff != 0));
+
+# When the user does "ppr -d <printer> -i docs <file>" print the help page
+if ($ppr_routing eq "docs") {
+    $do_docs = 1;
+}
+
+#### Everything below here ought to be generic for any printing
+#### system?  It just uses the $dat structure, with user values filled
+#### in, and turns postscript into printer data. The only difference
+#### for ppromatic is the error handling and user notification of PPR.
+
+
+# Construct the proper command line.
+my $commandline = $dat->{'cmd'};
+my $arg;
+ argument:
+    for $arg (sort { $a->{'order'} <=> $b->{'order'} } 
+              @{$dat->{'args'}}) {
+        
+        # Only do command-line and postscript style arguments.
+	# I think PJL options may break some drivers?  Uncomment if so
+        # next argument if ($arg->{'style'} eq 'J');
+        
+        my $name = $arg->{'name'};
+        my $spot = $arg->{'spot'};
+        my $varname = $arg->{'varname'};
+        my $cmd = $arg->{'proto'};
+        my $comment = $arg->{'comment'};
+        my $type = $arg->{'type'};
+        my $cmdvar = "";
+        my $userval = $arg->{'userval'};
+        
+        my $psarg = ($arg->{'style'} eq 'G' ? 1 : 0);
+
+        if ($type eq 'bool') {
+
+	    # If true, stick the proto into the command line
+	    if (defined($userval) && $userval == 1) {
+		$cmdvar = $cmd;
+	    }
+
+        } elsif ($type eq 'int' or $type eq 'float') {
+
+            # If defined, process the proto and stick the result into
+            # the command line or postscript queue.
+            if (defined($userval)) {
+                my $min = $arg->{'min'};
+                my $max = $arg->{'max'};
+                if ($userval >= $min and $userval <= $max) {
+		    my $sprintfcmd = $cmd;
+		    $sprintfcmd =~ s!\%([^s])!\%\%$1!g;
+		    $cmdvar = sprintf($sprintfcmd,
+				      ($type eq 'int' 
+                                       ? sprintf("%d", $userval)
+                                       : sprintf("%f", $userval)));
+                } else {
+                    print $logh "Value $userval for $name is out of range $min<=x<=$max.\n";
+                }
+            }
+
+        } elsif ($type eq 'enum') {
+
+	    # If defined, stick the selected value into the proto and
+	    # thence into the commandline
+	    if (defined($userval)) {
+		# CUPS assumes that options with the choises "Yes", "No",
+		# "On", "Off", "True", or "False" are boolean options and
+		# maps "-o Option=On" to "-o Option" and "-o Option=Off"
+		# to "-o noOption", which cupsomatic maps to "0" and "1".
+		# So when "0" or "1" is unavailable in the option, we try
+		# "Yes", "No", "On", "Off", "True", and "False".
+		my $found = 0;
+		my $val;
+		if ($val=valbyname($arg,$userval)) {
+		    $found = 1;
+		} elsif ($userval eq '0') {
+		    foreach (qw(No Off False None)) {
+			if ($val=valbyname($arg,$_)) {
+			    $userval = $_;
+			    $arg->{'userval'} = $userval;
+			    $found = 1;
+			    last;
+			}
+		    }
+		} elsif ($userval eq '1') {
+		    foreach (qw(Yes On True)) {
+			if ($val=valbyname($arg,$_)) {
+			    $userval = $_;
+			    $arg->{'userval'} = $userval;
+			    $found = 1;
+			    last;
+			}
+		    }
+		} elsif ($userval eq 'LongEdge') {
+		    # Handle different names for the choices of the
+		    # "Duplex" option
+		    foreach (qw(LongEdge DuplexNoTumble)) {
+			if ($val=valbyname($arg,$_)) {
+			    $userval = $_;
+			    $arg->{'userval'} = $userval;
+			    $found = 1;
+			    last;
+			}
+		    }
+		} elsif ($userval eq 'ShortEdge') {
+		    foreach (qw(ShortEdge DuplexTumble)) {
+			if ($val=valbyname($arg,$_)) {
+			    $userval = $_;
+			    $arg->{'userval'} = $userval;
+			    $found = 1;
+			    last;
+			}
+		    }
+		}
+		if ($found) {
+		    my $sprintfcmd = $cmd;
+		    $sprintfcmd =~ s!\%([^s])!\%\%$1!g;
+		    $cmdvar = sprintf($sprintfcmd,
+				      (defined($val->{'driverval'})
+				       ? $val->{'driverval'}
+				       : $val->{'value'}));
+		} else {
+		    # User gave unknown value?
+		    print $logh "Value $userval for $name is not a valid choice.\n";
+		}
+	    }
+
+        } else {
+                    
+            print $logh "unknown type for argument $name!?\n";
+            # die "evil type!?";
+                    
+        }
+        
+        if ($arg->{'style'} eq 'G') {
+	    # Place this Postscript command onto the prepend queue.
+	    push (@prepend, "$cmdvar\n") if $cmdvar;
+
+        } elsif ($arg->{'style'} eq 'J') {
+
+            if (defined($dat->{'pjl'})) {
+                # put PJL commands onto PJL stack...
+	        push (@pjlprepend, "\@PJL $cmdvar\n") if $cmdvar;
+            }
+
+        } elsif ($arg->{'style'} eq 'C') {
+            # command-line argument
+
+            # Insert the processed argument in the commandline
+            # just before the spot marker.
+            $commandline =~ s!\%$spot!$cmdvar\%$spot!;
+        }
+        
+    }
+
+
+### Tidy up after computing option statements for all of P, J, and C types:
+
+## C type finishing
+# Pluck out all of the %n's from the command line prototype
+my @letters = qw/A B C D E F G H I J K L M Z/;
+for $spot (@letters) {
+    # Remove the letter marker from the commandline
+    $commandline =~ s!\%$spot!!;
+}
+
+## J type finishing
+# Compute the proper stuff to say around the job
+
+if (defined($dat->{'pjl'})) {
+
+    # PJL "frame" with "JOB" and "EOJ" commands
+
+    # Stick beginning of job cruft on the front of the pjl stuff...
+    #unshift (@pjlprepend,
+    #         "\033%-12345X\@PJL JOB NAME=\"PPROMATIC\"\n");
+
+    # Arrange for PJL EOJ command at end of job
+    #push (@pjlappend,
+    #      "\33%-12345X\@PJL RESET\n\@PJL EOJ\n");
+
+    # PJL "frame" without "JOB" and "EOJ" commands. We use this because
+    # some printers do not support these commands
+
+    # Stick beginning of job cruft on the front of the pjl stuff...
+    unshift (@pjlprepend,
+             "\033%-12345X\@PJL\n");
+
+    # Arrange for PJL RESET command at end of job
+    push (@pjlappend,
+          "\33%-12345X\@PJL RESET\n");
+
+    print $logh "PJL: ", @pjlprepend, "<job data>\n", @pjlappend;
+}
+
+# Insert the page size into the $enscriptcommand
+if ($enscriptcommand =~ /\@\@([^@]+)\@\@PAGESIZE\@\@/) {
+    my $optstr = ((($arg = argbyname('PageSize')))
+		  ? $1 . $arg->{'userval'}
+		  : "");
+    $enscriptcommand =~ s/\@\@([^@]+)\@\@PAGESIZE\@\@/$optstr/;
+}
+
+# Insert the job title into the $enscriptcommand
+if ($enscriptcommand =~ /\@\@([^@]+)\@\@JOBTITLE\@\@/) {
+    my $titlearg = $1;
+    my ($arg, $optstr, $jobtitle);
+    if ($do_docs) {
+	$jobtitle = 
+	    "Documentation for the $dat->{'make'} $dat->{'model'}";
+    } else {
+	$jobtitle = $ppr_jobname;
+    }
+    ($arg = $jobtitle) =~ s/\"/\\\"/g;
+    if (($titlearg =~ /\"/) || $arg) {
+	$optstr = $titlearg . ($titlearg =~ /\"/ ? '' : '"') .
+	    ($arg ? "$arg\"" : '"');
+    } else {
+	$optstr = "";
+    }
+    $enscriptcommand =~ s/\@\@([^@]+)\@\@JOBTITLE\@\@/$optstr/;
+}
+
+# Debugging printout of all option values
+if ($debug) {
+    for $arg (@{$dat->{'args'}}) {
+        my ($name, $val) = ($arg->{'name'}, $arg->{'userval'});
+        print $logh "Final value for option $name is $val\n";
+    }
+}
+
+# Raw print job? Replace the command line by "cat"
+
+if ($ppr_filetype ne "") {
+    $commandline = "cat";
+}
+
+# Catch signals
+
+$retval = $EXIT_PRINTED;
+use sigtrap qw(handler set_exit_prnerr USR1 
+	       handler set_exit_prnerr_noretry USR2
+	       handler set_exit_engaged TTIN);
+
+# Variables for the kid processes reporting their state
+
+# Set up a pipe for the kids to pass their exit stat to the main process
+pipe KID_MESSAGE, KID_MESSAGE_IN;
+
+# When one kid fails put the exit stat here
+my $kidfailed = 0;
+
+# When a kid exits successfully, mark it here
+my $kid1finished = 0;
+my $kid3finished = 0;
+my $kid4finished = 0;
+
+# Now print the darned thing!
+if (! $do_docs) {
+    # We have no kid1 in case of normal printing. Mark it as successfully
+    # finished
+    $kid1finished = 1;
+
+    # Run the proper command line.
+    ($driverh, $driverpid) = getdriverhandle();
+
+    print $driverh @examined_stuff; # first 1000 lines or so
+    if ($debug != 0) {
+	open DRIVERINPUT, "> /tmp/prnjob"
+	    or ppr_die ($ppr_printer,
+			"error opening /tmp/prnjob",
+			$EXIT_PRNERR_NORETRY_BAD_SETTINGS);;
+	print DRIVERINPUT @examined_stuff;
+    }
+    if ($more_stuff) {
+        while (<STDIN>) {
+            print $driverh $_;
+	    if ($debug != 0) {
+		print DRIVERINPUT $_;
+	    }
+        }
+    }
+
+    close $driverh 
+	or ppr_die ($ppr_printer,
+		    "error closing $driverh",
+		    $EXIT_PRNERR);
+    if ($debug != 0) {
+	close DRIVERINPUT 
+	    or ppr_die ($ppr_printer,
+			"error closing /tmp/prnjob",
+			$EXIT_PRNERR_NORETRY_BAD_SETTINGS);
+    }
+
+    ### End of non-doc processing...
+    
+} else {
+
+    print $logh "printing docs\n";
+
+    my $pid, $sleep_count=0;
+    do {
+        $pid = open(KID1, "|-");
+        unless (defined $pid) {
+            warn "cannot fork: $!";
+	    ppr_die ($ppr_printer,
+		     "bailing out",
+		     $EXIT_PRNERR_NORETRY_BAD_SETTINGS)
+		if $sleep_count++ > 6;
+            sleep 10;
+        }
+    } until defined $pid;
+    
+    if (! $pid) {
+        # child/driver; exec enscript...
+
+        ($driverhandle, $driverpid) = getdriverhandle();
+        
+        print $logh "setting STDOUT to be $driverhandle and spawning $enscriptcommand\n";
+        
+        if (!open (STDOUT, ">&$driverhandle")) {
+	    close KID_MESSAGE;
+	    print KID_MESSAGE_IN "1 $EXIT_PRNERR_NORETRY_BAD_SETTINGS\n";
+            ppr_die ($ppr_printer,
+		     "Couldn't dup driverhandle",
+		     $EXIT_PRNERR_NORETRY_BAD_SETTINGS);
+	}
+        if (system "$enscriptcommand") {
+	    close KID_MESSAGE;
+	    print KID_MESSAGE_IN "1 $EXIT_PRNERR_NORETRY_BAD_SETTINGS\n";
+            ppr_die ($ppr_printer,
+		     "Couldn't exec $enscriptcommand",
+		     $EXIT_PRNERR_NORETRY_BAD_SETTINGS);
+	}
+	close STDOUT;
+	close $driverhandle;
+	# Finished successfully, inform main process
+	close KID_MESSAGE;
+	print KID_MESSAGE_IN "1 $EXIT_PRINTED\n";
+	close KID_NESSAGE_IN;
+	# Wait for driver child
+	waitpid($driverpid, 0);
+	print $logh "KID1 finished\n";
+	exit(0);
+    }
+
+    # parent
+
+    # Kill data on STDIN to satisfy PPR
+    my @dummy = <STDIN>;
+
+    # write the job into KID1 aka $enscriptcommand
+    select KID1;
+
+    my ($make, $model, $driver) 
+        = ($dat->{'make'}, $dat->{'model'}, $dat->{'driver'});
+
+    my $optstr = ("Specify each option with a -F argument to ppr ie\n",
+                  "% ppr -F \"*One 1\" -F \"*Two 2\"\n");
+
+    print "Invokation summary for your $make $model printer as driven by
+the $driver driver.
+
+$optstr
+
+The following options are available for this printer:
+
+";
+
+    for $arg (@{$dat->{'args'}}) {
+        my ($name,
+            $required,
+            $type,
+            $comment,
+            $spot,
+            $default) = ($arg->{'name'},
+                         $arg->{'required'},
+                         $arg->{'type'},
+                         $arg->{'comment'},
+                         $arg->{'spot'},
+                         $arg->{'default'});
+        
+        my $reqstr = ($required ? " required" : "n optional");
+        print "Option `$name':\n  A$reqstr $type argument.\n  $comment\n";
+        print "  This options corresponds to a PJL command.\n" if ($arg->{'style'} eq 'J');
+        
+        if ($type eq 'bool') {
+            if (defined($default)) {
+                my $defstr = ($default ? "True" : "False");
+                print "  Default: $defstr\n";
+            }
+            print "  Example: -F \"*$name True\"\n";
+        } elsif ($type eq 'enum') {
+            print "  Possible choices:\n";
+            my $exarg;
+            for (@{$arg->{'vals'}}) {
+                my ($choice, $comment) = ($_->{'value'}, $_->{'comment'});
+                print "   o $choice: $comment\n";
+                $exarg=$choice;
+            }
+            if (defined($default)) {
+                print "  Default: $default\n";
+            }
+            print "  Example: -F \"*$name $exarg\"\n";
+        } elsif ($type eq 'int' or $type eq 'float') {
+            my ($max, $min) = ($arg->{'max'}, $arg->{'min'});
+            my $exarg;
+            if (defined($max)) {
+                print "  Range: $min <= x <= $max\n";
+                $exarg=$max;
+            }
+            if (defined($default)) {
+                print "  Default: $default\n";
+                $exarg=$default;
+            }
+            if (!$exarg) { $exarg=0; }
+            print "  Example: -F \"*$name $exarg\"\n";
+        }
+
+        print "\n";
+    }
+    
+    select STDOUT;
+    close KID1 
+        or warn "error closing KID1/enscript for docs print";
+}
+
+close KID_MESSAGE_IN;
+
+# Wait for all kid processes to finish or one kid process to fail
+while ((!$kidfailed) &&
+       !(($kid1finished) &&
+	 ($kid3finished) &&
+	 ($kid4finished))) {
+    my $message = <KID_MESSAGE>;
+    chomp $message;
+    if ($message =~ /(\d+)\s+(\d+)/) {
+	my $kid_id = $1;
+	my $exitstat = $2;
+	print $logh "KID$kid_id exited with status $exitstat\n";
+	if ($exitstat > 0) {
+	    $kidfailed = $exitstat;
+	} elsif ($kid_id == 1) {
+	    $kid1finished = 1;
+	} elsif ($kid_id == 3) {
+	    $kid3finished = 1;
+	} elsif ($kid_id == 4) {
+	    $kid4finished = 1;
+	}
+    }
+}
+
+close KID_MESSAGE;
+
+# If a kid failed, exit with the exit stat of this kid
+if ($kidfailed != 0) {
+    $retval = $kidfailed;
+}
+
+print $logh "Exit stat: $retval\n";
+# Wait for driver/enscript child
+waitpid((docs ? $pid : $driverpid), 0);
+print $logh "Main process finished\n";
+close $logh;
+exit($retval);
+
+
+## Everything below here *is* the same in lpdomatic and cupsomatic
+## KEEP IT THAT WAY!
+
+## In ppromatic it is taken care of the error handling and user
+## notification. Therefore this part is different to the other
+## scripts, but the principal structure is the same.
+
+# return glob ref to "| commandline | self(pjlstuffer) | $postpipe"
+# ugly, we use $commandline, $postpipe, @prepend, @pjlprepend,
+# @pjlappend globals
+sub getdriverhandle {
+
+    use IO::Handle;
+    pipe KID3_IN, KID3;
+    KID3->autoflush(1);
+    my $pid3 = fork();
+    if (!defined($pid3)) {
+        print $logh "$0: cannot fork for kid3!\n";
+	ppr_die ($ppr_printer,
+		 "can't fork for kid3",
+		 $EXIT_PRNERR_NORETRY_BAD_SETTINGS);
+    }
+    if ($pid3) {
+
+        # we are the parent; return a glob to the filehandle
+        close KID3_IN;
+        print KID3 @prepend;
+        print $logh "$0: prepended:\n", @prepend;
+
+        KID3->flush();
+        return ( *KID3, $pid3 );
+
+    } else {
+        close KID3;
+
+        pipe KID4_IN, KID4;
+	KID4->autoflush(1);
+        my $pid2 = fork();
+        if (!defined($pid2)) {
+            print $logh "$0: cannot fork for kid4!\n";
+	    close KID_MESSAGE;
+	    print KID_MESSAGE_IN "3 $EXIT_PRNERR_NORETRY_BAD_SETTINGS\n";
+	    ppr_die ($ppr_printer,
+		     "can't fork for kid4",
+		     $EXIT_PRNERR_NORETRY_BAD_SETTINGS);
+        }
+        
+        if ($pid2) {
+            # parent, child of primary task; we are |commandline|
+            close KID4_IN;
+
+            print $logh "gs PID pid2=$pid2\n";
+	    print $logh "gs command: $commandline\n";
+            
+            if (!close STDIN) {
+		close KID_MESSAGE;
+		print KID_MESSAGE_IN "3 $EXIT_PRNERR_NORETRY_BAD_SETTINGS\n";
+		ppr_die ($ppr_printer,
+			 "Couldn't close STDIN in $pid2",
+			 $EXIT_PRNERR_NORETRY_BAD_SETTINGS);
+	    }
+            if (!open (STDIN, "<&KID3_IN")) {
+		close KID_MESSAGE;
+		print KID_MESSAGE_IN "3 $EXIT_PRNERR_NORETRY_BAD_SETTINGS\n";
+		ppr_die ($ppr_printer,
+			 "Couldn't dup KID3_IN",
+			 $EXIT_PRNERR_NORETRY_BAD_SETTINGS);
+	    }
+            if (!close STDOUT) {
+		close KID_MESSAGE;
+		print KID_MESSAGE_IN "3 $EXIT_PRNERR_NORETRY_BAD_SETTINGS\n";
+		ppr_die ($ppr_printer,
+			 "Couldn't close STDOUT in $pid2",
+			 $EXIT_PRNERR_NORETRY_BAD_SETTINGS);
+	    }
+            if (!open (STDOUT, ">&KID4")) {
+		close KID_MESSAGE;
+		print KID_MESSAGE_IN "3 $EXIT_PRNERR_NORETRY_BAD_SETTINGS\n";
+		ppr_die ($ppr_printer,
+			 "Couldn't dup KID4",
+			 $EXIT_PRNERR_NORETRY_BAD_SETTINGS);
+	    }
+	    if ($debug) {
+		if (!open (STDERR, ">&$logh")) {
+		    close KID_MESSAGE;
+		    print KID_MESSAGE_IN "3 $EXIT_PRNERR_NORETRY_BAD_SETTINGS\n";
+		    ppr_die ($ppr_printer,
+			     "Couldn't dup logh to stderr",
+			     $EXIT_PRNERR_NORETRY_BAD_SETTINGS);
+		}
+	    }
+
+	    # Massage commandline to execute foomatic-gswrapper
+	    my $havewrapper = 0;
+	    for (split(':', $ENV{'PATH'})) {
+		if (-x "$_/foomatic-gswrapper") {
+		    $havewrapper=1;
+		    last;
+		}
+	    }
+	    if ($havewrapper) {
+		$commandline =~ s!^\s*gs !foomatic-gswrapper !;
+		$commandline =~ s!(\|\s*)gs !\|foomatic-gswrapper !;
+		$commandline =~ s!(;\s*)gs !; foomatic-gswrapper !;
+	    }
+	    
+	    # Actually run the thing...
+	    system("$commandline");
+            if ($? != 0) {
+		my $gsretval = $? >> 8;
+		print $logh "GS return value: $gsretval\n";
+		my $gssignal = $? & 127;
+		# Handle signals
+		if ($gssignal == $SIGUSR1) {
+		    $retval = $EXIT_PRNERR;
+		} elsif ($gssignal == $SIGUSR2) {
+		    $retval = $EXIT_PRNERR_NORETRY;
+		} elsif ($gssignal == $SIGTTIN) {
+		    $retval = $EXIT_ENGAGED;
+		}
+		if ($retval != $EXIT_PRINTED) {
+		    close KID_MESSAGE;
+		    print KID_MESSAGE_IN "3 $retval\n";
+		    exit $retval;
+		}
+		# Evaluate GhostScript result
+		if ($gsretval == 0) {
+		    # Success, exit with 0 and inform main process
+		    close KID_MESSAGE;
+		    print KID_MESSAGE_IN "3 $EXIT_PRINTED\n";
+		    exit $EXIT_PRINTED;
+		} elsif ($gsretval == 1) {
+		    # Syntax error? PostScript error?
+		    close KID_MESSAGE;
+		    print KID_MESSAGE_IN "3 $EXIT_JOBERR\n";
+		    ppr_die ($ppr_printer,
+			     "Possible error on Ghostscript command line or PostScript error.  Check options\n(Use 'ppop log $ppr_jobname' to view the error message).",
+			     $EXIT_JOBERR);
+		} elsif ($gsretval == 139) {
+		    # Seems to indicate a core dump
+		    close KID_MESSAGE;
+		    print KID_MESSAGE_IN "3 $EXIT_JOBERR\n";
+		    ppr_die ($ppr_printer,
+			     "Ghostscript may have dumped core.",
+			     $EXIT_JOBERR);
+		} elsif ($gsretval == 141) {
+		    # Broken pipe, presumably additional filter interface
+		    # exited.
+		    close KID_MESSAGE;
+		    print KID_MESSAGE_IN "3 $EXIT_PRNERR\n";
+		    ppr_die ($ppr_printer,
+			     "A filter used in addition to GhostScript may have failed.",
+			     $EXIT_PRNERR);
+		} elsif (($gsretval == 243) || ($retval == 255)) {
+		    # PostScript error?
+		    close KID_MESSAGE;
+		    print KID_MESSAGE_IN "3 $EXIT_JOBERR\n";
+		    exit $EXIT_JOBERR;
+		} else {
+		    # Unknown error
+		    close KID_MESSAGE;
+		    print KID_MESSAGE_IN "3 $EXIT_PRNERR\n";
+		    ppr_die ($ppr_printer,
+			     "The GhostScript command line returned unrecognized error code $retval\n(Use 'ppop log $ppr_jobname' to view the error message).",
+			     $EXIT_PRNERR);
+		}
+	    }
+	    close STDOUT;
+	    close KID4;
+	    close STDIN;
+	    close KID3_IN;
+	    # When arrived here the GhostScript command line was successful
+	    # So exit with zero exit value here and inform the main process
+	    close KID_MESSAGE;
+	    print KID_MESSAGE_IN "3 $EXIT_PRINTED\n";
+	    close KID_MESSAGE_IN;
+	    # Wait for postpipe/output child
+	    waitpid($pid2, 0);
+	    print $logh "KID3 finished\n";
+	    exit $EXIT_PRINTED;
+        } else {
+            # child, trailing task on the pipe; we write pjl stuff
+            close KID4;
+	    close KID3_IN;
+
+            my $fileh = *STDOUT;
+            if ($postpipe) {
+                if (!open PIPE,$postpipe) {
+		    close KID_MESSAGE;
+		    print KID_MESSAGE_IN "4 $EXIT_PRNERR_NORETRY_BAD_SETTINGS\n";
+		    ppr_die ($ppr_printer,
+			     "cannot execute postpipe $postpipe",
+			     $EXIT_PRNERR_NORETRY_BAD_SETTINGS);
+		}
+                $fileh = *PIPE;
+            }           
+
+            # wrap the PJL around the job data...
+            # wrap the PJL around the job data, if there are any
+            # options specified...
+	    if ( @pjlprepend > 1 ) {
+		print $fileh @pjlprepend;
+	    }
+            while (<KID4_IN>) {
+                print $fileh $_;
+            }
+	    if ( @pjlprepend > 1 ) {
+		print $fileh @pjlappend;
+	    }
+            
+            if (!close $fileh) {
+		close KID_MESSAGE;
+		print KID_MESSAGE_IN "4 $EXIT_PRNERR_NORETRY_BAD_SETTINGS\n";
+		ppr_die ($ppr_printer,
+			 "error closing $fileh",
+			 $EXIT_PRNERR_NORETRY_BAD_SETTINGS);
+	    }
+	    close KID4_IN;
+
+            print $logh "tail process done writing data to $fileh\n";
+
+	    # Handle signals of the backend interface
+	    if ($retval != $EXIT_PRINTED) {
+		close KID_MESSAGE;
+		print KID_MESSAGE_IN "4 $retval\n";
+		exit $retval;
+	    }
+
+	    # Successful exit, inform main process
+	    close KID_MESSAGE;
+	    print KID_MESSAGE_IN "4 $EXIT_PRINTED\n";
+	    close KID_MESSAGE_IN;
+
+	    print $logh "KID4 finished\n";
+            exit(0);
+        }
+    }
+}
+
+# Find an argument by name in a case-insensitive way
+sub argbyname {
+    my $name = @_[0];
+
+    my $arg;
+    for $arg (@{$dat->{'args'}}) {
+        return $arg if (lc($name) eq lc($arg->{'name'}));
+    }
+
+    return undef;
+}
+
+sub valbyname {
+    my ($arg,$name) = @_;
+
+    my $val;
+    for $val (@{$arg->{'vals'}}) {
+        return $val if (lc($name) eq lc($val->{'value'}));
+    }
+
+    return undef;
+}
+
+# PPR expects all filters writing a Good-Bye letter before committing
+# suicide (send error message to backchannel)
+
+sub ppr_die {
+    my ($printer, $message, $exitstat) = @_;
+    print $logh "Process dieing with \"$message\", exit stat: $exitstat\n";
+    $message =~ s/\\/\\\\/;
+    $message =~ s/\"/\\\"/;
+    @messagelines = split("\n", $message);
+    my $firstline = "TRUE";
+    for $line (@messagelines) {
+	system("lib/alert $printer $firstline \"$line\"");
+	$firstline = "FALSE";
+    }
+    exit $exitstat;
+}
+
+# Signal handling routines
+
+sub set_exit_prnerr {
+    $retval = $EXIT_PRNERR;
+}
+
+sub set_exit_prnerr_noretry {
+    $retval = $EXIT_PRNERR_NORETRY;
+}
+
+sub set_exit_engaged {
+    $retval = $EXIT_ENGAGED;
+}
+
+sub readConfFile {
+    my ($file) = @_;
+
+    my %conf;
+    # Read config file if present
+    if (open CONF, "< $file") {
+	while (<CONF>)
+	{
+	    $conf{$1}="$2" if (m/^\s*([^\#\s]\S*)\s*:\s*(.*)\s*$/);
+	}
+	close CONF;
+    }
+
+    return %conf;
+}
+
+# Emacs tabulator/indentation
+
+### Local Variables:
+### tab-width: 8
+### perl-indent-level: 4
+### End:

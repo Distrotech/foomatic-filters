@@ -1,0 +1,39 @@
+dnl Process this file with autoconf to produce a configure script.
+AC_INIT(src/directomatic.pl.in)
+
+dnl If the user didn't specify the $sysconfdir on the command line, let it
+dnl be /etc, not /usr/local/etc or /usr/etc
+if [[ x$sysconfdir == 'x${prefix}/etc' ]]; then
+  sysconfdir=/etc
+fi
+
+dnl Checks for programs.
+AC_PROG_INSTALL
+AC_PROG_LN_S
+AC_PROG_MAKE_SET
+
+SYSCONFSEARCHPATH=/etc:/usr/etc:/usr/local/etc:/var/etc
+BINSEARCHPATH=/usr/bin:/bin:/usr/local/bin
+DATASEARCHPATH=/usr/share:/usr/local/share:/usr/lib:/usr/local/lib:/opt
+LIBSEARCHPATH=/usr/lib:/lib:/usr/local/lib:/opt
+
+dnl Check for Perl
+AC_PATH_PROGS(PERL,perl,/usr/bin/perl,$BINSEARCHPATH)
+
+dnl Check for /etc/printcap
+AC_PATH_PROGS(PRINTCAP,printcap,/etc/printcap,$SYSCONFSEARCHPATH)
+
+dnl Check for /usr/share/cups/filter
+AC_PATH_DIRS(CUPS_FILTERS,cups/filter,/usr/lib/cups/filter,$DATASEARCHPATH)
+
+dnl Check for /usr/lib/ppr/interfaces
+AC_PATH_DIRS(PPR_INTERFACES,ppr/interfaces,/usr/lib/ppr/interfaces,$LIBSEARCHPATH)
+
+dnl AC_OUTPUT(Makefile src/Makefile)
+AC_OUTPUT(Makefile makeMan foomatic-gswrapper
+src/cupsomatic.pl src/directomatic.pl src/lpdomatic.pl src/ppromatic.pl)
+
+dnl Finished
+echo "Finished configuring."
+echo "Type 'make' to build the package"
+echo "then 'make install' to install it."

@@ -1,0 +1,59 @@
+.\" This -*- nroff -*- source file is part of foomatic.
+.\"
+.TH LPDOMATIC 8 "2001-05-07" "Foomatic Project"
+.SH NAME
+lpdomatic \- Foomatic filter script for LPD, LPRng, and GNUlpr
+.SH SYNOPSIS
+.B lpdomatic
+[\fIOPTION\fR]... <PPD-filename>
+
+.SH DESCRIPTION
+The \fBlpdomatic\fR print filter serves as an input filter for the lp
+family of print spoolers. The print spooler will use it if there is an
+entry \fBif=@$ENV{'LPDOMATIC'}@\fR in the appropriate printer
+section in \fI@$ENV{'PRINTCAP'}@\fR. You can generate such an entry
+using foomatic-configure.
+
+A listing of the attached printer drivers options is printed, when the
+option \fBdocs\fR is passed to this filter.  This can be achieved by
+issuing one of the following commands:
+.TP
+for LPRng use
+\fBecho | lpr -Z docs\fR
+.TP
+for other spoolers
+\fBecho | lpr -J docs\fR
+
+.SS Options
+.TP 10
+.BI \-j \ option
+(all but LPRng) Pass \fIoption\fR to the printer driver.  May also be
+read from the environment.
+
+.TP 10
+.BI \-J \ jobtitle
+(LPRng only) Set the job title to \fIjobtitle\fR.  This may be used
+to set a title header when printing plain text.
+
+.TP 10
+.BI \-Z \ option
+(LPRng only) Pass \fIoption\fR to the printer driver.
+
+.SH SEE ALSO
+.IR printcap (5),
+.IR foomatic-configure (1)
+
+.SH FILES
+.IR @$ENV{'PRINTCAP'}@
+
+.SH EXIT STATUS
+.B lpdomatic
+returns 0 unless something unexpected happens.
+
+.SH AUTHOR
+Manfred Wassmann <\fImanolo@NCC-1701.B.Shuttle.de\fR> for the foomatic
+project using output from the associated binary.
+
+.SH BUGS
+None known.  If you find one please report to <\fIfoomatic-devel@linuxprinting.org\fR>
+
