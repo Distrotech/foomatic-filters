@@ -1,26 +1,42 @@
+2004-12-20  Till Kamppeter <till.kamppeter@gmx.net>
+
+	* foomatic-rip.in: Fixed bug of foomatic-rip replacing a JCL
+	  command (ex: "@PJL HOLDKEY=1234") if another which is contained
+	  in the first one is supplied (ex: "@PJL HOLD=STORE"). Thanks to
+	  Jociel Cavalcante Andrade (jcainfo at inf dot ufes dot br) for
+	  reporting the bug and testing the fix.
+
 2004-12-04  Chris Lawrence <lawrencc@debian.org>
 
 	* foomatic-rip.in: Include -*- perl -*- for Emacs mode selection.
 
 	* foomatic-gswrapper.in: Instead of testing for /dev/fd/*, use
-	them directly; this gets around some unreliability with
-	Ghostscript prefiltering that is described in Debian bug report
-	#271519 (http://bugs.debian.org/271519).  Also include -*- perl
-	-*- for Emacs mode selection.
+	  them directly; this gets around some unreliability with
+	  Ghostscript prefiltering that is described in Debian bug report
+	  #271519 (http://bugs.debian.org/271519).  Also include -*- perl
+	  -*- for Emacs mode selection.
 
-	* debian/README.Debian, debian/changelog, debian/compat, debian/control, debian/copyright, debian/dirs, debian/docs, debian/foomatic-filters.config, debian/foomatic-filters.postinst, debian/foomatic-filters.postrm, debian/foomatic-filters.templates, debian/parseconfig.pl, debian/po/POTFILES.in, debian/po/de.po, debian/po/fr.po, debian/po/ja.po, debian/po/nl.po, debian/po/pt_BR.po, debian/po/templates.pot, debian/po/tr.po, debian/rules:
-	New files; add Debian packaging information.
+	* debian/README.Debian, debian/changelog, debian/compat,
+	  debian/control, debian/copyright, debian/dirs, debian/docs,
+	  debian/foomatic-filters.config,
+	  debian/foomatic-filters.postinst,
+	  debian/foomatic-filters.postrm,
+	  debian/foomatic-filters.templates, debian/parseconfig.pl,
+	  debian/po/POTFILES.in, debian/po/de.po, debian/po/fr.po,
+	  debian/po/ja.po, debian/po/nl.po, debian/po/pt_BR.po,
+	  debian/po/templates.pot, debian/po/tr.po, debian/rules: New
+	  files; add Debian packaging information.
 
 2004-11-18  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* foomatic-rip.in: Fixed problem of foomatic-rip crashing with
-	  erroro 29 (ESPIPE = "Illegal seek") on "close STDIN;" on some
+	  error 29 (ESPIPE = "Illegal seek") on "close STDIN;" on some
 	  non-Linux platforms as Unixware 7.1.0, fixed problem of CUPS
 	  page accounting PostScript code in foomatic-rip overriding
 	  already exisiting /EndPage procedures. Added output of error
 	  code when foomatic-rip dies. Thanks to Helge Blischke
-	  (h dot blischke at srz dot de) for all
-	  these fixes and enhancements.
+	  (h dot blischke at srz dot de) for all these fixes and
+	  enhancements.
 
 2004-09-14  Till Kamppeter <till.kamppeter@gmx.net>
 

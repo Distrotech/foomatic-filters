@@ -3666,7 +3666,7 @@ sub getrendererhandle {
 			    my $cmdfound = 0;
 			    for (@jclheader) {
 				# If the command is there, replace it
-				$_ =~ s/$cmd.*(\r\n|\n|\r)/$line/ and 
+				$_ =~ s/$cmd\b.*(\r\n|\n|\r)/$line/ and 
 				    $cmdfound = 1;
 			    }
 			    if (!$cmdfound) {
