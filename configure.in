@@ -15,7 +15,7 @@ AC_PROG_MAKE_SET
 SYSCONFSEARCHPATH=/etc:/usr/etc:/usr/local/etc:/var/etc
 BINSEARCHPATH=/usr/bin:/bin:/usr/local/bin
 DATASEARCHPATH=/usr/share:/usr/local/share:/usr/lib:/usr/local/lib:/opt
-LIBSEARCHPATH=/usr/lib:/lib:/usr/local/lib:/opt
+LIBSEARCHPATH=/usr/lib:/lib:/usr/local/lib:/usr/local/libexec:/opt
 
 dnl Get the operating system and version number...
 uname=`uname`
