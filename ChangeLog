@@ -1,6 +1,8 @@
 2002-11-26  Till Kamppeter <till.kamppeter@gmx.net>
 
-	* foomatic-rip.in: 
+	* foomatic-rip.in: Various fixes and adaptations to make
+	  foomatic-rip well working together with the new
+	  foomatic-configure:
 
 	  Support for raw queues under all spoolers and spooler-less
 	  printing.
@@ -11,26 +13,24 @@
 
 	  Accept "-o <option>=<value>" on the command line also when one
 	  uses foomatic-rip as a PPR RIP, so one can easily set defaults
-	  using 
+	  using
 
 	   ppad rip <printer> foomatic-rip x -o <option>=<value> -o <switch>
+
 
 	  Fixed bug which broke renderer command lines composed from
 	  several shell commands in debug mode.
 	
 	  Read Foomatic IDs from the PPD file.
 	
-	  Make default configuration file for spooler-less printing
-	  being /etc/foomatic/direct/.config and PPD files being searched
-	  in /etc/foomatic/direct.
+	  Make default configuration file for spooler-less printing being
+	  /etc/foomatic/direct/.config and PPD files being searched in
+	  /etc/foomatic/direct.
 	  
-	
 	  In debug mode debug logging is started in the beginning of the
-	  parsing of the command line options, right after checking
-	  the options relevant for logging.
+	  parsing of the command line options, right after checking the
+	  options relevant for logging.
 
-	  
-	
 2002-11-16  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* foomatic-rip.in: Added legacy interface for old Foomatic 2.0 PPD
