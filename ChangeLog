@@ -40,6 +40,9 @@
 	  lines for the "error_log" of CUPS which have more than 1024
 	  characters, as this makes CUPS aborting the job.
 	
+	  Fixed PPR spooler auto-detection. Now foomatic-rip should
+	  work as a PPR interface as ppromatic.
+
 	  Additional comments about non-PostScript and documentation
 	  printing and also about the kid processes of foomatic-rip
 	  and what they do.

@@ -406,10 +406,12 @@ if (defined($opt_P)) {
 ## Command line arguments without name
 
 # Check for PPR
+my $pwd = `pwd`;
+chomp($pwd);
 if (($ARGV[3] =~ /^\s*\d\d?\s*$/) &&
     ($ARGV[5] =~ /^\s*\d\d?\s*$/) &&
-    (($#ARGV == 9) || ($#ARGV == 7)) &&
-    ("`pwd`" =~ m!/ppr/?$!)) {
+    (($#ARGV == 10) || ($#ARGV == 9) || ($#ARGV == 7)) &&
+    ($pwd =~ m!/ppr/?$!)) {
     # PPR calls interfaces with many command line parameters, where
     # the forth and the sixth is a small integer number. In addition,
     # we have 8 (PPR <= 1.31) or 10 (PPR>=1.32) command line parameters.
@@ -427,6 +429,7 @@ if (($ARGV[3] =~ /^\s*\d\d?\s*$/) &&
 	open FILE, "$file" || do {
 	    print $logh "error opening $file.\n";
 	    $pprinstalled = 0;
+	    last;
 	};
 	
 	while(my $line = <FILE>) {
