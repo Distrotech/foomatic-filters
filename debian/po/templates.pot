@@ -1,0 +1,216 @@
+#
+#    Translators, if you are not familiar with the PO format, gettext
+#    documentation is worth reading, especially sections dedicated to
+#    this format, e.g. by running:
+#         info -n '(gettext)PO Files'
+#         info -n '(gettext)Header Entry'
+#
+#    Some information specific to po-debconf are available at
+#            /usr/share/doc/po-debconf/README-trans
+#         or http://www.debian.org/intl/l10n/po-debconf/README-trans
+#
+#    Developers do not need to manually edit POT or PO files.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2004-06-14 03:08-0500\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=CHARSET\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#. Type: boolean
+#. Description
+#: ../foomatic-filters.templates:4
+msgid "Enable logging debug output into a logfile (INSECURE)."
+msgstr ""
+
+#. Type: boolean
+#. Description
+#: ../foomatic-filters.templates:4
+msgid "The logfile will be named /tmp/foomatic-rip.log."
+msgstr ""
+
+#. Type: boolean
+#. Description
+#: ../foomatic-filters.templates:4
+msgid ""
+"WARNING: This logfile is a security hole; do not use in production. However, "
+"if you are having trouble printing, you should enable this option and "
+"include this logfile in any bug reports."
+msgstr ""
+
+#. Type: select
+#. Choices
+#: ../foomatic-filters.templates:13
+msgid "Automagic, a2ps, mpage, enscript, Custom"
+msgstr ""
+
+#. Type: select
+#. Description
+#: ../foomatic-filters.templates:15
+msgid "Command for converting text files to PostScript"
+msgstr ""
+
+#. Type: select
+#. Description
+#: ../foomatic-filters.templates:15
+msgid ""
+"If you select ``Automagic'', Foomatic will search for one of a2ps, mpage, "
+"and enscript (in that order) each time the filter script is executed."
+msgstr ""
+
+#. Type: select
+#. Description
+#: ../foomatic-filters.templates:15
+msgid ""
+"Please make sure that the selected command is actually available; otherwise "
+"print jobs may get lost."
+msgstr ""
+
+#. Type: select
+#. Description
+#: ../foomatic-filters.templates:15
+msgid ""
+"This setting is ignored when foomatic-filters is used with CUPS; instead, "
+"the texttops program included in the cupsys package is always used to "
+"convert jobs submitted as plain text to PostScript for printing to raster "
+"devices."
+msgstr ""
+
+#. Type: string
+#. Description
+#: ../foomatic-filters.templates:30
+msgid "Command to convert standard input to PostScript."
+msgstr ""
+
+#. Type: string
+#. Description
+#: ../foomatic-filters.templates:30
+msgid ""
+"This should be the full command line of a command that converts text from "
+"standard input to PostScript on standard output."
+msgstr ""
+
+#. Type: string
+#. Description
+#: ../foomatic-filters.templates:30
+msgid ""
+"Please note that entering an invalid command line here may result in lost "
+"print jobs."
+msgstr ""
+
+#. Type: string
+#. Description
+#: ../foomatic-filters.templates:30
+msgid ""
+"There are some special tags available usable on the filter command line.  "
+"See the filter.conf manpage for details."
+msgstr ""
+
+#. Type: boolean
+#. Description
+#: ../foomatic-filters.templates:43
+msgid "Enable PostScript accounting for CUPS"
+msgstr ""
+
+#. Type: boolean
+#. Description
+#: ../foomatic-filters.templates:43
+msgid ""
+"Insert PostScript code for accounting into each print job.  This currently "
+"only works with CUPS."
+msgstr ""
+
+#. Type: boolean
+#. Description
+#: ../foomatic-filters.templates:43
+msgid ""
+"Note: When used with generic PostScript printers (and under certain "
+"conditions with other printers also) this causes an extra page to be printed "
+"after each job, so this is off by default."
+msgstr ""
+
+#. Type: select
+#. Choices
+#: ../foomatic-filters.templates:53
+msgid "gs, gs-gnu, gs-esp, gs-afpl, Custom"
+msgstr ""
+
+#. Type: select
+#. Description
+#: ../foomatic-filters.templates:55
+msgid "Which Ghostscript interpreter should be used by Foomatic?"
+msgstr ""
+
+#. Type: select
+#. Description
+#: ../foomatic-filters.templates:55
+msgid ""
+"For non-PostScript printers, print jobs are usually translated from "
+"PostScript to your printer's command language using the free Ghostscript "
+"interpreter."
+msgstr ""
+
+#. Type: select
+#. Description
+#: ../foomatic-filters.templates:55
+msgid ""
+"There are a number of different versions of the Ghostscript interpreter "
+"available on Debian systems.  Normally, Foomatic will  use the default "
+"version (configured by the `gs' alternative, which can be changed with "
+"`update-alternatives --config gs').  However, you may want to use a "
+"different Ghostscript for screen display than for printing.  (You should use "
+"the Custom option if you have a locally-installed Ghostscript interpreter.)"
+msgstr ""
+
+#. Type: select
+#. Description
+#: ../foomatic-filters.templates:55
+msgid "If in doubt, you should simply accept the default option (gs)."
+msgstr ""
+
+#. Type: string
+#. Description
+#: ../foomatic-filters.templates:73
+msgid "Custom Ghostscript interpreter path."
+msgstr ""
+
+#. Type: string
+#. Description
+#: ../foomatic-filters.templates:73
+msgid ""
+"You should enter the full path to your preferred Ghostscript interpreter; e."
+"g. `/opt/artifex.com-ghostscript/bin/gs'."
+msgstr ""
+
+#. Type: select
+#. Description
+#: ../foomatic-filters.templates:81
+msgid "Printer spooler backend for Foomatic"
+msgstr ""
+
+#. Type: select
+#. Description
+#: ../foomatic-filters.templates:81
+msgid ""
+"Foomatic normally requires a printer spooler (like CUPS or LPRng) to handle "
+"communication with the printer and manage print jobs.  If you don't have a "
+"spooler installed, you can use the \"direct\" backend, but this is only "
+"recommended for single-user systems."
+msgstr ""
+
+#. Type: select
+#. Description
+#: ../foomatic-filters.templates:81
+msgid ""
+"The installation process may have already detected the correct spooler; "
+"however, if this is the first time you are installing Debian, or you somehow "
+"have more than one spooler installed on your system, the detected spooler "
+"may be incorrect."
+msgstr ""

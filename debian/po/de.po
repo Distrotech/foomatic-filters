@@ -1,0 +1,261 @@
+# translation of foomatic-filters_3.0.1-20040506-2_templates.po to German
+#
+#    Translators, if you are not familiar with the PO format, gettext
+#    documentation is worth reading, especially sections dedicated to
+#    this format, e.g. by running:
+#         info -n '(gettext)PO Files'
+#         info -n '(gettext)Header Entry'
+#    Some information specific to po-debconf are available at
+#            /usr/share/doc/po-debconf/README-trans
+#         or http://www.debian.org/intl/l10n/po-debconf/README-trans#
+#    Developers do not need to manually edit POT or PO files.
+# Erik Schanze <mail@erikschanze.de>, 2004.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: foomatic-filters_3.0.1-20040621-1_de\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2004-06-14 03:08-0500\n"
+"PO-Revision-Date: 2004-06-28 08:43+0200\n"
+"Last-Translator: Erik Schanze <mail@erikschanze.de>\n"
+"Language-Team: German <debian-l10n-german@lists.debian.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"X-Generator: KBabel 1.3.1\n"
+"Plural-Forms:  nplurals=2; plural=(n != 1);\n"
+
+#. Type: boolean
+#. Description
+#: ../foomatic-filters.templates:4
+msgid "Enable logging debug output into a logfile (INSECURE)."
+msgstr "Debug-Ausgaben in die Protokolldatei schreiben (unsicher)?"
+
+#. Type: boolean
+#. Description
+#: ../foomatic-filters.templates:4
+msgid "The logfile will be named /tmp/foomatic-rip.log."
+msgstr "Die Protokolldatei wird /tmp/foomatic-rip.log genannt."
+
+#. Type: boolean
+#. Description
+#: ../foomatic-filters.templates:4
+msgid ""
+"WARNING: This logfile is a security hole; do not use in production. However, "
+"if you are having trouble printing, you should enable this option and "
+"include this logfile in any bug reports."
+msgstr ""
+"ACHTUNG: Diese Protokolldatei ist eine Sicherheitslücke; benutzen Sie das "
+"nicht in Produktivumgebungen. Wenn Sie Probleme beim Drucken haben, sollten "
+"Sie diese Option trotzdem einschalten und die Protokolldatei Ihrem "
+"Fehlerbericht beifügen."
+
+#. Type: select
+#. Choices
+#: ../foomatic-filters.templates:13
+msgid "Automagic, a2ps, mpage, enscript, Custom"
+msgstr "Automatisch, a2ps, mpage, enscript, Benutzereinstellung"
+
+#. Type: select
+#. Description
+#: ../foomatic-filters.templates:15
+msgid "Command for converting text files to PostScript"
+msgstr "Kommando für Umwandlung von Textdateien in PostScript"
+
+#. Type: select
+#. Description
+#: ../foomatic-filters.templates:15
+msgid ""
+"If you select ``Automagic'', Foomatic will search for one of a2ps, mpage, "
+"and enscript (in that order) each time the filter script is executed."
+msgstr ""
+"Wenn Sie \"Automatisch\" auswählen, sucht Foomatic bei jedem Aufruf des "
+"Filterskripts eins der Programme a2ps, mpage, und enscript (in dieser "
+"Reihenfolge)."
+
+#. Type: select
+#. Description
+#: ../foomatic-filters.templates:15
+msgid ""
+"Please make sure that the selected command is actually available; otherwise "
+"print jobs may get lost."
+msgstr ""
+"Stellen Sie sicher, dass das ausgewählte Kommando verfügbar ist, sonst "
+"können Druckaufträge verloren gehen."
+
+#. Type: select
+#. Description
+#: ../foomatic-filters.templates:15
+msgid ""
+"This setting is ignored when foomatic-filters is used with CUPS; instead, "
+"the texttops program included in the cupsys package is always used to "
+"convert jobs submitted as plain text to PostScript for printing to raster "
+"devices."
+msgstr ""
+"Diese Einstellung hat keine Wirkung, wenn foomatic-filters mit CUPS "
+"eingesetzt wird; statt dessen wandelt das in CUPS enthaltene Programm "
+"texttops Druckaufträge von Klartext in PostScript um, damit Sie mit Raster-"
+"Geräten ausgedruckt werden können."
+
+#. Type: string
+#. Description
+#: ../foomatic-filters.templates:30
+msgid "Command to convert standard input to PostScript."
+msgstr "Kommando für Umwandlung von der Standardeingabe in PostScript."
+
+#. Type: string
+#. Description
+#: ../foomatic-filters.templates:30
+msgid ""
+"This should be the full command line of a command that converts text from "
+"standard input to PostScript on standard output."
+msgstr ""
+"Geben Sie den vollständigen Aufruf eines Kommandos ein, das Text von der "
+"Standardeingabe einliest und als PostScript auf der Standardausgabe ausgibt."
+
+#. Type: string
+#. Description
+#: ../foomatic-filters.templates:30
+msgid ""
+"Please note that entering an invalid command line here may result in lost "
+"print jobs."
+msgstr ""
+"Bitte beachten Sie , dass ein ungültiges Kommando zum Verlust der "
+"Druckaufträge führen kann."
+
+#. Type: string
+#. Description
+#: ../foomatic-filters.templates:30
+msgid ""
+"There are some special tags available usable on the filter command line.  "
+"See the filter.conf manpage for details."
+msgstr ""
+"In der Kommandozeile des Filters können einige spezielle Kürzel angegeben "
+"werden.  Mehr Informationen finden Sie in der Manpage von filter.conf."
+
+#. Type: boolean
+#. Description
+#: ../foomatic-filters.templates:43
+msgid "Enable PostScript accounting for CUPS"
+msgstr "PostScript-Abrechnung (accounting) für CUPS einschalten?"
+
+#. Type: boolean
+#. Description
+#: ../foomatic-filters.templates:43
+msgid ""
+"Insert PostScript code for accounting into each print job.  This currently "
+"only works with CUPS."
+msgstr ""
+"PostScript-Kommandos für die Abrechnung in jeden Druckauftrag einbauen.  Das "
+"funktioniert derzeit nur mit CUPS."
+
+#. Type: boolean
+#. Description
+#: ../foomatic-filters.templates:43
+msgid ""
+"Note: When used with generic PostScript printers (and under certain "
+"conditions with other printers also) this causes an extra page to be printed "
+"after each job, so this is off by default."
+msgstr ""
+"Beachten Sie: Wenn Sie generische PostScript-Drucker (und manchmal auch bei "
+"anderen Druckern) einsetzen, wird nach jedem Druckauftrag eine zusätzliche "
+"Seite ausgedruckt, deshalb ist diese Option normalerweise ausgeschaltet."
+
+#. Type: select
+#. Choices
+#: ../foomatic-filters.templates:53
+msgid "gs, gs-gnu, gs-esp, gs-afpl, Custom"
+msgstr "gs, gs-gnu, gs-esp, gs-afpl, Benutzereinstellung"
+
+#. Type: select
+#. Description
+#: ../foomatic-filters.templates:55
+msgid "Which Ghostscript interpreter should be used by Foomatic?"
+msgstr "Welchen Ghostscript-Interpreter soll foomatic nutzen?"
+
+#. Type: select
+#. Description
+#: ../foomatic-filters.templates:55
+msgid ""
+"For non-PostScript printers, print jobs are usually translated from "
+"PostScript to your printer's command language using the free Ghostscript "
+"interpreter."
+msgstr ""
+"Für Drucker, die kein PostScript verstehen, werden Druckaufträge "
+"normalerweise mit einem freien Ghostscript-Interpreter von PostScript in die "
+"Kommando-Sprache des Druckers übersetzt."
+
+#. Type: select
+#. Description
+#: ../foomatic-filters.templates:55
+msgid ""
+"There are a number of different versions of the Ghostscript interpreter "
+"available on Debian systems.  Normally, Foomatic will  use the default "
+"version (configured by the `gs' alternative, which can be changed with "
+"`update-alternatives --config gs').  However, you may want to use a "
+"different Ghostscript for screen display than for printing.  (You should use "
+"the Custom option if you have a locally-installed Ghostscript interpreter.)"
+msgstr ""
+"Auf einem Debian-System gibt es viele verschiedene Ghostscript-Interpreter. "
+"Normalerweise nutzt foomatic den Standard-Interpreter, der als 'gs'-"
+"Alternative eingestellt ist. Das können Sie durch das Kommando 'update-"
+"alternatives --config gs' ändern.  Wenn Sie für das Drucken einen anderen "
+"Ghostscript-Interpreter als für die Anzeige am Bildschirm verwenden wollen, "
+"sollten Sie die Option \"Benutzereinstellung\" für einen anderen Ghostscript-"
+"Interpreter wählen."
+
+#. Type: select
+#. Description
+#: ../foomatic-filters.templates:55
+msgid "If in doubt, you should simply accept the default option (gs)."
+msgstr "Wenn Sie sich nicht sicher sind, wählen Sie den Standard (gs) aus."
+
+#. Type: string
+#. Description
+#: ../foomatic-filters.templates:73
+msgid "Custom Ghostscript interpreter path."
+msgstr "Pfad zum Ghostscript-Interpreter für Benutzereinstellung"
+
+#. Type: string
+#. Description
+#: ../foomatic-filters.templates:73
+msgid ""
+"You should enter the full path to your preferred Ghostscript interpreter; e."
+"g. `/opt/artifex.com-ghostscript/bin/gs'."
+msgstr ""
+"Geben Sie den vollständigen Pfad zu Ihrem bevorzugten Ghostscript-"
+"Interpreter ein, z. B. '/opt/artifex.com-ghostscript/bin/gs'."
+
+#. Type: select
+#. Description
+#: ../foomatic-filters.templates:81
+msgid "Printer spooler backend for Foomatic"
+msgstr "Druckerwarteschlange für Foomatic"
+
+#. Type: select
+#. Description
+#: ../foomatic-filters.templates:81
+msgid ""
+"Foomatic normally requires a printer spooler (like CUPS or LPRng) to handle "
+"communication with the printer and manage print jobs.  If you don't have a "
+"spooler installed, you can use the \"direct\" backend, but this is only "
+"recommended for single-user systems."
+msgstr ""
+"Foomatic benötigt normalerweise eine Druckerwarteschlange (wie CUPS oder "
+"LPRng) für die Übertragung zum Drucker und die Verwaltung der "
+"Druckaufträge.  Wenn Sie keinen Druckdienst installiert haben, können Sie "
+"die \"direct\"-Anbindung nutzen, aber es wird nur für Einzelbenutzer-System "
+"empfohlen."
+
+#. Type: select
+#. Description
+#: ../foomatic-filters.templates:81
+msgid ""
+"The installation process may have already detected the correct spooler; "
+"however, if this is the first time you are installing Debian, or you somehow "
+"have more than one spooler installed on your system, the detected spooler "
+"may be incorrect."
+msgstr ""
+"Während der Installation sollte schon der richtige Druckdienst erkannt "
+"worden sein. Das könnte aber fehlerhaft sein, falls Sie Debian zum ersten "
+"Mal installieren oder Sie mehr als einen Druckdienst haben."

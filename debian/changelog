@@ -1,0 +1,304 @@
+foomatic-filters (3.0.2-20041204-1) unstable; urgency=low
+
+  * New upstream release.
+
+ -- Chris Lawrence <lawrencc@debian.org>  Sat,  4 Dec 2004 11:38:53 -0600
+
+foomatic-filters (3.0.2-3) unstable; urgency=low
+
+  * Apply patch to French and Brazilian Portuguese translations to fix
+    encoding issues.  (Closes: #277570)
+
+ -- Chris Lawrence <lawrencc@debian.org>  Fri, 22 Oct 2004 06:15:29 -0500
+
+foomatic-filters (3.0.2-2) unstable; urgency=low
+
+  * Apply file descriptor handing patch from Alexander Achenbach.
+    This will fix some incompatibilities with Ghostscript prefiltering,
+    etc. (Closes: #271519)
+
+ -- Chris Lawrence <lawrencc@debian.org>  Tue, 19 Oct 2004 01:07:45 -0500
+
+foomatic-filters (3.0.2-1) unstable; urgency=high
+
+  * New upstream release.  (Released ahead of embargo date due to public
+    notice of vulnerability being posted at LinuxPrinting.org.  Fix has
+    been in CVS since August 26th.)
+  * Fixes foomatic-rip vulnerability CAN-2004-0801, which allows arbitrary
+    commands to be run as the spooler's UID (possibly root).
+
+ -- Chris Lawrence <lawrencc@debian.org>  Tue, 14 Sep 2004 20:38:08 -0500
+
+foomatic-filters (3.0.1-20040621-4) unstable; urgency=low
+
+  * Update Brazilian Portuguese translation.  (Closes: #264193)
+
+ -- Chris Lawrence <lawrencc@debian.org>  Sat,  7 Aug 2004 19:25:42 -0500
+
+foomatic-filters (3.0.1-20040621-3) unstable; urgency=medium
+
+  * Downgrade foomatic-filters/spooler to low priority; the autodetection
+    should be sufficiently good for most purposes.
+  * Update French translation.  (Closes: #257550)
+
+ -- Chris Lawrence <lawrencc@debian.org>  Sun,  4 Jul 2004 07:49:15 -0500
+
+foomatic-filters (3.0.1-20040621-2) unstable; urgency=low
+
+  * Update German translation.  (Closes: #256619)
+  * Update Japanese translation.  (Closes: #256097)
+
+ -- Chris Lawrence <lawrencc@debian.org>  Mon, 28 Jun 2004 02:50:26 -0500
+
+foomatic-filters (3.0.1-20040621-1) unstable; urgency=low
+
+  * New upstream release.
+
+ -- Chris Lawrence <lawrencc@debian.org>  Mon, 21 Jun 2004 02:24:42 -0500
+
+foomatic-filters (3.0.1-20040506-6) unstable; urgency=low
+
+  * Fix handling of config file.  (Closes: #254462, #254516, #254652)
+  * Updated Dutch translation.  (Closes: #254582)
+
+ -- Chris Lawrence <lawrencc@debian.org>  Mon, 21 Jun 2004 02:19:54 -0500
+
+foomatic-filters (3.0.1-20040506-5) unstable; urgency=low
+
+  * Move parseconfig Perl fragment into its own file, so the syntax
+    highlighting is correct.
+  * Try to autodetect the spooler, and record this setting in
+    /etc/foomatic/defaultspooler to make foomatic-configure more friendly.
+  * Modify foomatic-filters.config to skip the filter question with CUPS,
+    and skip the PS accounting question unless CUPS is being used.
+
+ -- Chris Lawrence <lawrencc@debian.org>  Mon, 14 Jun 2004 03:05:54 -0500
+
+foomatic-filters (3.0.1-20040506-4) unstable; urgency=low
+
+  * Fix case of Foomatic in one spot in the debconf template.
+  * Eliminated all fuzziness from translations.
+  * Add German debconf translation.  (Closes: #252823)
+
+ -- Chris Lawrence <lawrencc@debian.org>  Sun,  6 Jun 2004 21:06:10 -0500
+
+foomatic-filters (3.0.1-20040506-3) unstable; urgency=low
+
+  * Add Turkish and Dutch debconf translations.
+    (Closes: #246077, #251400)
+
+ -- Chris Lawrence <lawrencc@debian.org>  Fri, 28 May 2004 23:36:23 -0500
+
+foomatic-filters (3.0.1-20040506-2) unstable; urgency=low
+
+  * Updated French debconf translation. (Closes: #248662)
+  * Manually fixed Portuguese and Japanese translations.
+
+ -- Chris Lawrence <lawrencc@debian.org>  Fri, 14 May 2004 18:27:43 -0500
+
+foomatic-filters (3.0.1-20040506-1) unstable; urgency=low
+
+  * New upstream release.
+  * Changed gs-aladdin to gs-afpl in Debconf template.
+
+ -- Chris Lawrence <lawrencc@debian.org>  Thu,  6 May 2004 23:00:07 -0500
+
+foomatic-filters (3.0.1-6) unstable; urgency=low
+
+  * Updated French translation.  (Closes: #238121)
+  * Ran debconf-updatepo manually, for good measure, even though it's
+    claimed in the form letter I received as part of #238121 that
+    dh_installdebconf automatically does this.
+
+ -- Chris Lawrence <lawrencc@debian.org>  Mon, 15 Mar 2004 19:03:27 -0600
+
+foomatic-filters (3.0.1-5) unstable; urgency=low
+
+  * Add Portguese translation of debconf templates.  (Closes: #235469)
+
+ -- Chris Lawrence <lawrencc@debian.org>  Mon,  1 Mar 2004 16:10:07 -0600
+
+foomatic-filters (3.0.1-4) unstable; urgency=low
+
+  * Update Japanese translation.  (Closes: #235094)
+
+ -- Chris Lawrence <lawrencc@debian.org>  Sat, 28 Feb 2004 03:16:15 -0600
+
+foomatic-filters (3.0.1-3) unstable; urgency=low
+
+  * Update French translation.  (Closes: #228999)
+
+ -- Chris Lawrence <lawrencc@debian.org>  Thu, 26 Feb 2004 04:28:26 -0600
+
+foomatic-filters (3.0.1-2) unstable; urgency=low
+
+  * Add debconf configuration for the gspath variable.
+  * Remove all the ucf hackery, since ucf now supports debconf.  We now
+    depend on the latest ucf.
+  * Remove the temporary file generated from the debconf data.
+
+ -- Chris Lawrence <lawrencc@debian.org>  Sun, 22 Feb 2004 19:43:05 -0600
+
+foomatic-filters (3.0.1-1) unstable; urgency=low
+
+  * New upstream release.  No upstream changes since last CVS snapshot.
+  * Use DEBIAN_FRONTEND instead of DEBCONF_FRONTEND for the interactivity
+    test, and check the debconf database for the frontend setting too;
+    this should solve the buildd problems with packages that depend on
+    foomatic-filters.
+
+ -- Chris Lawrence <lawrencc@debian.org>  Fri, 20 Feb 2004 21:52:42 -0600
+
+foomatic-filters (3.0.0-20040203-1) unstable; urgency=low
+
+  * New upstream release.
+  * If DEBCONF_FRONTEND is "noninteractive", bypass ucf handling of
+    /etc/foomatic/filter.conf.  (Closes: #231018)
+
+ -- Chris Lawrence <lawrencc@debian.org>  Tue,  3 Feb 2004 19:41:34 -0600
+
+foomatic-filters (3.0.0-20040114-1) unstable; urgency=low
+
+  * New upstream release.
+  * Update debconf translations.  (Closes: #224193, #227127)
+  * Acknowledge NMU.  (Closes: #223681)
+
+ -- Chris Lawrence <lawrencc@debian.org>  Wed, 14 Jan 2004 23:01:10 -0600
+
+foomatic-filters (3.0.0-20031207-1) unstable; urgency=low
+
+  * New upstream release.
+  * Handle filter.conf with ucf.
+  * Bypass the file converter check when calling configure.
+    (Closes: #223152)
+
+ -- Chris Lawrence <lawrencc@debian.org>  Sun,  7 Dec 2003 21:34:52 -0600
+
+foomatic-filters (3.0.0-20031118-1) unstable; urgency=low
+
+  * New upstream release.
+  * Note that texttops is used with CUPS by default in the template file.
+    (This will require minor po file updates.)
+
+ -- Chris Lawrence <lawrencc@debian.org>  Tue, 18 Nov 2003 15:32:03 -0600
+
+foomatic-filters (3.0.0-20030919-3) unstable; urgency=low
+
+  * New debconf translations.  (Closes: #212496, #212723)
+
+ -- Chris Lawrence <lawrencc@debian.org>  Mon, 29 Sep 2003 09:12:16 -0500
+
+foomatic-filters (3.0.0-20030919-2) unstable; urgency=low
+
+  * Don't use the *dj variants of paper sizes, since a2ps seems to have
+    recently lost support for them.  (Closes: #212259)
+
+ -- Chris Lawrence <lawrencc@debian.org>  Mon, 22 Sep 2003 19:54:47 -0500
+
+foomatic-filters (3.0.0-20030919-1) unstable; urgency=low
+
+  * New upstream release.
+
+ -- Chris Lawrence <lawrencc@debian.org>  Fri, 19 Sep 2003 20:35:00 -0500
+
+foomatic-filters (3.0.0-20030907-2) unstable; urgency=low
+
+  * Add French translation of debconf templates.  (Closes: #211222)
+  * foomatic-rip now dies with a reasonable error message if unable to
+    open the log file.  (Closes: #211345)
+  * Drop the debconf question on retaining the config file; the new
+    behavior is equivalent to "parse", which was the default behavior
+    anyway.  (Closes: #200713)
+  * Change the default setting for the PostScript filter to "Automagic"
+    and lower the question priority to "low".
+
+ -- Chris Lawrence <lawrencc@debian.org>  Fri, 19 Sep 2003 20:30:37 -0500
+
+foomatic-filters (3.0.0-20030907-1) unstable; urgency=low
+
+  * New upstream release.
+  * Include Japanese translation of debconf templates.  (Closes: #207513)
+
+ -- Chris Lawrence <lawrencc@debian.org>  Sun,  7 Sep 2003 12:07:18 -0500
+
+foomatic-filters (3.0.0-20030628-2) unstable; urgency=low
+
+  * Test whether /etc/foomatic/filter.conf.debconf-old exists before doing
+    file operations on it in the postinst.  (Closes: #199777)
+
+ -- Chris Lawrence <lawrencc@debian.org>  Wed,  2 Jul 2003 22:53:05 -0500
+
+foomatic-filters (3.0.0-20030628-1) unstable; urgency=low
+
+  * New upstream release.
+
+ -- Chris Lawrence <lawrencc@debian.org>  Sat, 28 Jun 2003 17:08:02 -0500
+
+foomatic-filters (3.0.0-5) unstable; urgency=low
+
+  * Change conflicts line to not conflict with the forthcoming
+    cupsomatic-ppd transition package.
+
+ -- Chris Lawrence <lawrencc@debian.org>  Sat, 14 Jun 2003 19:06:39 -0500
+
+foomatic-filters (3.0.0-4) unstable; urgency=low
+
+  * Conflict/Replace with the massively obsolete cupsomatic-ppd.
+    (Closes: #195550)
+
+ -- Chris Lawrence <lawrencc@debian.org>  Tue, 10 Jun 2003 17:41:27 -0500
+
+foomatic-filters (3.0.0-3) unstable; urgency=medium
+
+  * Fiddle with dependencies to break the cycle keeping foomatic 3.x out
+    of testing.
+
+ -- Chris Lawrence <lawrencc@debian.org>  Tue, 27 May 2003 15:47:43 -0500
+
+foomatic-filters (3.0.0-2) unstable; urgency=low
+
+  * Include symbolic links for lpdomatic and directomatic for
+    backwards-compatibility with Foomatic 2.0.
+
+ -- Chris Lawrence <lawrencc@debian.org>  Sat,  3 May 2003 23:39:02 -0500
+
+foomatic-filters (3.0.0-1) unstable; urgency=low
+
+  * New upstream release.
+
+ -- Chris Lawrence <lawrencc@debian.org>  Sat,  3 May 2003 23:15:09 -0500
+
+foomatic-filters (2.9-20030423-3) unstable; urgency=low
+
+  * Straightened out foomatic-filters.config on first install, I think.
+    At least, it works here when the database entries are deleted and
+    /etc/foomatic/filter.conf is removed.  (Closes: #190642)
+
+ -- Chris Lawrence <lawrencc@debian.org>  Tue, 29 Apr 2003 16:58:05 -0500
+
+foomatic-filters (2.9-20030423-2) unstable; urgency=low
+
+  * Upgraded foomatic-db-engine to a dependency.
+
+ -- Chris Lawrence <lawrencc@debian.org>  Thu, 24 Apr 2003 14:43:39 -0500
+
+foomatic-filters (2.9-20030423-1) unstable; urgency=low
+
+  * New upstream release. (Same as 3.0.0rc2)
+
+ -- Chris Lawrence <lawrencc@debian.org>  Wed, 23 Apr 2003 19:23:23 -0500
+
+foomatic-filters (2.9-3.0.0rc1-2) unstable; urgency=low
+
+  * Add a symbolic link in /usr/lib/cups/filter from cupsomatic to
+    foomatic-rip, for backwards-compatibility with Foomatic 2.x.
+    (Closes: #190106)
+  * Tried to clean up the description somewhat.
+
+ -- Chris Lawrence <lawrencc@debian.org>  Wed, 23 Apr 2003 19:15:20 -0500
+
+foomatic-filters (2.9-3.0.0rc1-1) unstable; urgency=low
+
+  * Initial Release.
+
+ -- Chris Lawrence <lawrencc@debian.org>  Sun, 13 Apr 2003 20:44:09 -0500
