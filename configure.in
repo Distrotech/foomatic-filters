@@ -23,11 +23,20 @@ AC_PATH_PROGS(PERL,perl,/usr/bin/perl,$BINSEARCHPATH)
 dnl Check for /etc/printcap
 AC_PATH_PROGS(PRINTCAP,printcap,/etc/printcap,$SYSCONFSEARCHPATH)
 
-dnl Check for /usr/share/cups/filter
-AC_PATH_DIRS(CUPS_FILTERS,cups/filter,/usr/lib/cups/filter,$DATASEARCHPATH)
+dnl Check for /usr/lib/cups
+AC_PATH_DIRS(CUPS,cups,/usr/lib/cups,$LIBSEARCHPATH)
+
+dnl Check for /usr/lib/cups/filter
+AC_PATH_DIRS(CUPS_FILTERS,cups/filter,/usr/lib/cups/filter,$LIBSEARCHPATH)
+
+dnl Check for /usr/lib/ppr
+AC_PATH_DIRS(PPR,ppr,/usr/lib/ppr,$LIBSEARCHPATH)
 
 dnl Check for /usr/lib/ppr/interfaces
 AC_PATH_DIRS(PPR_INTERFACES,ppr/interfaces,/usr/lib/ppr/interfaces,$LIBSEARCHPATH)
+
+dnl Check for /usr/lib/ppr/lib
+AC_PATH_DIRS(PPR_LIB,ppr/lib,/usr/lib/ppr/lib,$LIBSEARCHPATH)
 
 dnl AC_OUTPUT(Makefile src/Makefile)
 AC_OUTPUT(Makefile makeMan foomatic-gswrapper foomatic-rip)

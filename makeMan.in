@@ -3,7 +3,6 @@
 # Generates manpages from manpage.in files by substituting @...@ tags.
 #
 
-use lib 'lib/Foomatic/';
 use Getopt::Std;
 
 my (%opt,@files);
@@ -36,7 +35,7 @@ foreach my $file (@files)
 	open OUT, ">$man" or (warn "Can't write output file $man!" and next FILE);
 	while (<IN>)
 	{
-		s/@([^@]*)@/eval $1/ge;
+		s/@@([^@]*)@@/eval $1/ge;
 		print OUT;
 	}
 	close IN;

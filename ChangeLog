@@ -1,3 +1,20 @@
+2002-11-27  Till Kamppeter <till.kamppeter@gmx.net>
+
+	* Makefile.in, configure.in, makeMan.in: Updated Makefile
+	  infrastructure to let the package correctly build the man page
+	  and link foomatic-rip into the filter directories of CUPS and
+	  PPR.
+
+	* foomatic-rip: Allow more than one oocurence of the same spot
+	  ("%A", "%B", ...) in the RIP command line prototype, so that
+	  one option setting can act on several points of the command
+	  line (was an old TODO point of Grant).
+	
+	* foomatic-rip.1.in: Continued working on the man page for
+	  foomatic-rip.
+
+	* README, USAGE, TODO: Updated the package documentation.
+	
 2002-11-26  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* foomatic-rip.in: Added instructions for using a custom page size

@@ -14,8 +14,6 @@
 
 # Variables
 
-DEBUG=
-
 prefix=@prefix@
 exec_prefix=@exec_prefix@
 libdir=@libdir@
@@ -32,10 +30,13 @@ MANDIR=$(mandir)
 ETCDIR=$(sysconfdir)/foomatic
 
 # Paths for CUPS
+CUPS=@CUPS@
 CUPS_FILTERS=@CUPS_FILTERS@
 
 # Paths for PPR
+PPR=@PPR@
 PPR_INTERFACES=@PPR_INTERFACES@
+PPR_LIB=@PPR_LIB@
 
 # Genereal paths for all filter scripts
 EXEC_PATH=/usr/local/bin:/usr/bin:/bin
@@ -67,21 +68,24 @@ install: install-bin install-man
 check-config:
 	@if [ -f .testing-stamp ] ; then \
 	  echo 'Cowardly refusing to install inplace-built filters.' ;\
-	  echo 'Use "make testing_clean; make" to get proper ones.' ;\
+	  echo 'Use "make inplace_clean; make" to get proper ones.' ;\
 	  exit 1 ;\
 	fi
 
 install-bin: check-config
 	install -d $(DESTDIR)$(BINDIR)
-	install -d $(DESTDIR)$(SBINDIR)
+#	install -d $(DESTDIR)$(SBINDIR)
 	install -d $(DESTDIR)$(ETCDIR)
 	install -d $(DESTDIR)$(ETCDIR)/direct
 	install -d $(DESTDIR)$(CUPS_FILTERS)
 	install -d $(DESTDIR)$(PPR_INTERFACES)
+	install -d $(DESTDIR)$(PPR_LIB)
 	cp -f $(BINFILES) $(DESTDIR)$(BINDIR)
 #	cp -f $(SBINFILES) $(DESTDIR)$(SBINDIR)
-	cp -f cupsomatic $(DESTDIR)$(CUPS_FILTERS)
-	cp -f ppromatic $(DESTDIR)$(PPR_INTERFACES)
+#	Make foomatic-rip being found by CUPS and PPR
+	ln -sf $(BINDIR)/foomatic-rip $(DESTDIR)$(CUPS_FILTERS)
+	ln -sf $(BINDIR)/foomatic-rip $(DESTDIR)$(PPR_INTERFACES)
+	ln -sf $(BINDIR)/foomatic-rip $(DESTDIR)$(PPR_LIB)
 	cp -f filter.conf $(DESTDIR)$(ETCDIR)
 
 install-man: check-config
@@ -92,25 +96,25 @@ install-man: check-config
 #	cp -f *.8 $(DESTDIR)$(MANDIR)/man8
 
 build:  man
-#	chmod a+rx foomatic-rip foomatic-gswrapper
+	chmod a+rx foomatic-rip foomatic-gswrapper
 
 man:
 	chmod a+rx ./makeMan
 	if [ "$(INPLACE)" == "--inplace" ]; then \
-	  export FOOMATIC-RIP=`pwd`/foomatic-rip; \
+	  export FOOMATIC_RIP=`pwd`/foomatic-rip; \
 	  export FOO_ETC=`pwd`/etc/foomatic; \
 	  export PRINTCAP=@PRINTCAP@; \
 	else \
-	  export FOOMATIC-RIP=$(BINDIR)/foomatic-rip; \
+	  export FOOMATIC_RIP=$(BINDIR)/foomatic-rip; \
 	  export FOO_ETC=$(ETCDIR); \
 	  export PRINTCAP=@PRINTCAP@; \
 	fi; \
 	./makeMan
 
+# Clean up the source directory
 clean: remove-trash
-	rm -f *~ .testing-stamp
-	rm -f *.o
-	$(RM) $(BINFILES:=.1) $(SBINFILES:=.8)
+	rm -f .testing-stamp
+	rm -f $(BINFILES:=.1) $(SBINFILES:=.8)
 
 distclean: clean
 	rm -f $(AC_OUTPUT_FILES) config.log config.status config.cache
@@ -118,6 +122,12 @@ distclean: clean
 
 maintainer-clean: distclean
 	rm -f configure aclocal.m4
+
+# Remove editor backup and temporary files
+remove-trash:
+	for m in $(TRASHFILES); do \
+	  find . -name "$$m" -exec rm "{}" \; ; \
+	done
 
 # Uninstall an installed Foomatic
 uninstall: uninstall-bin uninstall-man
@@ -129,6 +139,14 @@ uninstall-bin: check-config
 #	( cd $(DESTDIR)$(SBINDIR) && \
 #	  rm -f $(SBINFILES) \
 #	)
+	rm -f $(DESTDIR)$(CUPS_FILTERS)/foomatic-rip
+	rmdir $(DESTDIR)$(CUPS_FILTERS) || :
+	rmdir $(DESTDIR)$(CUPS) || :
+	rm -f $(DESTDIR)$(PPR_INTERFACES)/foomatic-rip
+	rmdir $(DESTDIR)$(PPR_INTERFACES) || :
+	rm -f $(DESTDIR)$(PPR_LIB)/foomatic-rip
+	rmdir $(DESTDIR)$(PPR_LIB) || :
+	rmdir $(DESTDIR)$(PPR) || :
 	rm -f $(DESTDIR)$(ETCDIR)/filter.conf
 	rmdir $(DESTDIR)$(ETCDIR)/direct || :
 	rmdir $(DESTDIR)$(ETCDIR) || :
@@ -145,15 +163,10 @@ uninstall-man: check-config
 inplace: testing
 testing: INPLACE = --inplace
 testing: build
+	touch .testing-stamp
 
 inplace-clean: testing_clean
 testing-clean: clean
-
-# Remove editor backup and temporary files
-remove-trash:
-	for m in $(TRASHFILES); do \
-	  find . -name "$$m" -exec rm "{}" \; ; \
-	done
 
 # We need to export all Variables for makeDefaults and the scripts target to
 # work.

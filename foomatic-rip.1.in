@@ -189,6 +189,16 @@ passed to the renderer. This is usually done by \fBa2ps(1)\fR,
 \fBenscript(1)\fR, or \fBmpage(1)\fR. foomatic-rip auto-detects which
 program is installed, but manual configuration is also possible.
 
+.Topic
+foomatic-rip does not only apply option settings supplied by the user
+through the command line of the printing command, but also searches
+the entire job for embedded option settings (only PostScript
+jobs). Here not only settings affectimg the whole job are taken into
+account, but also settings in the page headers, which are only valid
+for the page where they were found, so applications which produce
+PostScript code with page-specific printer option settings are fully
+supported.
+
 .SH SPOOLER-LESS PRINTING
 
 .SS Options
@@ -218,7 +228,7 @@ The file(s) to be printed.
 .P
 \fBfoomatic-rip\fR will print from standard input unless a file to
 print is specified on the command line.
-If your printer PPD file is stored as \fI@$sysdeps{'foo-etc'}@/direct/<printer>.ppd\fR
+If your printer PPD file is stored as \fI@@$ENV{'FOO_ETC'}@@/direct/<printer>.ppd\fR
 or \fI~/.foomatic/direct/<printer>.ppd\fR you can use it by simply specifying "-P \fI<printer>\fR".
 
 Put a line
@@ -275,15 +285,15 @@ To be done.
 .SH FILES
 .PD 0
 .TP 0
-@$sysdeps{'foo-etc'}@/cups/<printer>.ppd
+@@$ENV{'FOO_ETC'}@@/cups/<printer>.ppd
 .TP 0
-@$sysdeps{'foo-etc'}@/lpd/<printer>.ppd
+@@$ENV{'FOO_ETC'}@@/lpd/<printer>.ppd
 .TP 0
-@$sysdeps{'foo-etc'}@/ppr/<printer>.ppd
+@@$ENV{'FOO_ETC'}@@/ppr/<printer>.ppd
 .TP 0
-@$sysdeps{'foo-etc'}@/pdq/<printer>.ppd
+@@$ENV{'FOO_ETC'}@@/pdq/<printer>.ppd
 .TP 8
-@$sysdeps{'foo-etc'}@/direct/<printer>.ppd
+@@$ENV{'FOO_ETC'}@@/direct/<printer>.ppd
 
 The PPD files of the currently defined printers
 .PD 0
@@ -303,3 +313,4 @@ Foomatic 2.0.x filters (\fBdirectomatic(1)\fR, \fBlpdomatic(8)\fR).
 .SH BUGS
 None so far.
 
+Please send bug reports to foomatic-devel@linuxprinting.org.

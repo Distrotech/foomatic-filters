@@ -4545,8 +4545,8 @@ sub buildcommandline {
 	    # command-line argument
 
 	    # Insert the processed argument in the commandline
-	    # just before the spot marker.
-	    $dat->{'currentcmd'} =~ s!\%$spot!$cmdvar\%$spot!;
+	    # just before every occurance of the spot marker.
+	    $dat->{'currentcmd'} =~ s!\%$spot!$cmdvar\%$spot!g;
 	}
         
     }
@@ -4559,8 +4559,8 @@ sub buildcommandline {
     # Pluck out all of the %n's from the command line prototype
     my @letters = qw/A B C D E F G H I J K L M Z/;
     for $spot (@letters) {
-	# Remove the letter marker from the commandline
-	$dat->{'currentcmd'} =~ s!\%$spot!!;
+	# Remove the letter markers from the commandline
+	$dat->{'currentcmd'} =~ s!\%$spot!!g;
     }
 
     ## J type finishing

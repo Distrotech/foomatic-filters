@@ -5,10 +5,9 @@ Foomatic 2.9.0
 foomatic-filters
 ----------------
 
-Filter scripts used by the spoolers to convert the incoming PostScript
-data into the printer's native format using a printer/driver specific
-PPD file (now there are still spooler-specific printer/driver description
-files but in the future spooler-independent PPD files will be used).
+Filter scripts used by the printer spoolers to convert the incoming
+PostScript data into the printer's native format using a
+printer/driver specific, but spooler-independent PPD file.
 
 
 Grant Taylor <gtaylor@picante.com>
@@ -56,7 +55,7 @@ Widely used databases were the RHS-Printfilters and the APS
 filters. There disadvantages were that they only supported one spooler
 (LPD/LPRng) and only a small part of the driver's options (mostly page
 size and resolution). Foomatic supports all options of the drivers and
-all known spoolers (LPD, LPRng, GNUlpr, CUPS, PPR, PDQ, direct
+all known spoolers (LPD, LPRng, GNUlpr, CUPS, PPR, PDQ, CPS, direct
 spooler-less printing). In addition, all known free software printer
 drivers are supported. Foomatic also supports printing of various
 non-PostScript file types for spoolers which do not support this by
@@ -88,21 +87,49 @@ and run.
 
 To connect to remote printers, you need additional connectivity
 software (as "rlpr", "nc", "smbspool', ...). To print non-PostScript
-files with LPD, LPRng, GNUlpr, or without spooler, you will need a2ps
-(http://www-inf.enst.fr/~demaille/a2ps/), which will be automatically
-used by the scripts when it is installed.
+files with LPD, LPRng, GNUlpr, or without spooler, you will need a2ps,
+enscript, mpage, or similar filters which convert non-PostScript files
+to PostScript. a2ps, enscript, and mpage will be automatically used by
+the scripts when they are installed.
+
+Download sources:
+rlpr: http://freshmeat.net/projects/rlpr/ or
+      http://www.linuxprinting.org/download/printing/
+netcat: http://freshmeat.net/projects/netcat/
 
 This package does not require any other Foomatic package. it can be
-used with printer/driver description files/PPDs downloaded from
-linuxprinting.org or in the future also with non-Foomatic PPDs.
+used with PPD files downloaded from linuxprinting.org, with
+manufacturer-supplied PPDs for PostScript printers, and probably with
+other PPD files.
 
-For Foomatic making sense one also needs GhostScript (5.50 or newer,
-ESP GhostScript 7.05.4 or newer highly recommended) if one has a
-non-PostScript printer. In addition, the appropriate driver for a
-non-PostScript printer must be installed.
+Note: PPD files for native CUPS drivers, as the ones shipping with
+CUPS or GIMP-Print cannot be used with other spoolers than CUPS.
+
+For non-PostScript printers one also needs GhostScript (5.50 or newer,
+ESP GhostScript 7.05.4 or newer highly recommended) and the
+appropriate printer driver.
+
+For drivers which have to be compiled into GhostScript ("Execution
+style: GhostScript" on the driver pages on linuxprinting.org) check
+with "gs -h" whether the driver is in your GhostScript. If not you
+need to compile the driver into your GhostScript or use a GhostScript
+version which already contains it.
+
+If the driver page says "Execution style: Uniprint", it is much
+easier, check whether the appropriate ".upp" file is in one of the
+directories listed under "Search path:" in the end of the "gs -h"
+output. Copy the ".upp" file to one of these directories when it was
+not there already.
+
+The third type of driver is marked with "Execution style: Filter",
+this means, that you have to install a filter executable in addition
+to GhostScript. Check with "which <name of the filter>" whether the
+filter is already there, otherwise download and install the
+appropriate package.
 
 
-foomatic-filters can be installed using the commands (if you have
+
+foomatic-filters can be installed using these commands (if you have
 downloaded this package from CVS, run "./make_configure" at first, for
 that you will also need the "autoconf" and "aclocal" utilities,
 "aclocal" is in the "automake" package in some distributions):
@@ -144,24 +171,23 @@ access). Therefore enter (can be done as a normal user):
    make inplace
    
 and enter the commands with "./" in the beginning
-(e. g. "./foomatic-datafile ..."). This also works on a machine where
-a system-wide Foomatic is already installed.
+(e. g. "./foomatic-rip ...", "man ./foomatic-rip.1"). This also works
+on a machine where a system-wide Foomatic is already installed.
 
-In addition you should install a utility to make PostScript out of
+In addition, you should install a utility to make PostScript out of
 non-PostScript files, so that you can print those non-PostScript files
 and also a list of available options using the "docs" option. The
 supported utilities are "a2ps"
-(http://www-inf.enst.fr/~demaille/a2ps/), "enscript", and
-"mpage". Recommended is "a2ps" because it detects many file types
-(text, PDF, most image formats) and together with ImageMagick (for
-images) and GNU GhostScript 6.51 or newer (for PDF) it converts them
-to PostScript. The other tools convert only text files. The tool you
-have installed is auto-detected by the filter script for your spooler
-and used automatically if necessary. CUPS and PPR need this tool only
-for printing the option list, they use internal filters for printing
-non-PostScript files. The PDQ configuration files only supports
-"mpage", with LPD, GNUlpr, LPRng, or direct, spooler-less printing you
-can use all tools.
+(http://www-inf.enst.fr/~demaille/a2ps/), "enscript"
+(http://people.ssh.fi/mtr/genscript/), and "mpage"
+(http://www.mesa.nl/pub/mpage). Recommended is "a2ps" because it
+detects many file types (text, PDF, most image formats) and together
+with ImageMagick (for images) and GNU/ESP/AFPL GhostScript 6.51 or
+newer (for PDF) it converts them to PostScript. The other tools
+convert only text files. The tool you have installed is auto-detected
+by foomatic-rip and used automatically if
+necessary. PPR needs this tool only for printing the option
+list, and CUPS does not need it at all. PPR and CUPS use internal filters for printing non-PostScript files.
 
 If you have a multi-function device from HP, install HPOJ from
 
@@ -191,25 +217,25 @@ If not, see, depending on your spooler:
 
 CUPS:
 
-   http://www.linuxprinting.org/cups-doc.html
+   http://www.linuxprinting.org/foomatic-2.9/cups-doc.html
 
 LPD, LPRng, GNUlpr:
 
-   http://www.linuxprinting.org/lpd-doc.html
+   http://www.linuxprinting.org/foomatic-2.9/lpd-doc.html
 
 PPR:
 
-   http://www.linuxprinting.org/ppr-doc.html
+   http://www.linuxprinting.org/foomatic-2.9/ppr-doc.html
 
 PDQ:
 
-   http://www.linuxprinting.org/pdq-doc.html
+   http://www.linuxprinting.org/foomatic-2.9/pdq-doc.html
 
 Direct, spooler-less printing:
 
-   http://www.linuxprinting.org/direct-doc.html
+   http://www.linuxprinting.org/foomatic-2.9/direct-doc.html
 
 Usage of PPD files (for all spoolers):
 
-   http://www.linuxprinting.org/ppd-doc.html
+   http://www.linuxprinting.org/foomatic-2.9/ppd-doc.html
 
