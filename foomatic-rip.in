@@ -562,6 +562,24 @@ my $maxlinestopsstart = 200;    # That many lines are allowed until the
                                 # lines in the beginning are usually JCL
                                 # commands. The lines will be ignored by
                                 # our parsing but passed through.
+my $maxlinesforpageoptions=200; # Unfortunately, CUPS does not bracket
+                                # "PageSetup" option with "%%BeginPageSetup"
+                                # and "%%EndPageSetup", so the options can
+                                # simply stand after the page header and
+                                # before the page code, without special
+                                # marking. So buffer this amount of lines
+                                # before printing the page to check for
+                                # options.
+my $maxnondsclinesinheader=1000; # If there is a block of more lines than
+                                # this in the document header which is not
+                                # in the "%%BeginProlog...%%EndProlog" or
+                                # "%%BeginSetup...%%EndSetup" sections,
+                                # the document is not considered as
+                                # DSC-conforming and the rest gets passed
+                                # through to the renderer without further
+                                # parsing for options.
+my $nondsclines = 0;            # Amount of lines found which are not in
+                                # a section (see $maxnondsclinesinheader).
 my $nonpslines = 0;             # lines before "%!" found yet.
 my $more_stuff = 1;             # there is more stuff in stdin.
 my $linect = 0;                 # how many lines have we examined?
@@ -600,8 +618,27 @@ my $ignorepageheader = 0;       # Will be set to 1 as soon as active code
                                 # is not allowed any more on this page
                                 # and will be ignored. Will be set to 0
                                 # when a new "%%Page:" comment appears.
+my $printprevpage = 0;          # We set this when encountering "%%Page:"
+                                # and the previous page is not printed
+                                # yet. Then it will printed and the
+                                # new page will be prepared in the next
+                                # run of the loop (we don't read a new
+                                # line and don't increase the $linect then).
 my $rendererhandle;             # File handle to the renderer process\
 my $rendererpid = 0;            # PID of the renderer process
+my $prologfound = 0;            # Did we find the
+                                # "%%BeginProlog...%%EndProlog" section?
+my $setupfound = 0;             # Did we find the
+                                # "%%BeginSetup...%%EndSetup" section?
+my $inprolog = 0;               # We are between "%%BeginProlog" and
+                                # "%%EndProlog".
+my $insetup = 0;                # We are between "%%BeginSetup" and
+                                # "%%EndSetup".
+my $infeature = 0;              # We are between "%%BeginFeature" and
+                                # "%%EndFeature".
+my $nondsclines = 0;            # Number of subsequent lines found which
+                                # are at a non-DSC-conforming place,
+                                # between the sections of the header.
 
 if ($dontparse) {
     # We do not parse the PostScript to find Foomatic options, we check
@@ -616,17 +653,16 @@ if ($debug) {
 		    $EXIT_PRNERR_NORETRY_BAD_SETTINGS);
 }
 
-
+my $line;                       # Line to be read from stdin
 do {
-    my $line;                   # Line to be read from stdin
     my $ignoreline = 0;         # Comment line to be ignored when
                                 # determining the last active line and the
                                 # one before the last
 
-    if ($line=<STDIN>) {
+    if (($printprevpage) || ($line=<STDIN>)) {
 
 	# Debug output
-	if ($debug) {
+	if (($debug) && (!$printprevpage)) {
 	    print DRIVERINPUT $line;
 	}
 
@@ -669,37 +705,98 @@ do {
 		$nestinglevel --;
 		print $logh "End of Embedded document, " .
 		    "nesting level now: $nestinglevel\n";
+	    } elsif (($line =~ m/\%\%BeginProlog/) &&
+		     ($nestinglevel == 0)) {
+		# Beginning of Prolog
+		$prologfound = 1;
+		$inprolog = 1;
+		$nondsclines = 0;
+		# Push options for "Prolog" onto $psfifo here
+	    } elsif (($line =~ m/\%\%EndProlog/) &&
+		     ($nestinglevel == 0)) {
+		# End of Prolog
+		$inprolog = 0;
+	    } elsif (($line =~ m/\%\%BeginSetup/) &&
+		     ($nestinglevel == 0)) {
+		# Beginning of Setup
+		$setupfound = 1;
+		$insetup = 1;
+		$nondsclines = 0;
+		# If there was no "Prolog" but there are options for
+		# the "Prolog", push a "Prolog" with these options onto
+		# the $psfifo here
+		if (!$prologfound) {
+
+		    # Now we have a "Prolog"
+		    $prologfound = 1;
+		}
+		# Push options for "DocumentSetup" or "AnySetup" onto
+		# $psfifo here
+	    } elsif (($line =~ m/\%\%EndSetup/) &&
+		     ($nestinglevel == 0)) {
+		# End of Setup
+		$insetup = 0;
 	    } elsif (($line =~ m/\%\%Page:(.*)$/) &&
 		     ($nestinglevel == 0)) {
-		print $logh "\n-----------\nNew page: $1\n";
-		# Here begins a new page
-		if ($inheader) {
-		    # The first page starts, so the header ends
-		    $inheader = 0;
-		    # Option setting should go into the page-specific
-		    # option set now
-		    $optionset = 'currentpage';
+		if ((!$lastpassthru) && (!$inheader)) {
+		    # In the last line we were not in passthru mode,
+		    # so the last page is not printed. Prepare to do
+		    # it now.
+		    $printprevpage = 1;
+		    # Print the previous page
+		    $passthru = 1;
+		    print $logh "New page found but previous not printed," .
+			" print it now.\n";
 		} else {
-		    # Save the option setting of the previous page
-		    copyoptions($dat, 'currentpage', 'previouspage');
-		    deleteoptions($dat, 'currentpage');
+		    # The previous page is printed, so we can prepare the
+		    # current one
+		    $printprevpage = 0;
+		    print $logh "\n-----------\nNew page: $1\n";
+		    # Here begins a new page
+		    if ($inheader) {
+			# If there was no "Prolog" but there are
+			# options for the "Prolog", push a "Prolog"
+			# with these options onto the $psfifo here
+			if (!$prologfound) {
+			    
+			    # Now we have a "Prolog"
+			    $prologfound = 1;
+			}
+			# If there was no "Setup" but there are
+			# options for the "Setup", push a "Setup"
+			# with these options onto the $psfifo here
+			if (!$setupfound) {
+			    
+			    # Now we have a "setup"
+			    $setupfound = 1;
+			}
+			# The first page starts, so the header ends
+			$inheader = 0;
+			$nondsclines = 0;
+			# Option setting should go into the page-specific
+			# option set now
+			$optionset = 'currentpage';
+		    } else {
+			# Save the option settings of the previous page
+			copyoptions($dat, 'currentpage', 'previouspage');
+			deleteoptions($dat, 'currentpage');
+		    }
+		    # Initialize the option set
+		    copyoptions($dat, 'header', 'currentpage');
+		    # Now the page header comes, so buffer the data, because
+		    # we must perhaps shut down and restart the renderer
+		    $passthru = 0;
+		    $ignorepageheader = 0;
 		}
-		# Initialize the option set
-		copyoptions($dat, 'header', 'currentpage');
-		# Now the page header comes, so buffer the data, because
-		# we must perhaps shut down and restart the renderer
-		$passthru = 0;
-		$ignorepageheader = 0;
 	    } elsif (($line =~ m/\%\%BeginPageSetup/) &&
 		     ($nestinglevel == 0) &&
 		     (!$ignorepageheader))  {
 		# Start of the page header, up to %%EndPageSetup
-		# nothing of the page will bedrawn, page-specific
+		# nothing of the page will be drawn, page-specific
 		# option settngs (as letter-head paper for page 1)
 		# go here
 		$passthru = 0;
-		$inpageheader = 1;
-		
+		$inpageheader = 1;		
 	    } elsif (($line =~ m/\%\%EndPageSetup/) &&
 		     ($nestinglevel == 0) &&
 		     (!$ignorepageheader)) {
@@ -707,11 +804,16 @@ do {
 		print $logh "End of page header\n";
 		$passthru = 1;
 		$inpageheader = 0;
-            } elsif ((($line =~ m/\%\%(BeginFeature):\s+\*?([^\s=]+)\s+(\S.*)$/) ||
-		      ($line =~ m/\%\%\s*(FoomaticRIPOptionSetting):\s*([^\s=]+)\s*=\s*(\S.*)$/)) &&
+            } elsif ((($line =~ m/\%\%(BeginFeature):\s+\*?([^\s=]+)\s+(\S[^\r\n]*)\r?\n?$/) ||
+		      ($line =~ m/\%\%\s*(FoomaticRIPOptionSetting):\s*([^\s=]+)\s*=\s*(\S[^\r\n]*)\r?\n?$/)) &&
 		     ($nestinglevel == 0) && 
 		     ((!$passthru) || (!$isdscjob))) {
                 my ($linetype, $option, $value) = ($1, $2, $3);
+
+		# Mark that we are in a "Feature" section
+		if ($linetype eq 'BeginFeature') {
+		    $infeature = 1;
+		}
 
                 # OK, we have an option.  If it's not a
                 # *ostscript-style option (ie, it's command-line or
@@ -772,26 +874,57 @@ do {
                     # This option is unknown to us.  WTF?
                     print $logh "unknown option $option=$value found in the job\n";
                 }
+            } elsif (($line =~ m/\%\%EndFeature/) && ($nestinglevel == 0)) {
+		# End of Feature
+		$infeature = 0;
 	    } elsif (($line =~ m/^\s*\%/) || ($line =~ m/^\s*$/)) {
 		# This is an unknown PostScript comment or a blank line,
 		# no active code
 		$ignoreline = 1;
             } else {
 		# This line is active PostScript code
-		if ((!$inheader) && (!$inpageheader)) {
-		    # PostScript code inside a page, but not between
-		    # "%%BeginPageSetup" and "%%EndPageSetup", so we are
-		    # drawing onto a page now
-		    if ($onelinebefore =~ m/\%\%Page:/) {
-			print $logh "No page header\n";
+		if ($inheader) {
+		    if ((!$inprolog) && (!$insetup)) {
+			# Outside the "Prolog" and "Setup" section
+			# a correct DSC-conforming document has no
+			# active PostScript code, so consider the
+			# file as non-DSC-conforming when there are
+			# too many of such lines.
+			$nondsclines ++;
+			if ($nondsclines > $maxnondsclinesinheader) {
+			    # Consider document as not DSC-conforming
+			    print $logh "This job seems not to be " .
+				"DSC-conforming, DSC-comment for next " .
+				"section not found, stopping to parse " .
+				"the rest, passing it directly to the " .
+				"renderer.\n";
+			    # Stop scanning for further option settings
+			    $maxlines = 1;
+			    $isdscjob = 0;
+			}
 		    }
-		    $passthru = 1;
-		    # If there comes a page header now, ignore it
-		    $ignorepageheader = 1;
+		} else {
+		    if (!$inpageheader) {
+			# PostScript code inside a page, but not between
+			# "%%BeginPageSetup" and "%%EndPageSetup", so we are
+			# perhaps already drawing onto a page now
+			if ($onelinebefore =~ m/\%\%Page:/) {
+			    print $logh "No page header or page header" .
+				" not DSC-conforming\n";
+			}
+			# Stop buffering lines to search for options placed
+			# not DSC-conforming
+			if (scalar(@psfifo) >= $maxlinesforpageoptions) {
+			    $passthru = 1;
+			    # If there comes a page header now, ignore it
+			    $ignorepageheader = 1;
+			}
+		    }
 		}
 	    }
         }
 	
+	# Debug info
 	if ($lastpassthru != $passthru) {
 	    if ($passthru) {
 		print $logh "Found:\n   $twolinesbefore   $onelinebefore" .
@@ -849,14 +982,18 @@ do {
 		    @psfifo = ();
 		}
 		# Send line to renderer
-		print $rendererhandle $line;
+		if (!$printprevpage) {
+		    print $rendererhandle $line;
+		}
 	    } else {
 		# Push the line onto the stack for later spitting up...
 		push (@psfifo, $line);
 	    }
 	}
 	    
-        $linect++;
+	if (!$printprevpage) {
+	    $linect++;
+	}
 
     } else {
         # EOF!
@@ -865,12 +1002,10 @@ do {
 
     $lastpassthru = $passthru;
 
-    if (!$ignoreline) {
+    if ((!$ignoreline) && (!$printprevpage)) {
 	$twolinesbefore = $onelinebefore;
 	$onelinebefore = $line;
     }
-
-    #print  "##### Page $linect\n";
 
 } while ((($maxlines == 0) or ($linect < $maxlines)) and
 	 ($more_stuff != 0));
@@ -878,7 +1013,18 @@ do {
 if (($more_stuff != 0) || ($#psfifo >= 0)) {
     # Flush $psfifo and send the remaining data to the renderer, this only
     # happens with non-DSC-conforming jobs or non-Foomatic PPDs
-    print $logh "Stopped parsing the PostScript data, sending rest directly to renderer."; 
+    if ($more_stuff) {
+	print $logh "Stopped parsing the PostScript data, ".
+	    "sending rest directly to renderer.\n";
+    } else {
+	print $logh "Flushing FIFO.\n";
+    }
+    if ($inheader) {
+	# No page initialized yet? Copy the "header" option set into the
+	# "currentpage" option set, so that the renderer will find the
+	# options settings.
+	copyoptions($dat, 'header', 'currentpage');
+    }
     ($rendererhandle, $rendererpid) =
 	getrendererhandle($dat, join('', @psheader, @psfifo));
     if ($retval != $EXIT_PRINTED) {
@@ -888,6 +1034,9 @@ if (($more_stuff != 0) || ($#psfifo >= 0)) {
     if ($more_stuff) {
         while (<STDIN>) {
             print $rendererhandle $_;
+	    if ($debug) {
+		print DRIVERINPUT $_;
+	    }
         }
     }
 }
@@ -1284,6 +1433,14 @@ sub unhtmlify {
     $str =~ s/\&gt;/\>/g;
     $str =~ s/\&lt;/\</g;
     $str =~ s/\&amp;/\&/g;
+    return $str;
+}
+
+sub undossify {
+    # Remove "dossy" line ends ("\r\n") from a string
+    my ($str) = @_;
+    $str =~ s/\r\n/\n/gs;
+    $str =~ s/\r$//s;
     return $str;
 }
 

@@ -1,3 +1,28 @@
+2002-11-07  Till Kamppeter <till.kamppeter@gmx.net>
+
+	* foomatic-rip.in: foomatic-rip works also as a CUPS filter,
+	  without any modifications and without wrapper. Accounting
+	  and help page is not supported yet. It is planned to also use
+	  it as filter for the other spoolers without wrapper (spooler
+	  auto-detection).
+
+	  Made foomatic-rip also recognizing option
+	  settings embedded in PostScript files with "dossy" line ends
+	  ("\r\n").
+
+	  Made it more tolerant against not exactly DSC-conforming
+	  PostScript. as for example CUPS' "pstops" does not put page-
+	  specific option settings between "%%BeginPageSetup" and
+	  "%%EndPageSetup".
+
+	  Handle the problem that there can be a "%%PS-Adobe" header, but
+	  the document is not DSC-conforming. Stop parsing when the next
+	  DSC section is not found after a certain amount of lines.
+
+	  Parse also "%%BeginProlog", "%%EndProlog", "%%BeginSetup",
+	  "%%EndSetup", "%%BeginFeature", and "%%EndFeature" comments so
+	  that additional option settings can be inserted.
+	
 2002-11-06  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* src/*omatic.pl.in: Made filters also recognizing option settings
