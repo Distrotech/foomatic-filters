@@ -56,7 +56,7 @@ my $ps_accounting = 1;
 # the first one.
 # You can set this to "a2ps", "enscript" or "mpage" to select one of the 
 # default command strings.
-my $enscriptcommand = "";
+my $fileconverter = "";
 
 # What 'echo' program to use.  It needs -e and -n.  Linux's builtin
 # and regular echo work fine; non-GNU platforms may need to install
@@ -71,11 +71,12 @@ my $myecho = 'echo';
 # Foomatic filters into debug mode.
 #
 # WARNING: This logfile is a security hole; do not use in production.
-my $debug=0;
+my $debug = 0;
 
-# This is the location of the debug logfile in case you have enabled
-# debugging # above.
-my $logfile = "/tmp/foomatic-rip.log";
+# This is the location of the debug logfile (and also the copy of the
+# processed PostScript data) in case you have enabled debugging above.
+# The logfile will get the extension ".log", the PostScript data ".ps".
+my $logfile = "/tmp/foomatic-rip";
 
 # End interesting enduser options
 
@@ -147,19 +148,6 @@ $SIGTTOU = 22;
 
 
 
-## Config file
-
-# Read config file if present
-%conf = readConfFile("$configpath/filter.conf");
-
-# Get execution path from config file
-if ($execpath) {$ENV{'PATH'} = $execpath;}
-
-# Set debug mode
-$debug = $conf{debug} if defined(%conf) and defined $conf{debug};
-
-
-
 ## Some important variables
 
 # We don't know yet, which spooler will be used. If we don't detect one.
@@ -168,6 +156,9 @@ $spooler = 'direct';
 
 # PPD file name
 $ppdfile = "";
+
+# Printer model
+$model = "";
 
 # Printer queue name
 $printer = "";
@@ -195,6 +186,53 @@ $jcltointerpreter = "";
 # JCL command to close a print job (Can be modified by a "*JCLEnd:"
 # keyword in the PPD file):
 $jclend = "\033%-12345X\@PJL RESET\n";
+
+# Under which name were we called and in which directory do we reside
+$0 =~ m!^(.*/)([^/]+)$!;
+$programdir = $1;
+$programname = $2;
+
+# Filters to convert non-PostScript files
+my @fileconverters = 
+  (# a2ps (converts also other files than text)
+   'a2ps -1 @@--medium=@@PAGESIZE@@ @@--center-title=@@JOBTITLE@@ -o -',
+   # enscript
+   'enscript -G @@-M @@PAGESIZE@@ @@-b "Page $%|@@JOBTITLE@@ ' .
+   '--margins=36:36:36:36 --mark-wrapped-lines=arrow --word-wrap -p-',
+   # mpage
+   'mpage -o -1 @@-b @@PAGESIZE@@ @@-H -h @@JOBTITLE@@ -m36l36b36t36r ' .
+   '-f -P- -');
+
+# spooler-specific file converters, default for the specific spooler when
+# none of the converters above is chosen.
+$spoolerfileconverters = {
+    'cups' => "${programdir}texttops '$ARGV[0]' '$ARGV[1]' '$ARGV[2]' " .
+	"'$ARGV[3]' '$ARGV[4] page-top=36 page-bottom=36 " .
+	"page-left=36 page-right=36 nolandscape cpi=12 lpi=7 " .
+	"columns=1 wrap'"
+    };
+
+
+
+## Config file
+
+# Read config file if present
+%conf = readConfFile("$configpath/filter.conf");
+
+# Get execution path from config file
+if ($execpath) {$ENV{'PATH'} = $execpath;}
+
+# Set debug mode
+$debug = $conf{debug} if defined(%conf) and defined $conf{debug};
+
+# Determine which filter to use for non-PostScript files to be converted
+# to PostScript
+if (defined(%conf) and $conf{textfilter}) {
+    $fileconverter = $conf{textfilter};
+    $fileconverter eq 'a2ps' and $fileconverter = $fileconverters[0];
+    $fileconverter eq 'enscript' and $fileconverter = $fileconverters[1];
+    $fileconverter eq 'mpage' and $fileconverter = $fileconverters[2];
+}
 
 
 
@@ -260,15 +298,6 @@ GetOptions("q"        => \$opt_q,         # Quiet
 	   "J=s"      => \$opt_J,         # Job title
 	   );
 
-# Quiet mode, do not log
-if (($opt_q) && (!$debug)) {
-    open LOG, ">/dev/null";
-    $logh = *LOG;
-
-    use IO::Handle;
-    $logh->autoflush(1);
-}
-
 # Debug mode activated via command line
 if ($opt_debug) {
     $debug = 1;
@@ -277,18 +306,23 @@ if ($opt_debug) {
 # Where to send debugging log output to
 if ($debug) {
     # Grotesquely unsecure; use for debugging only
-    open LOG, ">$logfile";
+    open LOG, "> ${logfile}.log";
+    $logh = *LOG;
+
+    use IO::Handle;
+    $logh->autoflush(1);
+} elsif (($opt_q) && (!$opt_v)) {
+    # Quiet mode, do not log
+    close $logh;
+    open LOG, "> /dev/null";
     $logh = *LOG;
 
     use IO::Handle;
     $logh->autoflush(1);
 } else {
+    # Default: log to STDERR
     $logh=*STDERR;
 }
-
-# Start logging
-print $logh "foomatic-rip version $ripversion running...\n";
-print $logh "called with arguments: '", $origoptions, "'\n";
 
 # PPD file name given via the command line
 if ($opt_p) {
@@ -447,7 +481,7 @@ if (($ARGV[3] =~ /^\s*\d\d?\s*$/) &&
 if ($spooler eq 'cups') {
     # Get all command line parameters
     $cups_jobid = $ARGV[0];
-    $cups_usr = $ARGV[1];
+    $cups_user = $ARGV[1];
     $cups_jobtitle = $ARGV[2];
     $cups_copies = $ARGV[3];
     $cups_options = $ARGV[4];
@@ -575,6 +609,11 @@ def
 } stopped cleartomark
 " : "";
 
+    # On which queue are we printing?
+    # CUPS gives the PPD file the same name as the printer queue,
+    # so we can get the queue name from the name of the PPD file.
+    $ppdfile =~ m!^(.*/)([^/]+)\.ppd$!;
+    $printer = $2;
 }
 
 # No spooler
@@ -675,16 +714,28 @@ for $file (@filelist) {
 
 
 
-## Summary for debugging
-print $logh "\nParameter Summary\n";
-print $logh "-----------------\n\n";
-print $logh "Spooler: $spooler\n";
-print $logh "Printer: $printer\n";
-print $logh "PPD file: $ppdfile\n";
-print $logh "Options: $optstr\n";
-print $logh "Job title: $jobtitle\n";
-print $logh "File(s) to be printed:\n@filelist\n\n";
+## When we print without spooler do not log onto STDERR unless the "-v"
+## ('Verbose') is set or the debug mode is used
+if (($spooler eq "direct") && (!$opt_v) && (!$debug)) {
+    close $logh;
+    open LOG, "> /dev/null";
+    $logh = *LOG;
 
+    use IO::Handle;
+    $logh->autoflush(1);
+}
+
+
+
+## Start logging also when no error occurs
+print $logh "foomatic-rip version $ripversion running...\n";
+# Print the command line only in debug mode, Mac OS X adds very many
+# options so that CUPS cannot handle the output of the command line
+# in its log files. If CUPS encounters a line with more than 1024 characters
+# sent into its log files, it aborts the job with an error.
+if (($debug) || ($spooler ne 'cups')) {
+    print $logh "called with arguments: '", $origoptions, "'\n";
+}
 
 
 ## PPD file
@@ -707,7 +758,28 @@ while(<PPD>) {
     # foomatic-rip should also work with PPD file downloaded under Windows.
     undossify;
     # Parse keywords
-    if (m!^\*FoomaticRIPPostPipe:\s*\"(.*)$!) {
+    if (m!^\*NickName:\s*\"(.*)$!) {
+	# "*NickName: <code>"
+	my $line = $1;
+	# Store the value
+	# Code string can have multiple lines, read all of them
+	my $cmd = "";
+	while ($line !~ m!\"!) {
+	    if ($line =~ m!&&$!) {
+		# line continues in next line
+		$cmd .= substr($line, 0, -2);
+	    } else {
+		# line ends here
+		$cmd .= "$line\n";
+	    }
+	    # Read next line
+	    $line = <PPD>;
+	    chomp $line;
+	}
+	$line =~ m!^([^\"]*)\"!;
+	$cmd .= $1;
+	$model = unhtmlify($cmd);
+    } elsif (m!^\*FoomaticRIPPostPipe:\s*\"(.*)$!) {
 	# "*FoomaticRIPPostPipe: <code>"
 	my $line = $1;
 	# Store the value
@@ -919,7 +991,11 @@ while(<PPD>) {
 	    ($dat->{'args_byname'}{$currentargument}{'type'} eq 'bool');
 	if ($bool) {
 	    if (lc($setting) eq "true") {
-		$dat->{'args_byname'}{$currentargument}{'comment'} =
+		if (!$dat->{'args_byname'}{$currentargument}{'comment'}) {
+		    $dat->{'args_byname'}{$currentargument}{'comment'} =
+			$translation;
+		}
+		$dat->{'args_byname'}{$currentargument}{'comment_true'} =
 		    $translation;
 	    } else {
 		$dat->{'args_byname'}{$currentargument}{'comment_false'} =
@@ -1064,19 +1140,31 @@ if (!defined($dat->{'cmd'})) {
 
 
 
-## Only for debugging
-if (0) {
-    print $logh "|$jclbegin|\n|$jcltointerpreter|\n|$jclend|\n";
-    use Data::Dumper;
-    local $Data::Dumper::Purity=1;
-    local $Data::Dumper::Indent=1;
-    print $logh Dumper($dat);
-    exit 1;
+## Summary for debugging
+print $logh "\nParameter Summary\n";
+print $logh "-----------------\n\n";
+print $logh "Spooler: $spooler\n";
+print $logh "Printer: $printer\n";
+print $logh "PPD file: $ppdfile\n";
+print $logh "Printer model: $model\n";
+# Print the options string only in debug mode, Mac OS X adds very many
+# options so that CUPS cannot handle the output of the option string
+# in its log files. If CUPS encounters a line with more than 1024 characters
+# sent into its log files, it aborts the job with an error.
+if (($debug) || ($spooler ne 'cups')) {
+    print $logh "Options: $optstr\n";
 }
+print $logh "Job title: $jobtitle\n";
+print $logh "File(s) to be printed:\n@filelist\n\n";
 
 
 
 ## Parse options from command line ($optstr)
+
+# Before we start, save the defaults for printing documentation pages
+
+copyoptions($dat, 'default', 'userval');
+
 
 # The options are "foo='bar nut'", "foo", "nofoo", "'bar nut'", or
 # "foo:'bar nut'" (when GPR was used) all with spaces between...
@@ -1126,7 +1214,7 @@ for (@opts) {
 	# The second one is necessary becuase CUPS 1.1.15 or newer sees
 	# "docs" as boolean option and modifies it to "docs=true"
         $do_docs = 1;
-        last;
+	next;
     }
 
     my $arg;
@@ -1158,38 +1246,38 @@ for (@opts) {
             for (@values) {
                 if ($dat->{'args_byname'}{'PageSize'} and
                     $val=valbyname($dat->{'args_byname'}{'PageSize'},$_)) {
-                    $dat->{'args_byname'}{'PageSize'}{'default'} = 
+                    $dat->{'args_byname'}{'PageSize'}{'userval'} = 
                         $val->{'value'};
 		    # Keep "PageRegion" in sync
 		    if ($dat->{'args_byname'}{'PageRegion'} and
 			$val=valbyname($dat->{'args_byname'}{'PageRegion'},
 				       $_)) {
-			$dat->{'args_byname'}{'PageRegion'}{'default'} = 
+			$dat->{'args_byname'}{'PageRegion'}{'userval'} = 
 			    $val->{'value'};
 		    }
                 } elsif ($dat->{'args_byname'}{'PageSize'} 
 			 and /^Custom/) {
-		    $dat->{'args_byname'}{'PageSize'}{'default'} = $_;
+		    $dat->{'args_byname'}{'PageSize'}{'userval'} = $_;
 		    # Keep "PageRegion" in sync
 		    if ($dat->{'args_byname'}{'PageRegion'}) {
-			$dat->{'args_byname'}{'PageRegion'}{'default'} = 
+			$dat->{'args_byname'}{'PageRegion'}{'userval'} = 
 			    $_;
 		    }
                 } elsif ($dat->{'args_byname'}{'MediaType'} and
                          $val=valbyname($dat->{'args_byname'}{'MediaType'},
 					$_)) {
-                    $dat->{'args_byname'}{'MediaType'}{'default'} =
+                    $dat->{'args_byname'}{'MediaType'}{'userval'} =
                         $val->{'value'};
                 } elsif ($dat->{'args_byname'}{'InputSlot'} and
                          $val=valbyname($dat->{'args_byname'}{'InputSlot'},
 					$_)) {
-                    $dat->{'args_byname'}{'InputSlot'}{'default'} = 
+                    $dat->{'args_byname'}{'InputSlot'}{'userval'} = 
                         $val->{'value'};
                 } elsif (lc($_) eq 'manualfeed') {
                     # Special case for our typical boolean manual
                     # feeder option if we didn't match an InputSlot above
                     if (defined($dat->{'args_byname'}{'ManualFeed'})) {
-                        $dat->{'args_byname'}{'ManualFeed'}{'default'} = 1;
+                        $dat->{'args_byname'}{'ManualFeed'}{'userval'} = 1;
                     }
                 } else {
                     print $logh "Unknown \"media\" component: \"$_\".\n";
@@ -1201,22 +1289,22 @@ for (@opts) {
                 if (defined($dat->{'args_byname'}{'Duplex'})) {
 		    # We set "Duplex" to '1' here, the real argument setting
 		    # will be done later
-                    $dat->{'args_byname'}{'Duplex'}{'default'} = '1';
+                    $dat->{'args_byname'}{'Duplex'}{'userval'} = '1';
 		    # Check the binding: "long edge" or "short edge"
 		    if ($avalue =~ m!long-edge!i) {
 			if (defined($dat->{'args_byname'}{'Binding'})) {
-			    $dat->{'args_byname'}{'Binding'}{'default'} =
+			    $dat->{'args_byname'}{'Binding'}{'userval'} =
       $dat->{'args_byname'}{'Binding'}{'vals_byname'}{'LongEdge'}{'value'};
 			} else {
-			    $dat->{'args_byname'}{'Duplex'}{'default'} = 
+			    $dat->{'args_byname'}{'Duplex'}{'userval'} = 
 				'LongEdge';
 			}
 		    } elsif ($avalue =~ m!short-edge!i) {
 			if (defined($dat->{'args_byname'}{'Binding'})) {
-			    $dat->{'args_byname'}{'Binding'}{'default'} =
+			    $dat->{'args_byname'}{'Binding'}{'userval'} =
       $dat->{'args_byname'}{'Binding'}{'vals_byname'}{'ShortEdge'}{'value'};
 			} else {
-			    $dat->{'args_byname'}{'Duplex'}{'default'} = 
+			    $dat->{'args_byname'}{'Duplex'}{'userval'} = 
 				'ShortEdge';
 			}
 		    }
@@ -1225,7 +1313,7 @@ for (@opts) {
                 if (defined($dat->{'args_byname'}{'Duplex'})) {
 		    # We set "Duplex" to '0' here, the real argument setting
 		    # will be done later
-                    $dat->{'args_byname'}{'Duplex'}{'default'} = '0';
+                    $dat->{'args_byname'}{'Duplex'}{'userval'} = '0';
                 }
             }
 
@@ -1241,10 +1329,10 @@ for (@opts) {
 		    checkoptionvalue($dat, $aname, $avalue, 0))) {
 		    # If the choice is valid, use it, otherwise
 		    # ignore it.
-		    $arg->{'default'} = $newvalue;
+		    $arg->{'userval'} = $newvalue;
 		    # If this argument is PageSize or PageRegion,
 		    # also set the other
-		    syncpagesize($dat, $aname, $avalue, 'default');
+		    syncpagesize($dat, $aname, $avalue, 'userval');
 		} else {
 		    # Invalid choice, make log entry
 		    print $logh "Invalid choice $aname=$avalue.\n";
@@ -1263,21 +1351,21 @@ for (@opts) {
 	if (($w != 0) && ($h != 0) &&
 	    ($arg=argbyname("PageSize")) &&
 	    (defined($arg->{'vals_byname'}{'Custom'}))) {
-            $arg->{'default'} = "Custom.${w}x${h}${u}";
+            $arg->{'userval'} = "Custom.${w}x${h}${u}";
 	    # Keep "PageRegion" in sync
 	    if ($dat->{'args_byname'}{'PageRegion'}) {
-		$dat->{'args_byname'}{'PageRegion'}{'default'} = 
-		    $arg->{'default'};
+		$dat->{'args_byname'}{'PageRegion'}{'userval'} = 
+		    $arg->{'userval'};
 	    }
 	}
     } elsif ((m!^\s*no(.+)\s*$!i) and ($arg=argbyname($1))) {
         # standard bool args:
         # landscape; what to do here?
         # duplex; we should just handle this one OK now?
-	$arg->{'default'} = 0;
+	$arg->{'userval'} = 0;
     } elsif (m!^\s*(.+)\s*$!) {
         if ($arg=argbyname($1)) {
-            $arg->{'default'} = 1;
+            $arg->{'userval'} = 1;
         } else {
             print $logh "Unknown boolean option \"$1\".\n";
         }
@@ -1329,15 +1417,42 @@ if ($postpipe) {
 
 
 
-## Open debug output file
-if ($debug) {
-    open DRIVERINPUT, "> /tmp/prnjob"
-	or rip_die ("error opening /tmp/prnjob",
-		    $EXIT_PRNERR_NORETRY_BAD_SETTINGS);
+## Print documentation page when asked for
+$docgeneratorpid = 0;
+if ($do_docs) {
+    # Don't print the supplied files, STDIN will be redirected to the
+    # documentation page generator
+    @filelist = ("<STDIN>");
+    # Start the documentation page generator
+    ($docgeneratorhandle, $docgeneratorpid) =
+	getdocgeneratorhandle($dat);
+    if ($retval != $EXIT_PRINTED) {
+	rip_die ("Error opening documentation page generator",
+		 $retval);
+    }
+    # Read the further data from the documentation page generator and
+    # not from STDIN
+    if (!close STDIN) {
+	rip_die ("Couldn't close STDIN",
+		 $EXIT_PRNERR_NORETRY_BAD_SETTINGS);
+    }
+    if (!open (STDIN, "<&$docgeneratorhandle")) {
+	rip_die ("Couldn't dup \$docgeneratorhandle",
+		 $EXIT_PRNERR_NORETRY_BAD_SETTINGS);
+    }
 }
-    
 
 
+
+## In debug mode save the data supposed to be fed into the
+## renderer also into a file, reset the file here
+
+if ($debug) {
+    system("> ${logfile}.ps");
+}
+
+
+	    
 ## From here on we have to repeat all the rest of the program for
 ## every file to print
 
@@ -1356,9 +1471,15 @@ File: $file
 
     ## If we do not print standard input, open the file to print
     if ($file ne "<STDIN>") {
+	if (! -r $file) {
+	    print $logh "File $file missing or not readable, skipping.\n";
+	    next;
+	}
         close STDIN;
-        open STDIN, "< $file" ||
-            die "Cannot open $file";
+        open STDIN, "< $file" || do {
+	    print $logh "Cannot open $file, skipping.\n";
+	    next;
+	}
     }
 
 
@@ -1369,7 +1490,7 @@ File: $file
     ## command line, and the options set in the header part of the
     ## PostScript file (all before the first page begins).
 
-    copyoptions($dat, 'default', 'header');
+    copyoptions($dat, 'userval', 'header');
 
 
 
@@ -1441,6 +1562,25 @@ File: $file
     # added by CUPS, later occurences come from applications and
     # should not be touched.
 
+    # If the input is not PostScript (if there is no "%!" after
+    # $maxlinestopsstart lines) a file conversion filter will
+    # automatically be applied to the incoming data, so that we will
+    # process the resulting PostScript here. This way we have always
+    # PostScript data here and so we can apply the printer/driver
+    # features described in the PPD file.
+
+    # Supported file conversion filters are "a2ps", "enscript",
+    # "mpage", and spooler-specific filters. All filters convert
+    # plain text to PostScript, "a2ps" also other formats. The
+    # conversion filter is always used when one prints the
+    # documentation pages, as they are created as plain text,
+    # when CUPS is the spooler "pstops" is executed after the
+    # filter so that the default option settings from the PPD file
+    # and CUPS-specific options as N-up get applied. On regular
+    # printouts one gets always PostScript when CUPS or PPR is
+    # the spooler, so the filter is only used for regular
+    # printouts under LPD, LPRng, GNUlpr or without spooler.
+
     print $logh "Reading PostScript input ...\n";
     my $maxlines = 1000;            # Maximum number of lines to be read
                                     # when the documenent is not
@@ -1498,11 +1638,11 @@ File: $file
     my $twolinesbefore = "";        # The line two lines before the current 
                                     # line (Non-DSC comments are ignored)
 
-    my @psheader;                   # The header of the PostScript file, 
+    my @psheader = ();              # The header of the PostScript file, 
                                     # to be sent after each start of the
                                     # renderer
 
-    my @psfifo;                     # The input FIFO, data which we have
+    my @psfifo = ();                # The input FIFO, data which we have
                                     # pulled from stdin for examination,
                                     # but not sent to the renderer yet.
 
@@ -1606,11 +1746,6 @@ File: $file
 
 	if (($printprevpage) || ($line=<STDIN>)) {
 
-	    # Debug output
-	    if (($debug) && (!$printprevpage)) {
-		print DRIVERINPUT $line;
-	    }
-
 	    if ($linect == $nonpslines) {
 		# In the beginning should be the postscript leader,
                 # sometimes after some JCL commands
@@ -1622,11 +1757,52 @@ File: $file
 		    }
 		    $jobhasjcl = 1;
 		    if ($nonpslines > $maxlinestopsstart) {
+			# This is not a PostScript job, we must convert it
+			print $logh "\nJob does not start with \"%!\", " . 
+			     "is it PostScript?\n" .
+			     "Starting file converter\n";
+			# Reset all variables but conserve the data which
+			# we have already read.
 			$jobhasjcl = 0;
-			rip_die
-			    ('Job does not start with "%!", ' . 
-			     'is it PostScript?',
-			     $EXIT_JOBERR);
+			$linect =  0;
+			$nonpslines = 1; # Take into account that the line
+			                 # of this run of the loop will be
+			                 # put into @psheader, so the
+			                 # first line read by the filr
+			                 # converter is already the second
+			                 # line.
+			$maxlines = 1001;
+			$onelinebefore = "";
+			$twolinesbefore = "";
+			my $alreadyread = join('', @psheader, @psfifo) . 
+			    $line;
+			$line = "";
+			@psheader = ();
+			@psfifo = ();
+			# Start the file conversion filter
+			if (!$fileconverterpid) {
+			    ($fileconverterhandle, $fileconverterpid) =
+				getfileconverterhandle
+				($dat, $alreadyread);
+			    if ($retval != $EXIT_PRINTED) {
+				rip_die ("Error opening file converter",
+					 $retval);
+			    }
+			} else {
+			    rip_die("File conversion filter probably " .
+				    "crashed",
+				    $EXIT_JOBERR);
+			}
+			# Read the further data from the file converter and
+			# not from STDIN
+			if (!close STDIN) {
+			    rip_die ("Couldn't close STDIN",
+				     $EXIT_PRNERR_NORETRY_BAD_SETTINGS);
+			}
+			if (!open (STDIN, "<&$fileconverterhandle")) {
+			    rip_die ("Couldn't dup \$fileconverterhandle",
+				     $EXIT_PRNERR_NORETRY_BAD_SETTINGS);
+			}
 		    }
 		} else {
 		    # Do we have a DSC-conforming document?
@@ -1637,6 +1813,11 @@ File: $file
 			    $maxlines = 0;
 			    $isdscjob = 1;
 			    $insertoptions = $linect + 1;
+			    # We have written into @psfifo before,
+			    # now we continue in @psheader and move
+			    # over the data which is already in @psfifo
+			    push (@psheader, @psfifo);
+			    @psfifo = ();
 			}
 			print $logh 
 			    "--> This document is DSC-conforming!\n";
@@ -1648,23 +1829,24 @@ File: $file
 			$line .= makepagesetupsection($dat, $optionset, 1);
 			$prologfound = 1;
 			$setupfound = 1;
+			$pagesetupfound = 1;
 		    }
 		}
 	    } else {
-		if ($line =~ m/\%\%BeginDocument[: ]/) {
+		if ($line =~ m/^\s*\%\%BeginDocument[: ]/) {
 		    # Beginning of an embedded document
 		    # Note that Adobe Acrobat has a bug and so uses
 		    # "%%BeginDocument " instead of "%%BeginDocument:"
 		    $nestinglevel ++;
 		    print $logh "Embedded document, " .
 			"nesting level now: $nestinglevel\n";
-		} elsif (($line =~ m/\%\%EndDocument/) &&
+		} elsif (($line =~ m/^\s*\%\%EndDocument/) &&
 			 ($nestinglevel > 0)) {
 		    # End of an embedded document
 		    $nestinglevel --;
 		    print $logh "End of Embedded document, " .
 			"nesting level now: $nestinglevel\n";
-		} elsif (($line =~ m/\%\%BeginProlog/) &&
+		} elsif (($line =~ m/^\%\%BeginProlog/) &&
 			 ($nestinglevel == 0)) {
 		    # Note: Below is another place where a "Prolog"
 		    # section start will be considered. There we assume
@@ -1681,11 +1863,12 @@ File: $file
 			$line .= makeprologsection($dat, $optionset, 0);
 		    }
 		    $prologfound = 1;
-		} elsif (($line =~ m/\%\%EndProlog/) &&
+		} elsif (($line =~ m/^\%\%EndProlog/) &&
 			 ($nestinglevel == 0)) {
 		    # End of Prolog
 		    $inprolog = 0;
-		} elsif (($line =~ m/\%\%BeginSetup/) &&
+		    $insertoptions = $linect + 1;
+		} elsif (($line =~ m/^\%\%BeginSetup/) &&
 			 ($nestinglevel == 0)) {
 		    # Beginning of Setup
 		    $insetup = 1;
@@ -1705,11 +1888,12 @@ File: $file
 			$line .= makesetupsection($dat, $optionset, 0);
 		    }
 		    $setupfound = 1;
-		} elsif (($line =~ m/\%\%EndSetup/) &&
+		} elsif (($line =~ m/^\%\%EndSetup/) &&
 			 ($nestinglevel == 0)) {
 		    # End of Setup
 		    $insetup = 0;
-		} elsif (($line =~ m/\%\%Page:(.*)$/) &&
+		    $insertoptions = $linect + 1;
+		} elsif (($line =~ m/^\%\%Page:(.*)$/) &&
 			 ($nestinglevel == 0)) {
 		    if ((!$lastpassthru) && (!$inheader)) {
 			# In the last line we were not in passthru mode,
@@ -1763,6 +1947,7 @@ File: $file
 			}
 			# Initialize the option set
 			copyoptions($dat, 'header', 'currentpage');
+			$pagesetupfound = 0;
 			if ($spooler eq 'cups') {
 			    # Remove the "notfirst" flag from all options
 			    # forseen for the "PageSetup" section, because
@@ -1782,6 +1967,7 @@ File: $file
 				$line .= 
 				    makepagesetupsection($dat, $optionset,
 							 0);
+				$pagesetupfound = 1;
 			    }
 			}
 			# Now the page header comes, so buffer the data,
@@ -1790,7 +1976,7 @@ File: $file
 			$passthru = 0;
 			$ignorepageheader = 0;
 		    }
-		} elsif (($line =~ m/\%\%BeginPageSetup/) &&
+		} elsif (($line =~ m/^\%\%BeginPageSetup/) &&
 			 ($nestinglevel == 0) &&
 			 (!$ignorepageheader))  {
 		    # Start of the page header, up to %%EndPageSetup
@@ -1799,7 +1985,7 @@ File: $file
 		    # go here
 		    $passthru = 0;
 		    $inpageheader = 1;		
-		} elsif (($line =~ m/\%\%EndPageSetup/) &&
+		} elsif (($line =~ m/^\%\%EndPageSetup/) &&
 			 ($nestinglevel == 0) &&
 			 (!$ignorepageheader)) {
 		    # End of the page header, the page is ready to be
@@ -1807,8 +1993,8 @@ File: $file
 		    print $logh "End of page header\n";
 		    $passthru = 1;
 		    $inpageheader = 0;
-		} elsif ((($line =~ m/\%\%(BeginFeature):\s*\*?([^\*\s=]+)\s+(\S[^\r\n]*)\r?\n?$/) ||
-			  ($line =~ m/\%\%\s*(FoomaticRIPOptionSetting):\s*([^\*\s=]+)\s*=\s*(\S[^\r\n]*)\r?\n?$/)) &&
+		} elsif ((($line =~ m/^\%\%(BeginFeature):\s*\*?([^\*\s=]+)\s+(\S[^\r\n]*)\r?\n?$/) ||
+			  ($line =~ m/^\s*\%\%\s*(FoomaticRIPOptionSetting):\s*([^\*\s=]+)\s*=\s*(\S[^\r\n]*)\r?\n?$/)) &&
 			 ($nestinglevel == 0) &&
 			 (!$optionreplaced) &&
 			 ((!$passthru) || (!$isdscjob))) {
@@ -1925,14 +2111,14 @@ File: $file
 			print $logh "Unknown option $option=$value found " .
 			    "in the job\n";
 		    }
-		} elsif (($line =~ m/\%\%EndFeature/) &&
+		} elsif (($line =~ m/^\%\%EndFeature/) &&
 			 ($nestinglevel == 0)) {
 		    # End of Feature
 		    $infeature = 0;
 		    # If the option setting was replaced, it ends here, too,
 		    # end the next option is not necessarily also replaced.
 		    $optionreplaced = 0;
-		} elsif (($line =~ m/\%\%Begin/) &&
+		} elsif (($line =~ m/^\%\%Begin/) &&
 			 ($isdscjob) &&
 			 (!$prologfound) &&
 			 ($nestinglevel == 0)) {
@@ -1981,14 +2167,22 @@ File: $file
 				$maxlines = 1;
 				$isdscjob = 0;
 				# Insert defaults and command line settings
-				# in the beginning of the job
+				# in the beginning of the job or after the
+				# last valid section
 				splice(@psheader, $insertoptions, 0,
-				       makeprologsection($dat, $optionset, 
-							 1),
-				       makesetupsection($dat, $optionset,
-							1),
-				       makepagesetupsection($dat,
-							    $optionset, 1));
+				       ($prologfound ? () :
+					makeprologsection($dat, $optionset, 
+							  1)),
+				       ($setupfound ? () :
+					makesetupsection($dat, $optionset,
+							 1)),
+				       ($pagesetupfound ? () :
+					makepagesetupsection($dat,
+							     $optionset, 
+							     1)));
+				$prologfound = 1;
+				$setupfound = 1;
+				$pagesetupfound = 1;
 			    }
 			}
 		    } else {
@@ -1996,7 +2190,7 @@ File: $file
 			    # PostScript code inside a page, but not between
 			    # "%%BeginPageSetup" and "%%EndPageSetup", so 
 			    # we are perhaps already drawing onto a page now
-			    if ($onelinebefore =~ m/\%\%Page:/) {
+			    if ($onelinebefore =~ m/^\%\%Page:/) {
 				print $logh "No page header or page " .
 				    "header not DSC-conforming\n";
 			    }
@@ -2004,6 +2198,8 @@ File: $file
 			    # placed not DSC-conforming
 			    if (scalar(@psfifo) >= 
 				$maxlinesforpageoptions) {
+				print $logh "Giving up searching a " .
+				    "DSC-conforming page header\n";
 				$passthru = 1;
 				# If there comes a page header now, ignore 
 				# it
@@ -2017,13 +2213,12 @@ File: $file
 	    # Debug info
 	    if ($lastpassthru != $passthru) {
 		if ($passthru) {
-		    print $logh "Found:\n   $twolinesbefore" .
-			"   $onelinebefore   $line" . 
-			" --> Output goes directly to the renderer now.\n";
+		    print $logh "Found:\n   $line" . 
+			" --> Output goes directly to the renderer now.\n" .
+			"\n";
 		} else {
-		    print $logh "Found:\n   $twolinesbefore" .
-			"   $onelinebefore   $line" . 
-			" --> Output goes to the FIFO buffer now.\n";
+		    print $logh "Found:\n   $line" . 
+			" --> Output goes to the FIFO buffer now.\n\n";
 		}
 	    }
 
@@ -2094,6 +2289,55 @@ File: $file
 	} else {
 	    # EOF!
 	    $more_stuff = 0;
+	    # No PostScript header in the whole file? Then it's not
+	    # PostScript, convert it.
+	    # We open the file converter here when the file has less
+	    # lines than the amount which we search for the PostScript
+	    # header ($maxlinestopsstart).
+	    if ($linect <= $nonpslines) {
+		# This is not a PostScript job, we must convert it
+		print $logh "\nJob does not start with \"%!\", " . 
+		    "is it PostScript?\n" .
+		    "Starting file converter\n";
+		# Reset all variables but conserve the data which
+		# we have already read.
+		$jobhasjcl = 0;
+		$linect = 0;
+		$nonpslines = 0;
+		$maxlines = 1000;
+		$onelinebefore = "";
+		$twolinesbefore = "";
+		my $alreadyread = join('', @psheader, @psfifo);
+		@psheader = ();
+		@psfifo = ();
+		$line = "";
+		# Start the file conversion filter
+		if (!$fileconverterpid) {
+		    ($fileconverterhandle, $fileconverterpid) =
+			getfileconverterhandle($dat, $alreadyread);
+		    if ($retval != $EXIT_PRINTED) {
+			rip_die ("Error opening file converter",
+				 $retval);
+		    }
+		} else {
+		    rip_die("File conversion filter probably " .
+			    "crashed",
+			    $EXIT_JOBERR);
+		}
+		# Read the further data from the file converter and
+		# not from STDIN
+		if (!close STDIN) {
+		    rip_die ("Couldn't close STDIN",
+			     $EXIT_PRNERR_NORETRY_BAD_SETTINGS);
+		}
+		if (!open (STDIN, "<&$fileconverterhandle")) {
+		    rip_die ("Couldn't dup \$fileconverterhandle",
+			     $EXIT_PRNERR_NORETRY_BAD_SETTINGS);
+		}
+		# Now we have new (converted) stuff in STDIN, so
+		# continue in the loop
+		$more_stuff = 1;
+	    }
 	}
 
 	$lastpassthru = $passthru;
@@ -2106,7 +2350,8 @@ File: $file
     } while ((($maxlines == 0) or ($linect < $maxlines)) and
 	     ($more_stuff != 0));
 
-    if (($more_stuff != 0) || ($#psfifo >= 0)) {
+    # Some buffer still containing data? Send it out to the renderer.
+    if (($more_stuff != 0) || ($#psheader >= 0) || ($#psfifo >= 0)) {
 	# Flush $psfifo and send the remaining data to the renderer, this
 	# only happens with non-DSC-conforming jobs or non-Foomatic PPDs
 	if ($more_stuff) {
@@ -2120,19 +2365,31 @@ File: $file
 	    # "currentpage" option set, so that the renderer will find the
 	    # options settings.
 	    copyoptions($dat, 'header', 'currentpage');
+	    $optionset = 'currentpage';
+	    # If not done yet, insert defaults and command line settings
+	    # in the beginning of the job or after the last valid section
+	    splice(@psheader, $insertoptions, 0,
+		   ($prologfound ? () :
+		    makeprologsection($dat, $optionset, 1)),
+		   ($setupfound ? () :
+		    makesetupsection($dat, $optionset, 1)),
+		   ($pagesetupfound ? () :
+		    makepagesetupsection($dat, $optionset, 1)));
+	    $prologfound = 1;
+	    $setupfound = 1;
+	    $pagesetupfound = 1;
 	}
-	($rendererhandle, $rendererpid) =
-	    getrendererhandle($dat, join('', @psheader, @psfifo));
-	if ($retval != $EXIT_PRINTED) {
-	    rip_die ("Error opening renderer",
-		     $retval);
+	if (!$rendererpid) {
+	    ($rendererhandle, $rendererpid) =
+		getrendererhandle($dat, join('', @psheader, @psfifo));
+	    if ($retval != $EXIT_PRINTED) {
+		rip_die ("Error opening renderer",
+			 $retval);
+	    }
 	}
 	if ($more_stuff) {
 	    while (<STDIN>) {
 		print $rendererhandle $_;
-		if ($debug) {
-		    print DRIVERINPUT $_;
-		}
 	    }
 	}
     }
@@ -2141,25 +2398,40 @@ File: $file
     if ($rendererpid) {
 	$retval = closerendererhandle ($rendererhandle, $rendererpid);
 	if ($retval != $EXIT_PRINTED) {
-	    rip_die ("Error opening renderer",
+	    rip_die ("Error closing renderer",
 		     $retval);
 	}
+	$rendererpid = 0;
+    }
+
+    # Close the file converter (if it was used)
+    if ($fileconverterpid) {
+	$retval = closefileconverterhandle
+	    ($fileconverterhandle, $fileconverterpid);
+	if ($retval != $EXIT_PRINTED) {
+	    rip_die ("Error closing file converter",
+		     $retval);
+	}
+	$fileconverterpid = 0;
     }
 }
-   
+
+
+## Close the documentation page generator
+if ($docgeneratorpid) {
+    $retval = closedocgeneratorhandle
+	($docgeneratorhandle, $docgeneratorpid);
+    if ($retval != $EXIT_PRINTED) {
+	rip_die ("Error closing documentation page generator",
+		 $retval);
+    }
+    $docgeneratorpid = 0;
+}
+
 
 
 ## Close last input file
 close STDIN;
-
-
-
-## Close debug output file
-if ($debug) {
-    close DRIVERINPUT 
-	or rip_die ("error closing /tmp/prnjob",
-		    $EXIT_PRNERR_NORETRY_BAD_SETTINGS);
-}
 
 
 
@@ -2174,11 +2446,46 @@ if ($debug) {
 
 
 ## The End
-print $logh "Closing foomatic-rip.";
+print $logh "\nClosing foomatic-rip.\n";
+close $logh;
 
 exit $retval;
 
 
+
+## Functions to let foomatic-rip fork to do several tasks in parallel.
+
+# To do the filtering without loading the whole file into memory we work
+# on a data stream, we read the data line by line analyse it to decide what
+# filters to use and start the filters if we have found out which we need.
+# We buffer the data only as long as we didn't determing which filters to
+# use for this piece of data and with which options. There are no temporary
+# files used.
+
+# foomatic-rip splits into up to 6 parallel processes to do the whole
+# filtering (listed in the order of the data flow):
+
+#    KID0: Generate documentation pages (only jobs with "docs" option)
+#    KID2: Put together already read data and current input stream for
+#          feeding into the file conversion filter (only non-PostScript
+#          and "docs" jobs)
+#    KID1: Run the file conversion filter to convert non-PostScript
+#          input into PostScript (only non-PostScript and "docs" jobs)
+#    MAIN: Prepare the job auto-detecting the spooler, reading the PPD,
+#          extracting the options from the command line, and parsing
+#          the job data itself. It analyses the job data to check
+#          whether it is PostScript and starts KID1/KID2 if not, it
+#          also stuffs PostScript code from option settings into the
+#          PostScript data stream. It starts the renderer (KID3/KID4)
+#          as soon as it knows its command line and restarts it when
+#          page-specific option settings need another command line
+#          or different JCL commands.
+#    KID3: The rendering process. In most cases GhostScript, "cat"
+#          for native PostScript printers with their manufacturer's
+#          PPD files.
+#    KID4: Put together the JCL commands and the renderer's output
+#          and send all that either to STDOUT or pipe it into the
+#          command line defined with $postpipe.
 
 ## This function runs the renderer command line (and if defined also
 ## the postpipe) and returns a file handle for stuffing in the
@@ -2219,6 +2526,8 @@ sub getrendererhandle {
     KID3->autoflush(1);
     my $pid3 = fork();
     if (!defined($pid3)) {
+	close KID3;
+	close KID3_IN;
         print $logh "$0: cannot fork for kid3!\n";
 	rip_die ("can't fork for kid3",
 		 $EXIT_PRNERR_NORETRY_BAD_SETTINGS);
@@ -2239,50 +2548,73 @@ sub getrendererhandle {
 
         pipe KID4_IN, KID4;
 	KID4->autoflush(1);
-        my $pid2 = fork();
-        if (!defined($pid2)) {
+        my $pid4 = fork();
+        if (!defined($pid4)) {
+	    close KID4;
+	    close KID4_IN;
             print $logh "$0: cannot fork for kid4!\n";
 	    close KID_MESSAGE;
 	    print KID_MESSAGE_IN "3 $EXIT_PRNERR_NORETRY_BAD_SETTINGS\n";
+	    close KID_MESSAGE_IN;
 	    rip_die ("can't fork for kid4",
 		     $EXIT_PRNERR_NORETRY_BAD_SETTINGS);
         }
         
-        if ($pid2) {
+        if ($pid4) {
             # parent, child of primary task; we are |commandline|
             close KID4_IN;
 
-            print $logh "renderer PID pid2=$pid2\n";
+            print $logh "renderer PID pid4=$pid4\n";
 	    print $logh "renderer command: $commandline\n";
             
             if (!close STDIN) {
+		close KID3_IN;
+		close KID4;
 		close KID_MESSAGE;
-		print KID_MESSAGE_IN "3 $EXIT_PRNERR_NORETRY_BAD_SETTINGS\n";
-		rip_die ("Couldn't close STDIN in $pid2",
+		print KID_MESSAGE_IN
+		    "3 $EXIT_PRNERR_NORETRY_BAD_SETTINGS\n";
+		close KID_MESSAGE_IN;
+		rip_die ("Couldn't close STDIN in $pid4",
 			 $EXIT_PRNERR_NORETRY_BAD_SETTINGS);
 	    }
             if (!open (STDIN, "<&KID3_IN")) {
+		close KID3_IN;
+		close KID4;
 		close KID_MESSAGE;
-		print KID_MESSAGE_IN "3 $EXIT_PRNERR_NORETRY_BAD_SETTINGS\n";
+		print KID_MESSAGE_IN
+		    "3 $EXIT_PRNERR_NORETRY_BAD_SETTINGS\n";
+		close KID_MESSAGE_IN;
 		rip_die ("Couldn't dup KID3_IN",
 			 $EXIT_PRNERR_NORETRY_BAD_SETTINGS);
 	    }
             if (!close STDOUT) {
+		close KID3_IN;
+		close KID4;
 		close KID_MESSAGE;
-		print KID_MESSAGE_IN "3 $EXIT_PRNERR_NORETRY_BAD_SETTINGS\n";
-		rip_die ("Couldn't close STDOUT in $pid2",
+		print KID_MESSAGE_IN
+		    "3 $EXIT_PRNERR_NORETRY_BAD_SETTINGS\n";
+		close KID_MESSAGE_IN;
+		rip_die ("Couldn't close STDOUT in $pid4",
 			 $EXIT_PRNERR_NORETRY_BAD_SETTINGS);
 	    }
             if (!open (STDOUT, ">&KID4")) {
+		close KID3_IN;
+		close KID4;
 		close KID_MESSAGE;
-		print KID_MESSAGE_IN "3 $EXIT_PRNERR_NORETRY_BAD_SETTINGS\n";
+		print KID_MESSAGE_IN
+		    "3 $EXIT_PRNERR_NORETRY_BAD_SETTINGS\n";
+		close KID_MESSAGE_IN;
 		rip_die ("Couldn't dup KID4",
 			 $EXIT_PRNERR_NORETRY_BAD_SETTINGS);
 	    }
 	    if ($debug) {
 		if (!open (STDERR, ">&$logh")) {
+		    close KID3_IN;
+		    close KID4;
 		    close KID_MESSAGE;
-		    print KID_MESSAGE_IN "3 $EXIT_PRNERR_NORETRY_BAD_SETTINGS\n";
+		    print KID_MESSAGE_IN
+			"3 $EXIT_PRNERR_NORETRY_BAD_SETTINGS\n";
+		    close KID_MESSAGE_IN;
 		    rip_die ("Couldn't dup logh to stderr",
 			     $EXIT_PRNERR_NORETRY_BAD_SETTINGS);
 		}
@@ -2301,14 +2633,24 @@ sub getrendererhandle {
 		$commandline =~ s!(\|\s*)gs !\|foomatic-gswrapper !;
 		$commandline =~ s!(;\s*)gs !; foomatic-gswrapper !;
 	    }
+
+	    # In debug mode save the data supposed to be fed into the
+	    # renderer also into a file
+	    if ($debug) {
+		$commandline = "tee -a ${logfile}.ps | $commandline";
+	    }
 	    
 	    # Actually run the thing...
-	    system("tee /tmp/prnjob2 | $commandline");
+	    system("$commandline");
             if ($? != 0) {
 		my $rendererretval = $? >> 8;
 		print $logh "renderer return value: $rendererretval\n";
 		my $renderersignal = $? & 127;
 		print $logh "renderer received signal: $rendererretval\n";
+		close STDOUT;
+		close KID4;
+		close STDIN;
+		close KID3_IN;
 		# Handle signals
 		if ($renderersignal == $SIGUSR1) {
 		    $retval = $EXIT_PRNERR;
@@ -2320,6 +2662,7 @@ sub getrendererhandle {
 		if ($retval != $EXIT_PRINTED) {
 		    close KID_MESSAGE;
 		    print KID_MESSAGE_IN "3 $retval\n";
+		    close KID_MESSAGE_IN;
 		    exit $retval;
 		}
 		# Evaluate renderer result
@@ -2327,17 +2670,20 @@ sub getrendererhandle {
 		    # Success, exit with 0 and inform main process
 		    close KID_MESSAGE;
 		    print KID_MESSAGE_IN "3 $EXIT_PRINTED\n";
+		    close KID_MESSAGE_IN;
 		    exit $EXIT_PRINTED;
 		} elsif ($rendererretval == 1) {
 		    # Syntax error? PostScript error?
 		    close KID_MESSAGE;
 		    print KID_MESSAGE_IN "3 $EXIT_JOBERR\n";
+		    close KID_MESSAGE_IN;
 		    rip_die ("Possible error on renderer command line or PostScript error. Check options.",
 			     $EXIT_JOBERR);
 		} elsif ($rendererretval == 139) {
 		    # Seems to indicate a core dump
 		    close KID_MESSAGE;
 		    print KID_MESSAGE_IN "3 $EXIT_JOBERR\n";
+		    close KID_MESSAGE_IN;
 		    rip_die ("The renderer may have dumped core.",
 			     $EXIT_JOBERR);
 		} elsif ($rendererretval == 141) {
@@ -2345,18 +2691,23 @@ sub getrendererhandle {
 		    # exited.
 		    close KID_MESSAGE;
 		    print KID_MESSAGE_IN "3 $EXIT_PRNERR\n";
-		    rip_die ("A filter used in addition to the renderer itself may have failed.",
+		    close KID_MESSAGE_IN;
+		    rip_die ("A filter used in addition to the renderer" .
+			     " itself may have failed.",
 			     $EXIT_PRNERR);
 		} elsif (($rendererretval == 243) || ($retval == 255)) {
 		    # PostScript error?
 		    close KID_MESSAGE;
 		    print KID_MESSAGE_IN "3 $EXIT_JOBERR\n";
+		    close KID_MESSAGE_IN;
 		    exit $EXIT_JOBERR;
 		} else {
 		    # Unknown error
 		    close KID_MESSAGE;
 		    print KID_MESSAGE_IN "3 $EXIT_PRNERR\n";
-		    rip_die ("The renderer command line returned an unrecognized error code $retval.",
+		    close KID_MESSAGE_IN;
+		    rip_die ("The renderer command line returned an" .
+			     " unrecognized error code $rendererretval.",
 			     $EXIT_PRNERR);
 		}
 	    }
@@ -2370,7 +2721,7 @@ sub getrendererhandle {
 	    print KID_MESSAGE_IN "3 $EXIT_PRINTED\n";
 	    close KID_MESSAGE_IN;
 	    # Wait for postpipe/output child
-	    waitpid($pid2, 0);
+	    waitpid($pid4, 0);
 	    print $logh "KID3 finished\n";
 	    exit $EXIT_PRINTED;
         } else {
@@ -2384,9 +2735,11 @@ sub getrendererhandle {
 	    # point our output into it/them
             if ($postpipe) {
                 if (!open PIPE,$postpipe) {
+		    close KID4_IN;
                     close KID_MESSAGE;
                     print KID_MESSAGE_IN
 			"4 $EXIT_PRNERR_NORETRY_BAD_SETTINGS\n";
+		    close KID_MESSAGE_IN;
                     rip_die ("cannot execute postpipe $postpipe",
                              $EXIT_PRNERR_NORETRY_BAD_SETTINGS);
                 }
@@ -2410,20 +2763,23 @@ sub getrendererhandle {
 	    }
             
             if (!close $fileh) {
+		close KID4_IN;
 		close KID_MESSAGE;
 		print KID_MESSAGE_IN
 		    "4 $EXIT_PRNERR_NORETRY_BAD_SETTINGS\n";
+		close KID_MESSAGE_IN;
 		rip_die ("error closing $fileh",
 			 $EXIT_PRNERR_NORETRY_BAD_SETTINGS);
 	    }
 	    close KID4_IN;
 
-            print $logh "tail process done writing data to $fileh\n";
+            print $logh "tail process done writing data to STDOUT\n";
 
 	    # Handle signals of the backend interface
 	    if ($retval != $EXIT_PRINTED) {
 		close KID_MESSAGE;
 		print KID_MESSAGE_IN "4 $retval\n";
+		close KID_MESSAGE_IN;
 		exit $retval;
 	    }
 
@@ -2440,8 +2796,7 @@ sub getrendererhandle {
 
 
 
-## Close the renderer process and wait untill all kid processes
-## finish.
+## Close the renderer process and wait until all kid processes finish.
 
 sub closerendererhandle {
 
@@ -2487,6 +2842,707 @@ sub closerendererhandle {
     return ($retval);
 }
 
+
+
+## This function is only used when the input data is not
+## PostScript. Then it runs a filter which converts non-PostScript
+## files into PostScript. The user can choose which filter he wants
+## to use. The filter command line is provided by $fileconverter.
+
+sub getfileconverterhandle {
+
+    # Already read data must be converted, too
+    my ($dat, $alreadyread) = @_;
+
+    print $logh "\nStarting converter for non-PostScript files\n";
+
+    # Determine with which command non-PostScript files are converted
+    # to PostScript
+    if ($fileconverter eq "") {
+	if ($spoolerfileconverters->{$spooler}) {
+	    $fileconverter = $spoolerfileconverters->{$spooler};
+	} else {
+	    for my $c (@fileconverters) {
+		($c =~ m/^\s*(\S+)\s+/) || ($c = m/^\s*(\S+)$/);
+		$command = $1;
+		for (split(':', $ENV{'PATH'})) {
+		    if (-x "$_/$command") {
+			$fileconverter = $c;
+			last;
+		    }
+		}
+		if ($fileconverter ne "") {
+		    last;
+		}
+	    }
+	}
+	if ($fileconverter eq "") {
+	    $fileconverter = "echo \"Cannot convert file to " .
+		"PostScript!\" 1>&2";
+	}
+    }
+
+    # Insert the page size into the $fileconverter
+    if ($fileconverter =~ /\@\@([^@]+)\@\@PAGESIZE\@\@/) {
+	# We always use the "header" option swt here, with a
+	# non-PostScript file we have no "currentpage"
+	my $optstr = $1;
+	my $sizestr = (($arg = $dat->{'args_byname'}{'PageSize'})
+		       ? $arg->{'header'}
+		       : "");
+	if ($sizestr) {
+	    # Use wider margins so that the pages come out completely on
+	    # every printer model (especially HP inkjets)
+	    if ($fileconverter =~ /^\s*(a2ps)\s+/) {
+		if (lc($sizestr) eq "letter") {
+		    $sizestr = "Letterdj";
+		} elsif (lc($sizestr) eq "a4") {
+		    $sizestr = "A4dj";
+		}
+	    }
+	    $optstr .= $sizestr;
+	} else {
+	    $optstr = "";
+	}
+	$fileconverter =~ s/\@\@([^@]+)\@\@PAGESIZE\@\@/$optstr/;
+    }
+
+    # Insert the job title into the $fileconverter
+    if ($fileconverter =~ /\@\@([^@]+)\@\@JOBTITLE\@\@/) {
+	if ($do_docs) {
+	    $jobtitle =
+		"Documentation for the $model";
+	}
+	my $titlearg = $1;
+	my ($arg, $optstr);
+	($arg = $jobtitle) =~ s/\"/\\\"/g;
+	if (($titlearg =~ /\"/) || $arg) {
+	    $optstr = $titlearg . ($titlearg =~ /\"/ ? '' : '"') .
+		($arg ? "$arg\"" : '"');
+	} else {
+	    $optstr = "";
+	}
+	$fileconverter =~ s/\@\@([^@]+)\@\@JOBTITLE\@\@/$optstr/;
+    }
+
+    # Apply "pstops" when having used a file converter under CUPS, so
+    # CUPS can stuff the default settings into the PostScript output
+    # of the file converter (so all CUPS settings get also applied when
+    # one prints the documentation pages (all other files we get
+    # already converted to PostScript by CUPS.
+    if ($spooler eq 'cups') {
+	$fileconverter .=
+	    " | ${programdir}pstops '$ARGV[0]' '$ARGV[1]' '$ARGV[2]' " .
+	    "'$ARGV[3]' '$ARGV[4]'";
+    }
+
+    # Variables for the kid processes reporting their state
+
+    # Set up a pipe for the kids to pass their exit stat to the main process
+    pipe KID_MESSAGE_CONV, KID_MESSAGE_CONV_IN;
+
+    # When one kid fails put the exit stat here
+    $convkidfailed = 0;
+
+    # When a kid exits successfully, mark it here
+    $kid1finished = 0;
+    $kid2finished = 0;
+
+    use IO::Handle;
+    pipe KID1_IN, KID1;
+    KID1->autoflush(1);
+    my $pid1 = fork();
+    if (!defined($pid1)) {
+	close KID1;
+	close KID1_IN;
+        print $logh "$0: cannot fork for kid1!\n";
+	rip_die ("can't fork for kid1",
+		 $EXIT_PRNERR_NORETRY_BAD_SETTINGS);
+    }
+
+    if ($pid1) {
+
+        # we are the parent; return a glob to the filehandle
+        close KID1;
+
+        return ( *KID1_IN, $pid1 );
+
+    } else {
+	# We go on reading the job data and stuff it into the file
+	# converter
+        close KID1_IN;
+
+        pipe KID2_IN, KID2;
+	KID2->autoflush(1);
+        my $pid2 = fork();
+        if (!defined($pid2)) {
+            print $logh "$0: cannot fork for kid2!\n";
+	    close KID1;
+	    close KID2;
+	    close KID2_IN;
+	    close KID_MESSAGE_CONV;
+	    print KID_MESSAGE_CONV_IN 
+		"1 $EXIT_PRNERR_NORETRY_BAD_SETTINGS\n";
+	    rip_die ("can't fork for kid2",
+		     $EXIT_PRNERR_NORETRY_BAD_SETTINGS);
+        }
+        
+        if ($pid2) {
+            # parent, child of primary task; we are |$fileconverter|
+            close KID2;
+
+            print $logh "file converter PID pid2=$pid2\n";
+	    if (($debug) || ($spooler ne 'cups')) {
+		print $logh "file converter command: $fileconverter\n";
+	    }
+            
+            if (!close STDIN) {
+		close KID1;
+		close KID2_IN;
+		close KID_MESSAGE_CONV;
+		print KID_MESSAGE_CONV_IN 
+		    "1 $EXIT_PRNERR_NORETRY_BAD_SETTINGS\n";
+		close KID_MESSAGE_CONV_IN;
+		rip_die ("Couldn't close STDIN in $pid2",
+			 $EXIT_PRNERR_NORETRY_BAD_SETTINGS);
+	    }
+            if (!open (STDIN, "<&KID2_IN")) {
+		close KID1;
+		close KID2_IN;
+		close KID_MESSAGE_CONV;
+		print KID_MESSAGE_CONV_IN 
+		    "1 $EXIT_PRNERR_NORETRY_BAD_SETTINGS\n";
+		close KID_MESSAGE_CONV_IN;
+		rip_die ("Couldn't dup KID2_IN",
+			 $EXIT_PRNERR_NORETRY_BAD_SETTINGS);
+	    }
+            if (!close STDOUT) {
+		close KID1;
+		close KID2_IN;
+		close KID_MESSAGE_CONV;
+		print KID_MESSAGE_CONV_IN
+		    "1 $EXIT_PRNERR_NORETRY_BAD_SETTINGS\n";
+		close KID_MESSAGE_CONV_IN;
+		rip_die ("Couldn't close STDOUT in $pid2",
+			 $EXIT_PRNERR_NORETRY_BAD_SETTINGS);
+	    }
+            if (!open (STDOUT, ">&KID1")) {
+		close KID1;
+		close KID2_IN;
+		close KID_MESSAGE_CONV;
+		print KID_MESSAGE_CONV_IN
+		    "1 $EXIT_PRNERR_NORETRY_BAD_SETTINGS\n";
+		close KID_MESSAGE_CONV_IN;
+		rip_die ("Couldn't dup KID1",
+			 $EXIT_PRNERR_NORETRY_BAD_SETTINGS);
+	    }
+	    if ($debug) {
+		if (!open (STDERR, ">&$logh")) {
+		    close KID1;
+		    close KID2_IN;
+		    close KID_MESSAGE_CONV;
+		    print KID_MESSAGE_CONV_IN
+			"1 $EXIT_PRNERR_NORETRY_BAD_SETTINGS\n";
+		    close KID_MESSAGE_CONV_IN;
+		    rip_die ("Couldn't dup logh to stderr",
+			     $EXIT_PRNERR_NORETRY_BAD_SETTINGS);
+		}
+	    }
+
+	    # Actually run the thing...
+	    system("$fileconverter");
+            if ($? != 0) {
+		my $fileconverterretval = $? >> 8;
+		print $logh "file converter return value: " .
+		    "$fileconverterretval\n";
+		my $fileconvertersignal = $? & 127;
+		print $logh "file converter received signal: ".
+		    "$fileconverterretval\n";
+		close STDOUT;
+		close KID1;
+		close STDIN;
+		close KID2_IN;
+		# Handle signals
+		if ($fileconvertersignal == $SIGUSR1) {
+		    $retval = $EXIT_PRNERR;
+		} elsif ($fileconvertersignal == $SIGUSR2) {
+		    $retval = $EXIT_PRNERR_NORETRY;
+		} elsif ($fileconvertersignal == $SIGTTIN) {
+		    $retval = $EXIT_ENGAGED;
+		}
+		if ($retval != $EXIT_PRINTED) {
+		    close KID_MESSAGE_CONV;
+		    print KID_MESSAGE_CONV_IN "1 $retval\n";
+		    close KID_MESSAGE_CONV_IN;
+		    exit $retval;
+		}
+		# Evaluate fileconverter result
+		if ($fileconverterretval == 0) {
+		    # Success, exit with 0 and inform main process
+		    close KID_MESSAGE_CONV;
+		    print KID_MESSAGE_CONV_IN "1 $EXIT_PRINTED\n";
+		    close KID_MESSAGE_CONV_IN;
+		    exit $EXIT_PRINTED;
+		} else {
+		    # Unknown error
+		    close KID_MESSAGE_CONV;
+		    print KID_MESSAGE_CONV_IN "1 $EXIT_PRNERR\n";
+		    close KID_MESSAGE_CONV_IN;
+		    rip_die ("The file converter command line returned " . 
+			     "an unrecognized error code " .
+			     "$fileconverterretval.",
+			     $EXIT_PRNERR);
+		}
+	    }
+	    close STDOUT;
+	    close KID1;
+	    close STDIN;
+	    close KID2_IN;
+	    # When arrived here the fileconverter command line was
+	    # successful.
+	    # So exit with zero exit value here and inform the main process
+	    close KID_MESSAGE_CONV;
+	    print KID_MESSAGE_CONV_IN "1 $EXIT_PRINTED\n";
+	    close KID_MESSAGE_CONV_IN;
+	    # Wait for input child
+	    waitpid($pid1, 0);
+	    print $logh "KID1 finished\n";
+	    exit $EXIT_PRINTED;
+        } else {
+            # child, first part of the pipe, reading in the data from
+	    # standard input and stuffing it into the file converter
+	    # after putting in the already read data (in $alreadyread)
+            close KID1;
+	    close KID2_IN;
+
+	    # At first pass the data which we have already read to the
+	    # filter
+	    print KID2 $alreadyread;
+	    # Then read the rest from standard input
+	    while (<STDIN>) { 
+		print KID2 $_; 
+	    }
+
+            if (!close STDIN) {
+		close KID2;
+		close KID_MESSAGE_CONV;
+		print KID_MESSAGE_CONV_IN
+		    "2 $EXIT_PRNERR_NORETRY_BAD_SETTINGS\n";
+		close KID_MESSAGE_CONV_IN;
+		rip_die ("error closing STDIN",
+			 $EXIT_PRNERR_NORETRY_BAD_SETTINGS);
+	    }
+	    close KID2;
+
+            print $logh "tail process done reading data from STDIN\n";
+
+	    # Successful exit, inform main process
+	    close KID_MESSAGE_CONV;
+	    print KID_MESSAGE_CONV_IN "2 $EXIT_PRINTED\n";
+	    close KID_MESSAGE_CONV_IN;
+
+	    print $logh "KID2 finished\n";
+            exit($EXIT_PRINTED);
+        }
+    }
+}
+
+
+
+## Close the file conversion process and wait until all kid processes
+## finish.
+
+sub closefileconverterhandle {
+
+    my ($fileconverterhandle, $fileconverterpid) = @_;
+
+    print $logh "\nClosing file converter\n";
+
+    # Do it!
+    close $fileconverterhandle;
+
+    # Wait for all kid processes to finish or one kid process to fail
+    close KID_MESSAGE_CONV_IN;
+    while ((!$convkidfailed) &&
+	   !(($kid1finished) &&
+	     ($kid2finished))) {
+	my $message = <KID_MESSAGE_CONV>;
+	chomp $message;
+	if ($message =~ /(\d+)\s+(\d+)/) {
+	    my $kid_id = $1;
+	    my $exitstat = $2;
+	    print $logh "KID$kid_id exited with status $exitstat\n";
+	    if ($exitstat > 0) {
+		$convkidfailed = $exitstat;
+	    } elsif ($kid_id == 1) {
+		$kid1finished = 1;
+	    } elsif ($kid_id == 2) {
+		$kid2finished = 1;
+	    }
+	}
+    }
+
+    close KID_MESSAGE_CONV;
+
+    # If a kid failed, return the exit stat of this kid
+    if ($convkidfailed != 0) {
+	$retval = $convkidfailed;
+    }
+
+    print $logh "File converter exit stat: $retval\n";
+    # Wait for fileconverter child
+    waitpid($fileconverterpid, 0);
+    print $logh "File converter process finished\n";
+    return ($retval);
+}
+
+
+
+## Generate the documentation page and return a filehandle to get it
+
+sub getdocgeneratorhandle {
+
+    # The data structure with the options
+    my ($dat) = @_;
+
+    print $logh "\nGenerating documentation page for the $model\n";
+
+    # Printer queue name
+    my $printerstr;
+    if ($printer) {
+	$printerstr = $printer;
+    } else {
+	$printerstr = "<printer>";
+    }
+	
+    # Spooler-specific differences
+    my ($command,
+	$enumopt, $enumoptleft, $enumoptequal, $enumoptright,
+	$boolopt, $booloptleft, $booloptequal, $booloptright,
+	$numopt, $numoptleft, $numoptequal, $numoptright,
+	$optsep, $trailer, $custompagesize);
+    if ($spooler eq "cups") {
+	($command,
+	 $enumopt, $enumoptleft, $enumoptequal, $enumoptright,
+	 $boolopt, $booloptleft, $booloptequal, $booloptright,
+	 $numopt, $numoptleft, $numoptequal, $numoptright,
+	 $optsep, $trailer, $custompagesize) =
+	     ("lpr -P $printerstr ",
+	      "-o ", "", "=", "",
+	      "-o ", "", "=", "",
+	      "-o ", "", "=", "",
+	      " "," <file>",
+	      "\n  Custom size: -o PageSize=Custom." .
+	      "<width>x<height>[<unit>]\n" .
+	      "               Units: pt (default), in, cm, mm\n" .
+	      "  Example: -o PageSize=Custom.4.0x6.0in\n");
+    } elsif ($spooler eq "lpd") {
+	($command,
+	 $enumopt, $enumoptleft, $enumoptequal, $enumoptright,
+	 $boolopt, $booloptleft, $booloptequal, $booloptright,
+	 $numopt, $numoptleft, $numoptequal, $numoptright,
+	 $optsep, $trailer, $custompagesize) =
+	     ("lpr -P $printerstr -J \"",
+	      "", "", "=", "",
+	      "", "", "=", "",
+	      "", "", "=", "",
+	      " ", "\" <file>",
+	      "\n  Custom size: PageSize=Custom." .
+	      "<width>x<height>[<unit>]\n" .
+	      "               Units: pt (default), in, cm, mm\n" .
+	      "  Example: PageSize=Custom.4.0x6.0in\n");
+    } elsif ($spooler eq "gnulpr") {
+	($command,
+	 $enumopt, $enumoptleft, $enumoptequal, $enumoptright,
+	 $boolopt, $booloptleft, $booloptequal, $booloptright,
+	 $numopt, $numoptleft, $numoptequal, $numoptright,
+	 $optsep, $trailer, $custompagesize) =
+	     ("lpr -P $printerstr ",
+	      "-o ", "", "=", "",
+	      "-o ", "", "=", "",
+	      "-o ", "", "=", "",
+	      " "," <file>",
+	      "\n  Custom size: -o PageSize=Custom." .
+	      "<width>x<height>[<unit>]\n" .
+	      "               Units: pt (default), in, cm, mm\n" .
+	      "  Example: -o PageSize=Custom.4.0x6.0in\n");
+    } elsif ($spooler eq "lprng") {
+	($command,
+	 $enumopt, $enumoptleft, $enumoptequal, $enumoptright,
+	 $boolopt, $booloptleft, $booloptequal, $booloptright,
+	 $numopt, $numoptleft, $numoptequal, $numoptright,
+	 $optsep, $trailer, $custompagesize) =
+	     ("lpr -P $printerstr ",
+	      "-Z ", "", "=", "",
+	      "-Z ", "", "=", "",
+	      "-Z ", "", "=", "",
+	      " "," <file>",
+	      "\n  Custom size: -Z PageSize=Custom." .
+	      "<width>x<height>[<unit>]\n" .
+	      "               Units: pt (default), in, cm, mm\n" .
+	      "  Example: -Z PageSize=Custom.4.0x6.0in\n");
+    } elsif ($spooler eq "ppr") {
+	($command,
+	 $enumopt, $enumoptleft, $enumoptequal, $enumoptright,
+	 $boolopt, $booloptleft, $booloptequal, $booloptright,
+	 $numopt, $numoptleft, $numoptequal, $numoptright,
+	 $optsep, $trailer, $custompagesize) =
+	     ("ppr -d $printerstr ",
+	      "-F ", "\"*", " ", "\"",
+	      "-F ", "\"*", " ", "\"",
+	      "-F ", "\"*", " ", "\"",
+	      " "," <file>",
+	      "\n  Custom size: -F \"*PageSize Custom\" -i " .
+	      "<width>x<height>[<unit>]\n" .
+	      "               Units: pt (default), in, cm, mm\n" .
+	      "  Example: -F \"*PageSize Custom\" -i 4.0x6.0in\n");
+    } elsif ($spooler eq "direct") {
+	($command,
+	 $enumopt, $enumoptleft, $enumoptequal, $enumoptright,
+	 $boolopt, $booloptleft, $booloptequal, $booloptright,
+	 $numopt, $numoptleft, $numoptequal, $numoptright,
+	 $optsep, $trailer, $custompagesize) =
+	     ("$programname -P $printerstr ",
+	      "-o ", "", "=", "",
+	      "-o ", "", "=", "",
+	      "-o ", "", "=", "",
+	      " "," <file>",
+	      "\n  Custom size: -o PageSize=Custom." .
+	      "<width>x<height>[<unit>]\n" .
+	      "               Units: pt (default), in, cm, mm\n" .
+	      "  Example: -o PageSize=Custom.4.0x6.0in\n");
+    } elsif ($spooler eq "pdq") {
+	($command,
+	 $enumopt, $enumoptleft, $enumoptequal, $enumoptright,
+	 $boolopt, $booloptleft, $booloptequal, $booloptright,
+	 $numopt, $numoptleft, $numoptequal, $numoptright,
+	 $optsep, $trailer, $custompagesize) =
+	     ("pdq -P $printerstr ",
+	      "-o", "", "_", "",
+	      "-o", "", "_", "",
+	      "-a", "", "=", "",
+	      " "," <file>",
+	      "\n" .
+	      "Option 'PageWidth':\n". 
+	      "  Page Width (for \"Custom\" page size)\n" .
+	      "  A floating point number argument\n" .
+	      "  Range: 0 <= x <= 100000\n" .
+	      "  Default: -aPageWidth=612\n" .
+	      "  Example: -aPageWidth=123.4\n" .
+	      "\n" .
+	      "Option 'PageHeight':\n" .
+	      "  Page Height (for \"Custom\" page size)\n" .
+	      "  A floating point number argument\n" .
+	      "  Range: 0 <= x <= 100000\n" .
+	      "  Default: -aPageHeight=792\n" .
+	      "  Example: -aPageHeight=234.5\n" .
+	      "\n" .
+	      "Option 'PageSizeUnit':\n" .
+	      "  Unit (for \"Custom\" page size)\n" .
+	      "  An enumerated choice argument\n" .
+	      "  Possible choices:\n" .
+	      "   o -oPageSizeUnit_pt: Points (1/72 inch)\n" .
+	      "   o -oPageSizeUnit_in: Inches\n" .
+	      "   o -oPageSizeUnit_cm: cm\n" .
+	      "   o -oPageSizeUnit_mm: mm\n" .
+	      "  Default: -oPageSizeUnit_pt\n" .
+	      "  Example: -oPageSizeUnit_mm\n");
+    }
+
+    # Variables for the kid processes reporting their state
+
+    # Set up a pipe for the kids to pass their exit stat to the main process
+    pipe KID_MESSAGE_DOC, KID_MESSAGE_DOC_IN;
+
+    # When the kid fails put the exit stat here
+    $dockidfailed = 0;
+
+    # When the kid exits successfully, mark it here
+    $kid0finished = 0;
+
+    use IO::Handle;
+    pipe KID0_IN, KID0;
+    KID0->autoflush(1);
+    my $pid0 = fork();
+    if (!defined($pid0)) {
+	close KID0;
+	close KID0_IN;
+        print $logh "$0: cannot fork for kid0!\n";
+	rip_die ("can't fork for kid0",
+		 $EXIT_PRNERR_NORETRY_BAD_SETTINGS);
+    }
+
+    if ($pid0) {
+        # we are the parent; return a glob to the filehandle
+        close KID0;
+	print $logh "Documentation page generator PID pid0=$pid0\n";
+        return ( *KID0_IN, $pid0 );
+    }
+
+    # we are the kid; we generate the documentation page
+
+    close KID0_IN;
+
+    # Kill data on STDIN to satisfy PPR
+    if ($spooler eq "ppr") {
+	while (my $dummy = <STDIN>) {};
+    }
+    close STDIN
+	or print $logh "Error closing STDIN for docs print\n";
+
+    # write the job into KID0
+    select KID0;
+
+    print "\nInvokation summary for the $model\n\n";
+    print "Use the following command line:\n\n";
+    print "   ${command}${enumopt}${enumoptleft}<option>${enumoptequal}" .
+	"<choice>${enumoptright}${optsep}${boolopt}${booloptleft}<switch>" .
+	"${booloptequal}<True/False>${booloptright}${optsep}${numopt}" .
+	"${numoptleft}<num. option>${numoptequal}<value>${numoptright}" .
+	"${trailer}\n\n";
+    print "The following options are available for this printer:\n\n";
+
+    for $arg (@{$dat->{'args'}}) {
+        my ($name,
+            $type,
+            $comment,
+            $spot,
+            $default) = ($arg->{'name'},
+                         $arg->{'type'},
+                         $arg->{'comment'},
+                         $arg->{'spot'},
+                         $arg->{'default'});
+
+	# Is this really an option? Otherwise skip it.
+	next if (!$type);
+
+	my $tpestr;
+        if ($type eq "enum") {
+	    $typestr = "An enumerated choice";
+	} elsif ($type eq "bool") {
+	    $typestr = "A boolean";
+	} elsif ($type eq "int") {
+	    $typestr = "An integer number";
+	} elsif ($type eq "float") {
+	    $typestr = "A floating point number";
+	}
+
+        print "Option '$name':\n  $comment\n  $typestr argument\n";
+        print "  This options corresponds to a PJL command\n" if ($arg->{'style'} eq 'J');
+        
+        if ($type eq 'bool') {
+            print "  Possible choices:\n";
+	    print "   o True: $arg->{'comment_true'}\n";
+	    print "   o False: $arg->{'comment_false'}\n";
+            if (defined($default)) {
+                my $defstr = ($default ? "True" : "False");
+                print "  Default: $defstr\n";
+            }
+            print "  Example: ${boolopt}${booloptleft}${name}" .
+		"${booloptequal}True${booloptright}\n";
+        } elsif ($type eq 'enum') {
+            print "  Possible choices:\n";
+            my $exarg;
+	    my $havecustomsize = 0;
+            for (@{$arg->{'vals'}}) {
+                my ($choice, $comment) = ($_->{'value'}, $_->{'comment'});
+                print "   o $choice: $comment\n";
+		if (($name eq "PageSize") && ($choice eq "Custom")) {
+		    $havecustomsize = 1;
+		}
+                $exarg=$choice;
+            }
+            if (defined($default)) {
+                print "  Default: $default\n";
+            }
+            print "  Example: ${enumopt}${enumoptleft}${name}" .
+		"${enumoptequal}${exarg}${enumoptright}\n";
+	    if ($havecustomsize) {
+		print $custompagesize;
+	    }
+        } elsif ($type eq 'int' or $type eq 'float') {
+            my ($max, $min) = ($arg->{'max'}, $arg->{'min'});
+            my $exarg;
+            if (defined($max)) {
+                print "  Range: $min <= x <= $max\n";
+                $exarg=$max;
+            }
+            if (defined($default)) {
+                print "  Default: $default\n";
+                $exarg=$default;
+            }
+            if (!$exarg) { $exarg=0; }
+            print "  Example: ${numopt}${numoptleft}${name}" .
+		"${numoptequal}${exarg}${numoptright}\n";
+        }
+
+        print "\n";
+    }
+    
+    select STDOUT;
+    close KID0 
+        or print $logh "Error closing KID0 for docs print\n";
+    close STDOUT
+        or print $logh "Error closing STDOUT for docs print\n";
+
+    # Finished successfully, inform main process
+    close KID_MESSAGE_DOC;
+    print KID_MESSAGE_DOC_IN "0 $EXIT_PRINTED\n";
+    close KID_NESSAGE_DOC_IN;
+
+    print $logh "KID0 finished\n";
+    exit($EXIT_PRINTED);
+
+}
+
+
+
+## Close the documentation page generation process and wait until the
+## kid process finishes.
+
+sub closedocgeneratorhandle {
+
+    my ($docgeneratorhandle, $docgeneratorpid) = @_;
+
+    print $logh "\nClosing documentation page generator\n";
+
+    # Do it!
+    close $docgeneratorhandle;
+
+    # Wait for the kid process to finish or the kid process to fail
+    close KID_MESSAGE_DOC_IN;
+    while ((!$dockidfailed) &&
+	   (!$kid0finished)) {
+	my $message = <KID_MESSAGE_DOC>;
+	chomp $message;
+	if ($message =~ /(\d+)\s+(\d+)/) {
+	    my $kid_id = $1;
+	    my $exitstat = $2;
+	    print $logh "KID$kid_id exited with status $exitstat\n";
+	    if ($exitstat > 0) {
+		$dockidfailed = $exitstat;
+	    } elsif ($kid_id eq "0") {
+		$kid0finished = 1;
+	    }
+	}
+    }
+
+    close KID_MESSAGE_DOC;
+
+    # If the kid failed, return the exit stat of the kid
+    if ($dockidfailed != 0) {
+	$retval = $dockidfailed;
+    }
+
+    print $logh "Documentation page generator exit stat: $retval\n";
+    # Wait for fileconverter child
+    waitpid($docgeneratorpid, 0);
+    print $logh "Documentation page generator process finished\n";
+    return ($retval);
+}
+
+
+
 # Find an argument by name in a case-insensitive way
 sub argbyname {
     my $name = @_[0];
@@ -2510,11 +3566,46 @@ sub valbyname {
     return undef;
 }
 
-# Write a Good-Bye letter before committing suicide (send error
-# message to caller)
+# Write a Good-Bye letter and clean up before committing suicide (send
+# error message to caller)
 
 sub rip_die {
     my ($message, $exitstat) = @_;
+
+    # Close the documentation page generator (if it was used)
+    if ($docgeneratorpid) {
+	if ($kid0) {
+	    print $logh "Killing process $pid0 (KID0)\n";
+	    kill(9, $kid0);
+	}
+	$docgeneratorpid = 0;
+    }
+
+    # Close the file converter (if it was used)
+    if ($fileconverterpid) {
+	if ($kid2) {
+	    print $logh "Killing process $pid2 (KID2)\n";
+	    kill(9, $kid2);
+	}
+	if ($kid1) {
+	    print $logh "Killing process $pid1 (KID1)\n";
+	    kill(9, $kid1);
+	}
+	$fileconverterpid = 0;
+    }
+
+    # Close the renderer
+    if ($rendererpid) {
+	if ($kid4) {
+	    print $logh "Killing process $pid4 (KID4)\n";
+	    kill(9, $kid4);
+	}
+	if ($kid3) {
+	    print $logh "Killing process $pid3 (KID3)\n";
+	    kill(9, $kid3);
+	}
+	$rendererpid = 0;
+    }
 
     print $logh "Process dieing with \"$message\", exit stat: $exitstat\n";
     if ($spooler eq 'ppr') {
@@ -3140,16 +4231,22 @@ sub buildcommandline {
 			$height =~ s/\.[0-4].*$// or
 			    $height =~ s/\.[5-9].*$// and $height += 1;
 			# Insert width and height into the prototype
-			$cmdvar =~ s/\%0/$width/ or
-			    $cmdvar =~ s/(\W)0(\W)/$1$width$2/ or
-			    $cmdvar =~ s/^0(\W)/$width$1/m or
-			    $cmdvar =~ s/(\W)0$/$1$width/m or
-			    $cmdvar =~ s/^0$/$width/m;
-			$cmdvar =~ s/\%1/$height/ or
-			    $cmdvar =~ s/(\W)0(\W)/$1$height$2/ or
-			    $cmdvar =~ s/^0(\W)/$height$1/m or
-			    $cmdvar =~ s/(\W)0$/$1$height/m or
-			    $cmdvar =~ s/^0$/$height/m;
+			if ($cmdvar =~ /^\s*pop\W/s) {
+			    # Custom page size for PostScript printers
+			    $cmdvar = "$width $height 0 0 0\n$cmdvar";
+			} else {
+			    # Custom page size for Foomatic/GIMP-Print
+			    $cmdvar =~ s/\%0/$width/ or
+				$cmdvar =~ s/(\W)0(\W)/$1$width$2/ or
+				$cmdvar =~ s/^0(\W)/$width$1/m or
+				$cmdvar =~ s/(\W)0$/$1$width/m or
+				$cmdvar =~ s/^0$/$width/m;
+			    $cmdvar =~ s/\%1/$height/ or
+				$cmdvar =~ s/(\W)0(\W)/$1$height$2/ or
+				$cmdvar =~ s/^0(\W)/$height$1/m or
+				$cmdvar =~ s/(\W)0$/$1$height/m or
+				$cmdvar =~ s/^0$/$height/m;
+			}
 		    }
 		} else {
 		    # User gave unknown value?

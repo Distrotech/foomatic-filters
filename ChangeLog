@@ -1,3 +1,51 @@
+2002-11-13  Till Kamppeter <till.kamppeter@gmx.net>
+
+	* foomatic-rip.in: The basic functionality of foomatic-rip is now
+	  implemented, all features of the old "*omatic" filters are also
+	  available in foomatic-rip.
+
+	  Now text and other non-PostScript files can be printed,
+	  foomatic-rip calles "a2ps", "enscript", or "mpage" automatically
+	  when it detects a non-PostScript file.
+
+	  Improved command lines of "a2ps", "enscript", and "mpage" to
+	  generate wider margins (so that nothing gets cut off) and
+	  wrapping of too long lines (to not loose information).
+
+	  The "docs" option lets a help page being printed, independent of
+	  the file originally sent. This works also with manufacturer-
+	  supplied PPD files of PostScript printers. CUPS prints the
+	  documentation page with its native "texttops" filter by default,
+	  but this can be changed to "a2ps", "enscript", or "mpage" with
+	  "textfilter" line in /etc/foomatic/filter.conf.
+
+	  Custom page sizes work also on manufacturer-supplied PPD files
+	  now,
+
+	  Fixed control of quiet, verbose, and debug mode from the command
+	  line ("-q", "-v", "--debug").
+	
+	  foomatic-rip used without spooler does not have any console
+	  output any more (except error messages). Use the "-v"
+	  ("Verbose") for log output on the console and "--debug" for
+	  debug log files.
+	  
+	  Debugging files are now /tmp/foomatic-rip.log (log file) and
+	  /tmp/foomatic-rip.ps (PostScript data pre-processed by
+	  foomatic-rip, as it is stuffed into the renderer).
+
+	  When using CUPS as the spooler, lists of the command line
+	  options with which foomatic-rip was called are only written to
+	  the log when in debug mode, so that Mac OS X does not produce
+	  lines for the "error_log" of CUPS which have more than 1024
+	  characters, as this makes CUPS aborting the job.
+	
+	  Additional comments about non-PostScript and documentation
+	  printing and also about the kid processes of foomatic-rip
+	  and what they do.
+
+	  Minor clean-ups.
+	
 2002-11-11  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* foomatic-rip.in: Now it should be possible not only to use the
