@@ -6,6 +6,11 @@
 	  instead of "-" on GhostScript command line), use block
 	  reading preferrably.
 
+	* foomatic-rip.in: Made sure that an absolute path for the PPD
+	  file is inserted in the PDQ driver description file, suppress
+	  log output on standard error whenn generating a PDQ driver
+	  description file.
+
 2002-11-29  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* *: Tagged CVS for the release of foomatic-filters 2.9.0pre1. 

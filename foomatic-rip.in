@@ -817,7 +817,7 @@ for $file (@filelist) {
 
 ## When we print without spooler do not log onto STDERR unless the "-v"
 ## ('Verbose') is set or the debug mode is used
-if (($spooler eq 'direct') && (!$verbose) && (!$debug)) {
+if ((($spooler eq 'direct') || ($genpdqfile)) && (!$verbose) && (!$debug)) {
     close $logh;
     open LOG, "> /dev/null";
     $logh = *LOG;
@@ -4847,6 +4847,12 @@ sub buildpdqdriver {
     if ($printer) {
 	$commandline .= " -P $printer";
     } else {
+	# Make sure that the PPD file is entered with an absolute path
+	if ($ppdfile !~ m!^/!) {	
+	    my $pwd = `pwd`;
+	    chomp($pwd);
+	    $ppdfile = "$pwd/$ppdfile";
+	}
 	$commandline .= " --ppd=$ppdfile";
     }
     for $arg (@{$dat->{'args'}}) {
