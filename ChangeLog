@@ -1,3 +1,8 @@
+2003-08-01  Till Kamppeter <till.kamppeter@gmx.net>
+
+	* foomatic-rip.in: Fixes on JCL header merging, support for nested
+	  composite options.
+
 2003-07-30  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* foomatic-rip.in: If a printer/driver combo has Foomatic-defined

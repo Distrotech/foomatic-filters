@@ -3357,6 +3357,7 @@ sub getrendererhandle {
             # options specified...
 	    # Should the driver already have inserted JCL commands we merge
 	    # our JCL header with the one from the driver
+	    my $driverjcl = 0;
 	    if ( @jclprepend > 1 ) {
 		# JCL header read from renderer output
 		my @jclheader = ();
@@ -3374,11 +3375,15 @@ sub getrendererhandle {
 		    # If we had read at least two lines, at least one is
 		    # a JCL header, so do the merging
 		    if (@jclheader > 1) {
+			$driverjcl = 1;
 			# Discard the first and the last entry of the
 			# @jclprepend array, we only need the option settings
 			# to merge them in
 			pop(@jclprepend);
 			shift(@jclprepend);
+			# Line after which we insert new JCL commands in the
+			# JCL header of the job
+			my $insert = 1;
 			# Go through every JCL command in @jclprepend
 			for my $line (@jclprepend) {
 			    # Search the command in the JCL header from the
@@ -3398,9 +3403,11 @@ sub getrendererhandle {
 				# If the command is not found, insert it
 				if (@jclheader > 2) {
 				    # @jclheader has more than one line,
-				    # insert the new command right after
-				    # the first line
-				    splice(@jclheader, 1, 0, $line);
+				    # insert the new command beginning
+				    # right after the first line and continuing
+				    # after the previous inserted command
+				    splice(@jclheader, $insert, 0, $line);
+				    $insert ++;
 				} else {
 				    # If we have only one line of JCL it
 				    # is probably something like the
@@ -3442,7 +3449,7 @@ sub getrendererhandle {
             }
 
 	    # A JCL trailer
-	    if ( @jclprepend > 1 ) {
+	    if (( @jclprepend > 1 ) && (!$driverjcl)) {
 		print $fileh @jclappend;
 	    }
             
@@ -5182,7 +5189,10 @@ sub buildcommandline {
 	next if $arg->{'style'} ne 'X';
 	
 	my $name = $arg->{'name'};
-	my $userval = $arg->{$optionset};
+	# Check whether this composite option is controlled by another
+	# composite option, so nested composite options are possible.
+	my $userval = ($arg->{'fromcomposite'} ?
+		       $arg->{'fromcomposite'} : $arg->{$optionset});
 
 	# Get the current setting
 	my $v = $arg->{'vals_byname'}{$userval};
@@ -5417,12 +5427,13 @@ sub buildcommandline {
 		my $close = "\n%%EndFeature\n} stopped cleartomark\n";
 		if ($section eq "Prolog") {
 		    push (@prologprepend, "$open$cmdvar$close");
-		    if ($arg->{'controlledby'}) {
+		    my $a = $arg;
+		    while ($a->{'controlledby'}) {
 			# Collect option PostScript code to be inserted when
 			# the composite option which controls this option
 			# is found in the PostScript code
-			$dat->{'args_byname'}{$arg->{'controlledby'}}{'prolog'}
-			.= "$cmdvar\n";
+			$a = $dat->{'args_byname'}{$arg->{'controlledby'}};
+			$a->{'prolog'} .= "$cmdvar\n";
 		    }
 		} elsif ($section eq "AnySetup") {
 		    if ($optionset ne 'currentpage') {
@@ -5431,52 +5442,56 @@ sub buildcommandline {
 			push (@pagesetupprepend, "$open$cmdvar$close");
 			push (@cupspagesetupprepend, "$open$cmdvar$close");
 		    }
-		    if ($arg->{'controlledby'}) {
+		    my $a = $arg;
+		    while ($arg->{'controlledby'}) {
 			# Collect option PostScript code to be inserted when
 			# the composite option which controls this option
 			# is found in the PostScript code
-			$dat->{'args_byname'}{$arg->{'controlledby'}}{'setup'}
-			.= "$cmdvar\n";
-			$dat->{'args_byname'}{$arg->{'controlledby'}}{'pagesetup'}
-			.= "$cmdvar\n";
+			$a = $dat->{'args_byname'}{$arg->{'controlledby'}};
+			$a->{'setup'} .= "$cmdvar\n";
+			$a->{'pagesetup'} .= "$cmdvar\n";
 		    }
 		} elsif ($section eq "DocumentSetup") {
 		    push (@setupprepend, "$open$cmdvar$close");
-		    if ($arg->{'controlledby'}) {
+		    my $a = $arg;
+		    while ($arg->{'controlledby'}) {
 			# Collect option PostScript code to be inserted when
 			# the composite option which controls this option
 			# is found in the PostScript code
-			$dat->{'args_byname'}{$arg->{'controlledby'}}{'setup'}
-			.= "$cmdvar\n";
+			$a = $dat->{'args_byname'}{$arg->{'controlledby'}};
+			$a->{'setup'} .= "$cmdvar\n";
 		    }
 		} elsif ($section eq "PageSetup") {
 		    push (@pagesetupprepend, "$open$cmdvar$close");
-		    if ($arg->{'controlledby'}) {
+		    my $a = $arg;
+		    while ($arg->{'controlledby'}) {
 			# Collect option PostScript code to be inserted when
 			# the composite option which controls this option
 			# is found in the PostScript code
-			$dat->{'args_byname'}{$arg->{'controlledby'}}{'pagesetup'}
-			.= "$cmdvar\n";
+			$a = $dat->{'args_byname'}{$arg->{'controlledby'}};
+			$a->{'pagesetup'} .= "$cmdvar\n";
 		    }
 		} elsif ($section eq "JCLSetup") {
 		    # PJL/JCL argument
 		    $dat->{'jcl'} = 1;
 		    push (@jclprepend, unhexify($cmdvar));
-		    if ($arg->{'controlledby'}) {
+		    my $a = $arg;
+		    while ($arg->{'controlledby'}) {
 			# Collect option PostScript code to be inserted when
 			# the composite option which controls this option
 			# is found in the PostScript code
-			$dat->{'args_byname'}{$arg->{'controlledby'}}{'jclsetup'}
-			.= "$cmdvar\n";
+			$a = $dat->{'args_byname'}{$arg->{'controlledby'}};
+			$a->{'jclsetup'} .= "$cmdvar\n";
 		    }
 		} else {
 		    push (@setupprepend, "$open$cmdvar$close");
-		    if ($arg->{'controlledby'}) {
+		    my $a = $arg;
+		    while ($arg->{'controlledby'}) {
 			# Collect option PostScript code to be inserted when
 			# the composite option which controls this option
 			# is found in the PostScript code
-			$dat->{'args_byname'}{$arg->{'controlledby'}}{'setup'}
-			.= "$cmdvar\n";
+			$a = $dat->{'args_byname'}{$arg->{'controlledby'}};
+			$a->{'setup'} .= "$cmdvar\n";
 		    }
 		}
 	    }
