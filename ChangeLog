@@ -21,7 +21,10 @@
 
 	  If an enumerated choice option has only one choice, set this one
 	  as the default choice. There was no default set before.
-	
+
+	  Support for postpipes (command line into which to stuff the
+	  output of the renderer).
+
 2002-11-09  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* foomatic-rip.in: foomatic-rip is one filter to be used with
