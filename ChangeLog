@@ -1,3 +1,13 @@
+2003-09-13  Till Kamppeter <till.kamppeter@gmx.net>
+
+	* foomatic-rip.in: When option settings on the last page of a job
+	  changed and the last page was read completely into the FIFO
+	  before it was printed, the renderer was not restarted to take
+	  into account the option changes.
+
+	  Added a new workaround for a new bug in the PostScript generated
+	  by OpenOffice.org 1.1.0.
+
 2003-08-21  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* foomatic-rip.in: Fix on PostScript code insertion for nested

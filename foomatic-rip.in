@@ -2123,6 +2123,9 @@ File: $file
     my $currentpage = 0;            # The page which we are currently
                                     # printing.
 
+    my $ooo110 = 0;                 # Flag to work around an application 
+                                    # bug.
+
     if ($dontparse) {
 	# We do not parse the PostScript to find Foomatic options, we check
 	# only whether we have PostScript.
@@ -2239,6 +2242,20 @@ File: $file
 		    $nestinglevel --;
 		    print $logh "End of Embedded document, " .
 			"nesting level now: $nestinglevel\n";
+		} elsif (($line =~ m/^\s*\%\%Creator[: ](.*)$/) &&
+			 ($nestinglevel == 0)) {
+		    # Here we set flags to treat particular bugs of the
+		    # PostScript produced by certain applications
+		    my $creator = $1;
+		    if ($creator =~ /^\s*OpenOffice.org\s+1.1.0\s*$/) {
+			# OpenOffice.org 1.1.0
+			# The option settings supposed to affect the
+			# whole document are put into the "%%PageSetup"
+			# section of the first page
+			print $logh "Document created with " .
+			    "OpenOffice.org 1.1.0\n";
+			$ooo110 = 1;
+		    }
 		} elsif (($line =~ m/^\%\%BeginProlog/) &&
 			 ($nestinglevel == 0)) {
 		    # Note: Below is another place where a "Prolog"
@@ -2304,6 +2321,7 @@ File: $file
 			# restart of the renderer due to command line 
 			# option changes
 			$optionsalsointoheader = 1;
+			print $logh "\"%%BeginSetup\" in page header\n";
 		    }
 		} elsif (($line =~ m/^\%\%EndSetup/) &&
 			 ($nestinglevel == 0)) {
@@ -2443,7 +2461,11 @@ File: $file
 		    $passthru = 0;
 		    $inpageheader = 1;		
 		    $postscriptsection = 'pagesetup';
-		    $optionsalsointoheader = 0;
+		    if (($ooo110) && ($currentpage == 1)) {
+			$optionsalsointoheader = 1;
+		    } else {
+			$optionsalsointoheader = 0;
+		    }
 		} elsif (($line =~ m/^\%\%EndPageSetup/) &&
 			 ($nestinglevel == 0) &&
 			 (!$ignorepageheader)) {
@@ -2799,10 +2821,12 @@ File: $file
 		$line = "";
 	    }
 
-	    # If we are in a  "%%BeginSetup...%%EndSetup" section after 
-	    # the first "%%Page:...", we have to copy the line also to the
+	    # If we are in a "%%BeginSetup...%%EndSetup" section after
+	    # the first "%%Page:..." and the current line belongs to
+	    # an option setting, we have to copy the line also to the
 	    # @psheader.
-	    if ($optionsalsointoheader) {
+	    if (($optionsalsointoheader) && 
+		(($infeature) || ($line =~ m/^\%\%EndFeature/))) {
 		push (@psheader, $line);
 	    }
 
@@ -2956,6 +2980,19 @@ File: $file
 	    $prologfound = 1;
 	    $setupfound = 1;
 	    $pagesetupfound = 1;
+	}
+	if (($rendererpid) &&
+	    (!optionsequal($dat, 'currentpage',
+			   'previouspage', 0))) {
+	    print $logh "Command line/JCL options " .
+		"changed, restarting renderer\n";
+	    $retval = closerendererhandle
+		($rendererhandle, $rendererpid);
+	    if ($retval != $EXIT_PRINTED) {
+		rip_die ("Error closing renderer",
+			 $retval);
+	    }
+	    $rendererpid = 0;
 	}
 	if (!$rendererpid) {
 	    ($rendererhandle, $rendererpid) =
