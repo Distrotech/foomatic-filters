@@ -1,5 +1,5 @@
 #!@PERL@
-# The above Perl path may vary on your system; fix it!!!
+# The above Perl path may vary on your system; fix it!!! -*- perl -*-
 
 use strict;
 use POSIX;
