@@ -5594,7 +5594,7 @@ sub buildcommandline {
 			    # Custom page size for PostScript printers
 			    $cmdvar = "$width $height 0 0 0\n$cmdvar";
 			} else {
-			    # Custom page size for Foomatic/GIMP-Print
+			    # Custom page size for Foomatic/Gimp-Print
 			    $cmdvar =~ s/\%0/$width/ or
 				$cmdvar =~ s/(\W)0(\W)/$1$width$2/ or
 				$cmdvar =~ s/^0(\W)/$width$1/m or

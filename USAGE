@@ -103,7 +103,7 @@ manufacturer-supplied PPDs for PostScript printers, and probably with
 other PPD files.
 
 Note: PPD files for native CUPS drivers, as the ones shipping with
-CUPS or GIMP-Print cannot be used with other spoolers than CUPS.
+CUPS or Gimp-Print cannot be used with other spoolers than CUPS.
 
 For non-PostScript printers one also needs GhostScript (5.50 or newer,
 ESP GhostScript 7.05.4 or newer highly recommended) and the

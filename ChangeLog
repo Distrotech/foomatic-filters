@@ -1,3 +1,7 @@
+2004-03-28  Till Kamppeter <till.kamppeter@gmx.net>
+
+	* USAGE, foomatic-rip.in: Replaced "GIMP-Print" by "Gimp-Print".
+
 2004-03-26  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* foomatic-rip.in: Fixed building of PDQ driver description file.
@@ -828,7 +832,7 @@
 
 	* db/source/*/*: Added the Epson MJ 520C to the list of supported
 	  printers of the "stcolor", "stcany.upp", and "stc300.upp"
-	  drivers. It is unclear whether it works with GIMP-Print.
+	  drivers. It is unclear whether it works with Gimp-Print.
 	
 2002-10-02  Till Kamppeter <till.kamppeter@gmx.net>
 
@@ -1053,8 +1057,8 @@
 2002-08-07  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* db/source/printer/*: Change the recommended drivers for
-	  GIMP-Print-supported printers from "gimp-print-ijs" to
-	  "gimp-print", the IJS interface of GIMP-Print has problems with
+	  Gimp-Print-supported printers from "gimp-print-ijs" to
+	  "gimp-print", the IJS interface of Gimp-Print has problems with
 	  non-english locales.
 
 	* data-generators/hpijs/hpijs-generator: Fixed bug that the old
@@ -1084,11 +1088,11 @@
 	* db/source/printer/Epson-Stylus_Pro_?600*.xml: Re-arranged
 	  entries for the Epson Stylus Pro 7600/9600 not being separate
 	  for different ink types to fit to the Foomatic generator of
-	  GIMP-Print.
+	  Gimp-Print.
 	
 	* db/source/printer/*: Raised the ratings of the Epson Stylus C42UX,
 	  Stylus Photo 950, 960, 2100, 2000 from "Paperweight" to
-	  "Partially", there is preliminary support by GIMP-Print.
+	  "Partially", there is preliminary support by Gimp-Print.
 	
 2002-07-20  Till Kamppeter <till.kamppeter@gmx.net>
 
@@ -1348,7 +1352,7 @@
 
 	* foomatic-preferred-driver.in: Updated driver priority list to
 	  give higher priority to the old HP LaserJet/PCL drivers coming
-	  with GhostScript than to GIMP-Print. The old drivers work better
+	  with GhostScript than to Gimp-Print. The old drivers work better
 	  on laser printers.
 
 	* db/source/printer/*: Use the old GhostScript driers ("ljet4",
@@ -1592,7 +1596,7 @@
 
 2002-04-03  Till Kamppeter <till.kamppeter@gmx.net>
 
-	* lib/Foomatic/DB.pm: Added new paper sizes of GIMP-Print to the
+	* lib/Foomatic/DB.pm: Added new paper sizes of Gimp-Print to the
 	  paper size table of the "getpapersize" function, fixed a bug of
 	  wrong calculation of "wXXXhYYY" and "XXXxYYY" paper sizes in the
 	  same function.
@@ -1611,7 +1615,7 @@
 	  FS-1800, FS-1900, FS-3800, FS-9100DN, FS-9500-DN.
 
 	* db/source/driver/stp.xml: Added warning that this file is only
-	  for GIMP-Print 4.0.x.
+	  for Gimp-Print 4.0.x.
 
 2002-03-27  Till Kamppeter <till.kamppeter@gmx.net>
 
@@ -2266,7 +2270,7 @@
 	  appropriately.
 
 	* db/source/printers/214153.xml: My Stylus Color 500 has problems
-	  with GIMP-Print 4.2. Modified the comments in the database entry
+	  with Gimp-Print 4.2. Modified the comments in the database entry
 	  files appropriately.
 
 	* db/source/opt/cZ11somsom-*: Set default values of the ink
@@ -2521,7 +2525,7 @@
 2001-10-29  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* db/source/printer/*: Perfect support for the Epson Stylus
-	  C70/C80 with GIMP-Print 4.1.99b4.
+	  C70/C80 with Gimp-Print 4.1.99b4.
 	
 2001-10-23  Till Kamppeter <till.kamppeter@gmx.net>
 
@@ -2587,7 +2591,7 @@
 2001-10-08  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* db/source/printer/Epson-Stylus_C[78]0.xml: Changed rating from
-	  "Paperweight" to "Partially", GIMP-Print 4.1.99b3 provides
+	  "Paperweight" to "Partially", Gimp-Print 4.1.99b3 provides
 	  preliminary support.
 
 	* db/source/*/*: Added HP DeskJet 1120C to the printers supported
@@ -2703,8 +2707,8 @@
 2001-09-25  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* foomatic-preferred-driver: Given priority to the lxm3200 driver
-	  against GIMP-Print/stp, the support of the Lexmark 3200 by
-	  GIMP-Print is broken.
+	  against Gimp-Print/stp, the support of the Lexmark 3200 by
+	  Gimp-Print is broken.
 
 2001-09-24  Till Kamppeter <till.kamppeter@gmx.net>
 
@@ -2732,7 +2736,7 @@
 	* db/source/printer/486066.xml: The Lexmark Z12 does not print
  	  ain text
 
-	* db/source/printer/328553.xml: With the current GIMP-Print the
+	* db/source/printer/328553.xml: With the current Gimp-Print the
 	  Lexmark Z52 works "Perfectly".
 
 	* db/source/printer/*: Updated and corrected text of the Lexmark
@@ -2800,7 +2804,7 @@
 
 	* foomatic-combo-xml.c: C program to build XML files for
 	  printer/driver combos, around 600 times faster than the perl
-	  routines in lib/Foomatic/DB.pm (one GIMP-Print combo in 0.5-1.5
+	  routines in lib/Foomatic/DB.pm (one Gimp-Print combo in 0.5-1.5
 	  sec. foomatic-compiledb in a few minutes), needs less than 10 MB
 	  of memory. Pre-building of the database for distros not needed
 	  any more.
@@ -2818,7 +2822,7 @@
 2001-08-25  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* db/source/printer/HP-DesignJet_750.xml: added HP DesignJet 750,
-	  it is supported by GIMP-Print now.
+	  it is supported by Gimp-Print now.
 	
 2001-08-24  Till Kamppeter <till.kamppeter@gmx.net>
 
@@ -2949,7 +2953,7 @@
 	
 	* db/source/printer/Epson-Stylus_C[24]0*: Split up the entries for
 	  the Epson Stylus C20/C40 into the SX and UX models. This is needed
-	  for the GIMP-Print GhostScript driver.
+	  for the Gimp-Print GhostScript driver.
 
 2001-08-16  Till Kamppeter <till.kamppeter@gmx.net>
 
@@ -3149,7 +3153,7 @@
 	* lib/Foomatic/DB.pm: Removed backquote from the boolean option
 	  example in the PDQ help page. It broke the shell script for
 	  printing the page. Preliminary fix for foomatic-configure not
-	  exiting when building combo data with the GIMP-Print Foomatic
+	  exiting when building combo data with the Gimp-Print Foomatic
 	  data installed: Flushing memory cache during build after
 	  treatment of every option.
 
