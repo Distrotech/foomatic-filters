@@ -833,7 +833,7 @@ for $file (@filelist) {
 		     $EXIT_PRNERR_NORETRY_BAD_SETTINGS);
 	} elsif (! -r $file) {
 	    print $logh "File $file does not exist/is not readable\n";
-	    splice(@{$dat->{'args'}}, $filecnt, 1);
+	    splice(@filelist, $filecnt, 1);
 	    $filecnt --;
 	}
     }
