@@ -1,3 +1,10 @@
+2003-04-13  Till Kamppeter <till.kamppeter@gmx.net>
+
+	* *: Tagged CVS for the release of foomatic-filters 3.0.0rc1. 
+	  Tag name: "foomatic-filters-3_0_0rc1".
+
+	* README, USAGE: Updated for version 3.0.0rc1.
+
 2003-04-12  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* foomatic-rip.in: Introduced string and password options.

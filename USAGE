@@ -1,6 +1,6 @@
 
-Foomatic 3.0.0beta2
-===================
+Foomatic 3.0.0rc1
+=================
 
 foomatic-filters
 ----------------
@@ -230,6 +230,10 @@ PPR:
 PDQ:
 
    http://www.linuxprinting.org/foomatic-2.9/pdq-doc.html
+
+CPS:
+
+   http://www.tww.cx/cps.php
 
 Direct, spooler-less printing:
 
