@@ -5432,7 +5432,7 @@ sub buildcommandline {
 			# Collect option PostScript code to be inserted when
 			# the composite option which controls this option
 			# is found in the PostScript code
-			$a = $dat->{'args_byname'}{$arg->{'controlledby'}};
+			$a = $dat->{'args_byname'}{$a->{'controlledby'}};
 			$a->{'prolog'} .= "$cmdvar\n";
 		    }
 		} elsif ($section eq "AnySetup") {
@@ -5443,32 +5443,32 @@ sub buildcommandline {
 			push (@cupspagesetupprepend, "$open$cmdvar$close");
 		    }
 		    my $a = $arg;
-		    while ($arg->{'controlledby'}) {
+		    while ($a->{'controlledby'}) {
 			# Collect option PostScript code to be inserted when
 			# the composite option which controls this option
 			# is found in the PostScript code
-			$a = $dat->{'args_byname'}{$arg->{'controlledby'}};
+			$a = $dat->{'args_byname'}{$a->{'controlledby'}};
 			$a->{'setup'} .= "$cmdvar\n";
 			$a->{'pagesetup'} .= "$cmdvar\n";
 		    }
 		} elsif ($section eq "DocumentSetup") {
 		    push (@setupprepend, "$open$cmdvar$close");
 		    my $a = $arg;
-		    while ($arg->{'controlledby'}) {
+		    while ($a->{'controlledby'}) {
 			# Collect option PostScript code to be inserted when
 			# the composite option which controls this option
 			# is found in the PostScript code
-			$a = $dat->{'args_byname'}{$arg->{'controlledby'}};
+			$a = $dat->{'args_byname'}{$a->{'controlledby'}};
 			$a->{'setup'} .= "$cmdvar\n";
 		    }
 		} elsif ($section eq "PageSetup") {
 		    push (@pagesetupprepend, "$open$cmdvar$close");
 		    my $a = $arg;
-		    while ($arg->{'controlledby'}) {
+		    while ($a->{'controlledby'}) {
 			# Collect option PostScript code to be inserted when
 			# the composite option which controls this option
 			# is found in the PostScript code
-			$a = $dat->{'args_byname'}{$arg->{'controlledby'}};
+			$a = $dat->{'args_byname'}{$a->{'controlledby'}};
 			$a->{'pagesetup'} .= "$cmdvar\n";
 		    }
 		} elsif ($section eq "JCLSetup") {
@@ -5476,21 +5476,21 @@ sub buildcommandline {
 		    $dat->{'jcl'} = 1;
 		    push (@jclprepend, unhexify($cmdvar));
 		    my $a = $arg;
-		    while ($arg->{'controlledby'}) {
+		    while ($a->{'controlledby'}) {
 			# Collect option PostScript code to be inserted when
 			# the composite option which controls this option
 			# is found in the PostScript code
-			$a = $dat->{'args_byname'}{$arg->{'controlledby'}};
+			$a = $dat->{'args_byname'}{$a->{'controlledby'}};
 			$a->{'jclsetup'} .= "$cmdvar\n";
 		    }
 		} else {
 		    push (@setupprepend, "$open$cmdvar$close");
 		    my $a = $arg;
-		    while ($arg->{'controlledby'}) {
+		    while ($a->{'controlledby'}) {
 			# Collect option PostScript code to be inserted when
 			# the composite option which controls this option
 			# is found in the PostScript code
-			$a = $dat->{'args_byname'}{$arg->{'controlledby'}};
+			$a = $dat->{'args_byname'}{$a->{'controlledby'}};
 			$a->{'setup'} .= "$cmdvar\n";
 		    }
 		}
