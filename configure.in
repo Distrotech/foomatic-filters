@@ -1,6 +1,4 @@
 dnl Process this file with autoconf to produce a configure script.
-dnl $Id$
-dnl $Name$
 AC_INIT(foomatic-rip.in)
 
 dnl If the user didn't specify the $sysconfdir on the command line, let it

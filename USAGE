@@ -1,6 +1,6 @@
 
-Foomatic 3.1.0
-==============
+Foomatic 3.0.1rc1
+=================
 
 foomatic-filters
 ----------------
@@ -16,11 +16,6 @@ http://www.linuxprinting.org/
 
 This usage documentation file is written by Till Kamppeter
 
-This is the development line 3.1.x of Foomatic, for production, use
-the stable line 3.0.x.
-
- $Id$
- $Name$
 
 Intro
 -----

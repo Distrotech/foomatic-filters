@@ -1,7 +1,6 @@
 
 # Makefile to install foomatic-filters
-# $Id$
-# $Name$
+# $Revision$
 
 # PREFIX defaults to /usr/local for manually installed progs, so that they
 # are not messed up on a system upgrade.
@@ -125,7 +124,6 @@ clean: remove-trash
 distclean: clean
 	rm -f $(AC_OUTPUT_FILES) config.log config.status config.cache configure.lineno
 	rm -rf autom*.cache confdefs.h
-	rm -f tests/Makefile
 
 maintainer-clean: distclean
 	rm -f configure aclocal.m4

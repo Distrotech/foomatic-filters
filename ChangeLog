@@ -1,5 +1,7 @@
-$Id$
-$Name$
+2004-01-21  Grant Taylor  <gtaylor@linuxprinting.org>
+
+	* Reverted snafu unstable code checkin introduced onto the stable
+	  3.0 branch on Jan 16, and present until Jan 21.
 
 2003-12-21  Till Kamppeter <till.kamppeter@gmx.net>
 
@@ -15,8 +17,6 @@ $Name$
 
 2003-11-22  Till Kamppeter <till.kamppeter@gmx.net>
 
-	* README, USAGE: Updated for version number 3.1.0.
-	
 	* *: Tagged all files of the repository with "foomatic-3_0-bp",
 	  started stable branch "foomatic-3_0-branch".
 	

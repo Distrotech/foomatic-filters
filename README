@@ -1,5 +1,7 @@
-Foomatic 3.1.0
-==============
+
+Foomatic 3.0.1rc1
+=================
+
 
 foomatic-filters
 ----------------
@@ -16,12 +18,6 @@ http://www.linuxprinting.org/
 
 This README contains mainly info for developers. See the file USAGE if
 you want to know how to use Foomatic.
-
-This is the development line 3.1.x of Foomatic, for production, use
-the stable line.
-
-   $Id$
-   $Name$
 
 
 Copying
