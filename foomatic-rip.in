@@ -4410,7 +4410,7 @@ sub buildcommandline {
 		# CUPS assumes that options with the choises "Yes", "No",
 		# "On", "Off", "True", or "False" are boolean options and
 		# maps "-o Option=On" to "-o Option" and "-o Option=Off"
-		# to "-o noOption", which cupsomatic maps to "0" and "1".
+		# to "-o noOption", which foomatic-rip maps to "0" and "1".
 		# So when "0" or "1" is unavailable in the option, we try
 		# "Yes", "No", "On", "Off", "True", and "False".
 		my $found = 0;
