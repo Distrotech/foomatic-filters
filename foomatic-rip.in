@@ -766,7 +766,7 @@ if (($spooler eq 'direct') && (!$verbose) && (!$debug)) {
 
 
 
-## Start logging also when no error occurs
+## Start debug logging
 print $logh "foomatic-rip version $ripversion running...\n";
 # Print the command line only in debug mode, Mac OS X adds very many
 # options so that CUPS cannot handle the output of the command line
@@ -775,6 +775,7 @@ print $logh "foomatic-rip version $ripversion running...\n";
 if (($debug) || ($spooler ne 'cups')) {
     print $logh "called with arguments: '", join("', '",@ARGV), "'\n";
 }
+
 
 
 ## PPD file
@@ -791,6 +792,13 @@ print $logh "Parsing PPD file ...\n";
 
 my $dat = {};              # data structure for the options
 my $currentargument = "";  # We are currently reading this argument
+
+# If we have an old Foomatic 2.0.x PPD file, read its built-in Perl
+# data structure into @datablob and the default values in %ppddefaults
+# Then delete the $dat structure, replace it by the one "eval"ed from
+# @datablob, and correct the default settings according to the ones of
+# the main PPD structure
+my @datablob;
 
 # Parse the PPD file
 while(<PPD>) {
@@ -1147,9 +1155,34 @@ while(<PPD>) {
 	} elsif ($item eq 'End') {
 	    $jclend = unhexify($code);
 	}
+    } elsif (m!^\*\% COMDATA \#(.*)$!) {
+	# If we have an old Foomatic 2.0.x PPD file, collect its Perl data
+	push (@datablob, $1);
     }
 }
 close PPD;
+
+# If we have an old Foomatic 2.0.x PPD file use its Perl data structure
+if ($#datablob >= 0) {
+    print $logh "\nYou are using an old Foomatic 2.0 PPD file, consider " .
+	"upgrading.\n\n";
+    my $VAR1;
+    if (eval join('',@datablob)) {
+	# Overtake default settings from the main structure of the PPD file
+	for $arg (@{$dat->{'args'}}) {
+	    if ($arg->{'default'}) {
+		$VAR1->{'argsbyname'}{$arg->{'name'}}{'default'} = 
+		    $arg->{'default'};
+	    }
+	}
+	undef $dat;
+	$dat = $VAR1;
+    } else {
+	# Perl structure broken
+	print $logh "\nUnable to evaluate datablob, print job may come " .
+	    "out incorrectly or not at all.\n\n";
+    }
+}
 
 
 
@@ -3316,7 +3349,7 @@ sub getdocgeneratorhandle {
 	 $optsep, $trailer, $custompagesize) =
 	     ("lpr -P $printerstr -J \"",
 	      "", "", "=", "",
-	      "", "", "=", "",
+	      "", "", "", "=", "",
 	      "", "", "=", "",
 	      " ", "\" <file>",
 	      "\n  Custom size: PageSize=Custom." .
@@ -3332,7 +3365,7 @@ sub getdocgeneratorhandle {
 	 $optsep, $trailer, $custompagesize) =
 	     ("lpr -P $printerstr ",
 	      "-o ", "", "=", "",
-	      "-o ", "", "=", "",
+	      "-o ", "", "", "=", "",
 	      "-o ", "", "=", "",
 	      " "," <file>",
 	      "\n  Custom size: -o PageSize=Custom." .
@@ -3348,7 +3381,7 @@ sub getdocgeneratorhandle {
 	 $optsep, $trailer, $custompagesize) =
 	     ("lpr -P $printerstr ",
 	      "-Z ", "", "=", "",
-	      "-Z ", "", "=", "",
+	      "-Z ", "", "", "=", "",
 	      "-Z ", "", "=", "",
 	      " "," <file>",
 	      "\n  Custom size: -Z PageSize=Custom." .
@@ -3364,7 +3397,7 @@ sub getdocgeneratorhandle {
 	 $optsep, $trailer, $custompagesize) =
 	     ("ppr -d $printerstr ",
 	      "-F ", "\"*", " ", "\"",
-	      "-F ", "\"*", " ", "\"",
+	      "-F ", "", "\"*", " ", "\"",
 	      "-F ", "\"*", " ", "\"",
 	      " "," <file>",
 	      "");
@@ -3377,7 +3410,7 @@ sub getdocgeneratorhandle {
 	 $optsep, $trailer, $custompagesize) =
 	     ("ppr -d $printerstr ",
 	      "-F ", "\"*", " ", "\"",
-	      "-F ", "\"*", " ", "\"",
+	      "-F ", "", "\"*", " ", "\"",
 	      "-F ", "\"*", " ", "\"",
 	      " "," <file>",
 	      "\n  Custom size: -F \"*PageSize Custom\" -i " .
@@ -3393,7 +3426,7 @@ sub getdocgeneratorhandle {
 	 $optsep, $trailer, $custompagesize) =
 	     ("$programname -P $printerstr ",
 	      "-o ", "", "=", "",
-	      "-o ", "", "=", "",
+	      "-o ", "", "", "=", "",
 	      "-o ", "", "=", "",
 	      " "," <file>",
 	      "\n  Custom size: -o PageSize=Custom." .
@@ -3518,6 +3551,9 @@ sub getdocgeneratorhandle {
 
 	# We don't need "PageRegion", we have "PageSize"
 	next if ($name eq "PageRegion");
+
+	# Skip enumerated choice options with only one choice
+	next if (($type eq 'enum') && ($#{$arg->{'vals'}} == 0));
 
 	my $commentstr = "";
 	if ($comment) {
@@ -4238,10 +4274,11 @@ sub buildcommandline {
 	# option
 	if ($type eq 'bool') {
 
-	    # If true, stick the proto into the command line
+	    # If true, stick the proto into the command line, if false
+	    # and we have a proto for false, stick that in
 	    if (defined($userval) && $userval == 1) {
 		$cmdvar = $cmd;
-	    } else {
+	    } elsif ($cmdf) {
 		$cmdvar = $cmdf;
 	    }
 
@@ -4252,17 +4289,20 @@ sub buildcommandline {
 	    if (defined($userval)) {
 		my $min = $arg->{'min'};
 		my $max = $arg->{'max'};
-		if ($userval >= $min and $userval <= $max) {
-		    my $sprintfcmd = $cmd;
-		    $sprintfcmd =~ s!\%([^s])!\%\%$1!g;
-		    $cmdvar = sprintf($sprintfcmd,
-				      ($type eq 'int' 
-				       ? sprintf("%d", $userval)
-				       : sprintf("%f", $userval)));
-		} else {
-		    print $logh "Value $userval for $name is out of " .
-			"range $min <= x <= $max.\n";
+		# We have already range-checked, correct only
+		# floating point inaccuricies here
+		if ($userval < $min) {
+		    $userval = $min;
 		}
+		if ($userval > $max) {
+		    $userval = $max;
+		}
+		my $sprintfcmd = $cmd;
+		$sprintfcmd =~ s!\%([^s])!\%\%$1!g;
+		$cmdvar = sprintf($sprintfcmd,
+				  ($type eq 'int' 
+				   ? sprintf("%d", $userval)
+				   : sprintf("%f", $userval)));
 	    }
 
 	} elsif ($type eq 'enum') {

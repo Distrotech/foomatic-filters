@@ -1,3 +1,17 @@
+2002-11-16  Till Kamppeter <till.kamppeter@gmx.net>
+
+	* foomatic-rip.in: Added legacy interface for old Foomatic 2.0 PPD
+	  files. Now foomatic-rip accepts all PPD files except the ones
+	  for native CUPS drivers.
+
+	  Fixed output of sample command line in the help page generator,
+	  also do not display options with only one choice on the help
+	  page.
+
+	  Do not range check numerical options when building the command
+	  line, we did it already when obtaining the option settings from
+	  the command line, the PPD file, and the job data.
+
 2002-11-15  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* foomatic-rip.in: Now all spoolers, including PDQ, are supported
