@@ -5,6 +5,8 @@
 
 	* README, USAGE: Updated for version 3.0.0beta1.
 
+	* COPYING: Added file containing the GPL.
+
 2002-12-19  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* *: Tagged CVS for the release of foomatic-filters 2.9.1. 
