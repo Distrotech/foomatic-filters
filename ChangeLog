@@ -1,3 +1,10 @@
+2003-11-20  Till Kamppeter <till.kamppeter@gmx.net>
+
+	* *: Tagged CVS for the release of foomatic-filters 3.0.1rc1. 
+	  Tag name: "foomatic-filters-3_0_1rc1".
+
+	* README, USAGE: Updated for version 3.0.1rc1.
+
 2003-11-19  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* foomatic-rip.in, filter.conf: Added support for CUPS raster
