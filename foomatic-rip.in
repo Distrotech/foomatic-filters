@@ -2279,7 +2279,7 @@ File: $file
 					my ($w, $h) = ($1, $2);
 					if (($w) && ($h) && 
 					    ($w != 0) && ($h != 0)) {
-					    $newvalue = "$newvalue.$wx$h";
+					    $newvalue = "$newvalue.${w}x$h";
 					    $arg->{$optionset} = $newvalue;
 					}
 				    }

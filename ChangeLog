@@ -1,3 +1,8 @@
+2003-02-13  Till Kamppeter <till.kamppeter@gmx.net>
+
+	* foomatic-rip.in: Fixed bug in reading a custom page size from
+	  the PostScript input file.
+
 2003-02-03  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* *: Tagged CVS for the release of foomatic-filters 3.0.0beta1. 
