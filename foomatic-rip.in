@@ -1502,7 +1502,7 @@ File: $file
     ## the defaults given in the PPD file.
 
     # Examination strategy: read lines from STDIN until the first
-    # %%Page: comment appears and save them as $psheader. This is the
+    # %%Page: comment appears and save them as @psheader. This is the
     # page-independent header part of the PostScript file. The
     # PostScript interpreter (renderer) must execute this part once
     # before rendering any assortment of pages. Then pages can be
@@ -1646,7 +1646,7 @@ File: $file
                                     # pulled from stdin for examination,
                                     # but not sent to the renderer yet.
 
-    my $passthru = 0;               # 0: write data into $psfifo; 1: pass
+    my $passthru = 0;               # 0: write data into @psfifo; 1: pass
                                     # data directly to the renderer
 
     my $isdscjob = 0;               # Is the job DSC conforming
@@ -1875,7 +1875,7 @@ File: $file
 		    $nondsclines = 0;
 		    # If there was no "Prolog" but there are options for
 		    # the "Prolog", push a "Prolog" with these options onto
-		    # the $psfifo here
+		    # the @psfifo here
 		    if (!$prologfound) {
 			# "Prolog" missing, insert it here
 			$line = makeprologsection($dat, $optionset, 1) .
@@ -1913,7 +1913,7 @@ File: $file
 			if ($inheader) {
 			    # If there was no "Setup" but there are
 			    # options for the "Setup", push a "Setup"
-			    # with these options onto the $psfifo here
+			    # with these options onto the @psfifo here
 			    if (!$setupfound) {
 				# "Setup" missing, insert it here
 				$line = 
@@ -1924,7 +1924,7 @@ File: $file
 			    }
 			    # If there was no "Prolog" but there are
 			    # options for the "Prolog", push a "Prolog"
-			    # with these options onto the $psfifo here
+			    # with these options onto the @psfifo here
 			    if (!$prologfound) {
 				# "Prolog" missing, insert it here
 				$line = 
@@ -2231,7 +2231,7 @@ File: $file
 	    # Store or send the current line
 	    if (($inheader) && ($isdscjob)) {
 		# We are still in the PostScript header, collect all lines 
-		# in $psheader
+		# in @psheader
 		push (@psheader, $line);
 	    } else {
 		if (($passthru) && ($isdscjob)) {
@@ -2253,7 +2253,7 @@ File: $file
 			    $rendererpid = 0;
 			}
 		    }
-		    # Flush $psfifo and send line directly to the renderer
+		    # Flush @psfifo and send line directly to the renderer
 		    if (!$rendererpid) {
 			# No renderer running, start it
 			($rendererhandle, $rendererpid) =
@@ -2263,13 +2263,13 @@ File: $file
 			    rip_die ("Error opening renderer",
 				     $retval);
 			}
-			# $psfifo is sent out, flush it.
+			# @psfifo is sent out, flush it.
 			@psfifo = ();
 		    }
 		    if ($#psfifo >= 0) {
-			# Send $psfifo to renderer
+			# Send @psfifo to renderer
 			print $rendererhandle join('', @psfifo);
-			# flush $psfifo
+			# flush @psfifo
 			@psfifo = ();
 		    }
 		    # Send line to renderer
@@ -2352,7 +2352,7 @@ File: $file
 
     # Some buffer still containing data? Send it out to the renderer.
     if (($more_stuff != 0) || ($#psheader >= 0) || ($#psfifo >= 0)) {
-	# Flush $psfifo and send the remaining data to the renderer, this
+	# Flush @psfifo and send the remaining data to the renderer, this
 	# only happens with non-DSC-conforming jobs or non-Foomatic PPDs
 	if ($more_stuff) {
 	    print $logh "Stopped parsing the PostScript data, ".
@@ -2386,7 +2386,16 @@ File: $file
 		rip_die ("Error opening renderer",
 			 $retval);
 	    }
+	    # We have sent @psfifo now
+	    @psfifo = ();
 	}
+	if ($#psfifo >= 0) {
+	    # Send @psfifo to renderer
+	    print $rendererhandle join('', @psfifo);
+	    # flush @psfifo
+	    @psfifo = ();
+	}
+	# Print the rest of the input data
 	if ($more_stuff) {
 	    while (<STDIN>) {
 		print $rendererhandle $_;
