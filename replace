@@ -1,0 +1,58 @@
+#!/usr/bin/perl
+use Getopt::Std;
+sub usage(){
+    print STDERR <<EOF;
+use: $0 [-d] <files>
+   update foomatic-rip, replacing the PerlModules
+   and disabling debugging code.
+
+   -d = leave debugging code enabled
+EOF
+    exit 1;
+}
+
+my $opt = {};
+
+getopts("s:d",$opt) or usage();
+
+$DEBUG = $opt->{'d'};
+
+my $SRC = $opt->{'s'};
+$SRC = "." if not $SRC;
+
+while(<>){
+	s/\@ETCDIR\@/${ETCDIR}/g;
+	s/Foomatic\w*:://;
+	s/^(\s*)(D)/$1\# $2/ if /^\s*D[1-9].*\(.*\);/ and not $DEBUG;
+	if( /^#INCLUDE\s+(\S+)/ ){
+	    $file = $1 ;
+	    open(FILE, "<$SRC/$file") or die "cannot open $file";
+	    while( <FILE> ){
+		$_ =~ s/^/ /;
+		print $_;
+	    }
+	    close FILE;
+	    $_ = "";
+	}
+	if( /include START/../include END/ ){
+		my $line = $_;
+		#print STDERR "INCLUDE $_";
+		if( /^use\s+(\S*?)\s*;\s*$/ ){
+		    $file = $1 . ".pm";
+		    #print STDERR "file $file\n";
+		    print "# $_";
+		    open(FILE, "<$SRC/$file") or die "cannot open $file";
+		    while( <FILE> ){
+			$_ =~ s/^package/#package/;
+			$_ =~ s/use\s+Foomatic/#$&/;
+			s/Foomatic\w*:://;
+			$_ =~ s/^1;//;
+			s/^(\s*)(D)/$1\# $2/ if /^\s*D[1-9].*\(.*\);/ and not $DEBUG;
+			print $_;
+		    }
+		    close FILE;
+		    $_ = "";
+		}
+	}
+	print $_;
+}

@@ -1,0 +1,86 @@
+foomatic-rip version $Revision$ running...
+Options: --config', './filter.conf.test', '--lprng', '--ppd',
+   './parse.ppd', '-ZPageSize=letter', '-Zeven:pagesize=legal',
+   '-Zsimplex'
+Parsing PPD file './parse.ppd' ...
+Opening PPD file './parse.ppd'
+Expanding Composite Option Defaults
+Pondering option 'Foocomp="V1"'
+ Maps to Foocomp='V1'
+Pondering option '@Foocomp@Foo=Value1'
+ Maps to Foo='Value1', controlled by Foocomp
+Parameter Summary
+-----------------
+Spooler: lprng
+Printer: 
+PPD file: ./parse.ppd
+Printer model: PP Foo 4000 Series PS
+Job title: 
+File(s) to be printed: <STDIN>
+Fixing User Options
+Pondering option 'PageSize=letter'
+ Maps to PageSize='Letter'
+Pondering option 'even:pagesize=legal'
+ Maps to even:PageSize='Legal'
+Pondering option 'simplex'
+ Option simplex is alias for duplex=none
+Pondering option 'duplex=none'
+ Maps to Duplex='None'
+Final Options Values:  Duplex=None PageSize=Letter even:PageSize=Legal
+Output will be redirected to: ( echo POSTPIPE >&2; /bin/cat ) 
+================================================
+File: <STDIN>
+================================================
+Reading PostScript input ...
+File contains PostScript
+--> This document is DSC-conforming!
+-----------
+Found: %%BeginProlog
+Inserting option code into "Prolog" section.
+Found: %%EndProlog
+-----------
+New page:  1 1
+"Setup" section is missing, inserting it.
+Inserting option code into "Setup" section.
+Found: %%BeginPageSetup
+Found: %%EndPageSetup
+End of page header
+Start of new page found and previous not printed; print it now.
+Found: %%Page: 1 2
+ --> Output going directly to the renderer now.
+Renderer command: cat 
+Starting postpipe "( echo POSTPIPE >&2; /bin/cat ) "
+Starting renderer 'cat '
+-----------
+New page:  1 2
+Found:  %%Page: 1 2
+ --> Output going to the FIFO buffer now.
+Found: %%BeginPageSetup
+Found: %%EndPageSetup
+End of page header
+Start of new page found and previous not printed; print it now.
+Found: %%Page: 1 3
+ --> Output going directly to the renderer now.
+Logger (PostPipe): POSTPIPE
+New options for page 2: PageSize=Legal
+Pondering option 'PageSize=Legal'
+ Maps to PageSize='Legal'
+Warning: constraint violation  Resolution=600x600dpi PageSize=Legal
+Using PageRegion for PageSize
+Renderer command: cat 
+-----------
+New page:  1 3
+Found:  %%Page: 1 3
+ --> Output going to the FIFO buffer now.
+Found: %%BeginPageSetup
+Found: %%EndPageSetup
+End of page header
+Flushing FIFO.
+Renderer command: cat 
+Closing renderer
+Logger (Render): status 0
+Renderer: status 0
+Fixup: status 0
+Logger (PostPipe): status 0
+PostPipe: status 0
+Closing foomatic-rip.

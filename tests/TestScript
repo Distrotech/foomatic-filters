@@ -1,0 +1,331 @@
+#!/bin/sh
+usage(){
+	cat <<EOF >&2
+use: $0 [-f]
+  run tests on the foormatic-rip filter
+
+  -v - fix up the results as correct
+EOF
+    exit 1;
+}
+
+echo "START" $*
+while [ "$1" != "" ] ; do
+    case $1 in
+	-v ) fixone=yes;;
+	-c ) C="-c";;
+	* ) usage;;
+    esac
+    shift;
+done
+
+OUTDIR=${OUT:=/tmp}
+files=${SRC:=./tests}
+config="--config ${SRC}/filter.conf.test"
+enconfig="--config ${SRC}/en.filter.conf.test"
+foomatic=${FOOMATIC:=./foomatic-rip}
+ppd=$files/parse.ppd
+ppd4=$files/HP4000_4.ppd
+set -e
+debug="--debug 0x17"
+options="-ZPageSize=letter -Zeven:intray2 -Zsimplex"
+options="-ZPageSize=letter -Zeven:pagesize=legal -Zsimplex"
+
+compare(){
+    status=0
+    set +e
+	echo -n "diff $1 $files/$2 "
+    if [ -n "$ignore" ] ; then
+	    grep -v "$ignore" $1 >$OUTDIR/d1 || true
+	    grep -v "$ignore" $files/$2 >$OUTDIR/d2 || true
+	    diff ${C} $OUTDIR/d1 $OUTDIR/d2 || status=$?
+    else
+	diff ${C} $1 $files/$2 || status=$?
+    fi
+    set -e;
+    # echo diff exit status $status
+    if [ $status = "0" ] ; then
+	echo "SAME"
+    elif [ -n "$fixone" ] ; then
+	echo "COPY $1 $files/$2"
+	cp $1 $files/$2
+	#fixone=
+    else
+	exit 1
+    fi
+}
+
+runcmd(){
+	echo "$cmd";
+	status=0
+	(eval $cmd) || status=$?
+	if [ "$status" != 0 ] ; then
+	    cat $OUTDIR/log
+	    exit 1
+	fi
+}
+
+rm -f $OUTDIR/out $OUTDIR/log
+set +x
+
+
+echo
+echo show the ppd file from standard PPD file
+echo
+if [ 0 != 0 ] ; then
+    rm -f $OUTDIR/foomatic*
+    cmd="perl -Mdiagnostics -w $foomatic $config --genppd --ppd=$ppd4 $debug \
+	$options >$OUTDIR/out 2>$OUTDIR/log"
+    runcmd
+    compare $OUTDIR/out ppd4.out
+    if [ -z "$debug" ] ; then
+	ignore='filter.conf.test\|parse.ppd\|POSTPIPE\|status 0$'
+	compare $OUTDIR/log ppd4.out.log
+    fi
+    ignore=
+fi
+
+
+echo
+echo show the ppd file from test PPD file
+echo
+if [ 0 != 0 ] ; then
+    rm -f $OUTDIR/foomatic*
+    cmd="perl -Mdiagnostics -w $foomatic $config --genppd --ppd=$ppd $debug \
+	$options >$OUTDIR/out 2>$OUTDIR/log"
+    runcmd
+    compare $OUTDIR/out ppd.out
+    if [ -z "$debug" ] ; then
+	ignore='filter.conf.test\|parse.ppd\|POSTPIPE\|status 0$'
+	compare $OUTDIR/log ppd.out.log
+    fi
+    ignore=
+fi
+
+echo
+echo show the options
+echo
+if [ 1 != 0 ] ; then
+    rm -f $OUTDIR/foomatic*
+    cmd="perl -Mdiagnostics -w $foomatic $config -d --ppd=$ppd $debug \
+	$options >$OUTDIR/out 2>$OUTDIR/log"
+    runcmd
+    compare $OUTDIR/out opts.out
+    if [ -z "$debug" ] ; then
+	ignore='filter.conf.test\|parse.ppd\|POSTPIPE\|status 0$'
+	compare $OUTDIR/log opts.out.log
+    fi
+    ignore=
+fi
+
+echo
+echo produce genpdq
+echo
+if [ 1 != 0 ] ; then
+    rm -f $OUTDIR/foomatic*
+    cmd="perl -Mdiagnostics -w $foomatic $config --ppd $ppd --genpdq $debug \
+	$options >$OUTDIR/out"
+    runcmd
+    ignore='filter.conf.test\|parse.ppd\|driver .*Foo';
+    compare $OUTDIR/out pdq.out
+    if [ -z "$debug" ] ; then
+	ignore='filter.conf.test\|parse.ppd\|POSTPIPE\|status 0$'
+	compare $OUTDIR/log pdq.out.log
+    fi
+    ignore=
+fi
+
+echo
+echo do the threepages.ps file
+echo check for constraint violations
+echo
+#debug="--debug 0x11"
+if [ 1 != 0 ] ; then
+    rm -f $OUTDIR/foomatic*
+    cmd="perl -Mdiagnostics -w $foomatic $config --lprng --ppd $ppd $debug  \
+	$options <$files/threepages.ps >$OUTDIR/out 2>$OUTDIR/log"
+    runcmd
+    compare $OUTDIR/out threepages.out
+    if [ -z "$debug" ] ; then
+	ignore='filter.conf.test\|parse.ppd\|POSTPIPE\|status 0$'
+	compare $OUTDIR/log threepages.out.log
+    fi
+    ignore=
+fi
+
+exit 0
+echo
+echo do the threepages.ps file, with foobool=true options
+echo check for new constraint violation
+echo
+if [ 1 != 0 ] ; then
+    rm -f $OUTDIR/foomatic*
+    cmd="perl -Mdiagnostics -w $foomatic $config --lprng --ppd $ppd $debug  \
+	-Zfoobool=true \
+	$options <$files/threepages.ps >$OUTDIR/out 2>$OUTDIR/log"
+    runcmd
+    compare $OUTDIR/out foobool.threepages.out
+    if [ -z "$debug" ] ; then
+	ignore='filter.conf.test\|parse.ppd\|POSTPIPE\|status 0$'
+	compare $OUTDIR/log foobool.threepages.out.log
+    fi
+    ignore=
+fi
+
+echo
+echo now reprocess the output of the previous one, no options
+echo
+if [ 1 != 0 ] ; then
+rm -f $OUTDIR/foomatic*
+    cmd="perl -Mdiagnostics -w $foomatic $config --lprng --ppd $ppd $debug  \
+	<$OUTDIR/out >$OUTDIR/out3 2>$OUTDIR/log"
+    runcmd
+    compare $OUTDIR/out3 out3.threepages.out
+    if [ -z "$debug" ] ; then
+	ignore='filter.conf.test\|parse.ppd\|POSTPIPE\|status 0$'
+	compare $OUTDIR/log out3.threepages.out.log
+    fi
+    ignore=
+    fi
+
+echo
+echo try file conversion
+echo
+if [ 1 != 0 ] ; then
+    rm -f $OUTDIR/foomatic*
+    cmd="perl -Mdiagnostics -w $foomatic $config --lprng --ppd $ppd $debug  \
+	$options <$files/hi.txt >$OUTDIR/out 2>$OUTDIR/log"
+    runcmd
+    ignore='page.* on.* sheet\|^%%For:\|^%%CreationDate\|title$\|rhead$\|footer$';
+    compare $OUTDIR/out hi.ps.out
+    if [ -z "$debug" ] ; then
+	ignore='page.* on.* sheet\|filter.conf.test\|parse.ppd\|POSTPIPE\|status 0\|standard output$\|Logger .*0$'
+	compare $OUTDIR/log hi.ps.out.log
+    fi
+    ignore=;
+fi
+
+echo
+echo options to printer
+echo
+
+if [ 1 != 0 ] ; then
+    rm -f $OUTDIR/foomatic*
+    cmd="perl -Mdiagnostics -w $foomatic $config -lprng --ppd $ppd $debug  \
+	$options -Zdocs <$files/hi.txt >$OUTDIR/out 2>$OUTDIR/log"
+    runcmd
+    ignore='page.* on.* sheet\|^%%For:\|^%%CreationDate\|title$\|rhead$\|footer$';
+    compare $OUTDIR/out opts.out.ps
+    if [ -z "$debug" ] ; then
+	ignore='generator finished\|page.* on.* sheet\|filter.conf.test\|parse.ppd\|POSTPIPE\|status 0\|Generating doc\|standard output$\|Logger .*0$'
+	compare $OUTDIR/log opts.out.ps.log
+    fi
+    ignore=
+fi
+
+echo
+echo do the threepages.ps with -Zmulti=choice1 file
+echo
+#debug="--debug 0x11"
+if [ 1 != 0 ] ; then
+    rm -f $OUTDIR/foomatic*
+    cmd="perl -Mdiagnostics -w $foomatic $config --lprng --ppd $ppd $debug  \
+	$options -Zmulti=choice1 \
+	<$files/threepages.ps >$OUTDIR/out 2>$OUTDIR/log"
+    runcmd
+    compare $OUTDIR/out multi.choice1.threepages.out
+    if [ -z "$debug" ] ; then
+	ignore='filter.conf.test\|parse.ppd\|POSTPIPE\|status 0$'
+	compare $OUTDIR/log multi.choice1.threepages.out.log
+    fi
+    ignore=
+fi
+
+echo
+echo do the threepages.ps with -Zmulti=nochoice1 -Zmulti=chcice2,choice3
+echo
+if [ 1 != 0 ] ; then
+    rm -f $OUTDIR/foomatic*
+    cmd="perl -Mdiagnostics -w $foomatic $config --lprng --ppd $ppd $debug  \
+	$options -Zmulti=nochoice1 -Zmulti=choice2:choice3\
+	<$files/threepages.ps >$OUTDIR/out 2>$OUTDIR/log"
+    runcmd
+    compare $OUTDIR/out multi.choice23.threepages.out
+    if [ -z "$debug" ] ; then
+	ignore='filter.conf.test\|parse.ppd\|POSTPIPE\|status 0$'
+	compare $OUTDIR/log multi.choice23.threepages.out.log
+    fi
+    ignore=
+fi
+
+
+echo
+echo reprocess the previous output with no options and make
+echo sure that it picks them up
+echo
+
+if [ 1 != 0 ] ; then
+    rm -f $OUTDIR/foomatic*
+    cmd="perl -Mdiagnostics -w $foomatic $config --lprng --ppd $ppd $debug  \
+	<$OUTDIR/out >$OUTDIR/out3 2>$OUTDIR/log"
+    runcmd
+    compare $OUTDIR/out3 reprocess.multi.choice23.threepages.out
+    if [ -z "$debug" ] ; then
+	ignore='filter.conf.test\|parse.ppd\|POSTPIPE\|status 0$'
+	compare $OUTDIR/log reprocess.multi.choice23.threepages.out.log
+    fi
+    ignore=
+fi
+
+echo
+echo process PCL file
+echo
+
+if [ 1 != 0 ] ; then
+    rm -f $OUTDIR/foomatic*
+    cmd="perl -Mdiagnostics -w $foomatic $config --lprng --ppd $ppd $debug  \
+	<$files/one.pcl >$OUTDIR/out 2>$OUTDIR/log"
+    runcmd
+    compare $OUTDIR/out one.pcl.out
+    if [ -z "$debug" ] ; then
+	ignore='filter.conf.test\|parse.ppd\|POSTPIPE\|status 0$'
+	compare $OUTDIR/log one.pcl.out.log
+    fi
+    ignore=
+fi
+
+echo
+echo do the threepages.ps with multiple PPD files
+echo
+#debug="--debug 0x11"
+if [ 1 != 0 ] ; then
+    rm -f $OUTDIR/foomatic*
+    cmd="perl -Mdiagnostics -w $foomatic $config --lprng \
+	--ppd "$ppd:$files/added.ppd" $debug  \
+	$options <$files/threepages.ps >$OUTDIR/out 2>$OUTDIR/log"
+    runcmd
+    compare $OUTDIR/out ppd.threepages.out
+    if [ -z "$debug" ] ; then
+	ignore='filter.conf.test\|parse.ppd\|POSTPIPE\|status 0$'
+	compare $OUTDIR/log ppd.threepages.out.log
+    fi
+    ignore=
+fi
+
+echo
+echo try file conversion with enscript
+echo
+if [ 1 != 0 ] ; then
+    rm -f $OUTDIR/foomatic*
+    cmd="perl -Mdiagnostics -w $foomatic $enconfig --lprng --ppd $ppd $debug  \
+	$options <$files/hi.txt >$OUTDIR/out 2>$OUTDIR/log"
+    runcmd
+    ignore='moddatestr\|modtimestr\|page.* on.* sheet\|^%%For:\|^%%CreationDate\|title$\|rhead$\|footer$';
+    compare $OUTDIR/out en.hi.ps.out
+    if [ -z "$debug" ] ; then
+	ignore='page.* on.* sheet\|filter.conf.test\|parse.ppd\|POSTPIPE\|status 0\|standard output$\|Logger .*0$'
+	compare $OUTDIR/log en.hi.ps.out.log
+    fi
+    ignore=;
+fi
+exit 0

@@ -1,0 +1,212 @@
+%-12345X@PJL JOB
+@PJL COMMENT Setup=1
+@PJL COMMENT JCL SETUP
+@PJL COMMENT Resolution=600x600dpi
+@PJL SET RESOLUTION = 600
+@PJL ENTER LANGUAGE = POSTSCRIPT
+%!PS-Adobe-3.0
+%%Pages: (atend)
+%%BoundingBox: 0 0 170 423
+%%HiResBoundingBox: 0.000000 0.000000 169.400000 422.400000
+%%Creator: vim
+%%CreationDate: 2003/11/30 18:42:44
+%%DocumentData: Clean7Bit
+%%LanguageLevel: 2
+%%EndComments
+%%BeginProlog
+%%EndProlog
+%%BeginSetup
+%%FoomaticRIPOptionSetting: *Foocomp=V1
+%%  Foo=Value1 
+%%EndFeature
+%%FoomaticRIPOptionSetting: *Foo=@Value1
+[{
+%% Foo Value1 - Testing value of Foo - Value1
+ } stopped cleartomark
+%%EndFeature
+%%FoomaticRIPOptionSetting: *Foobool=True
+[{
+%% Foobool True
+ } stopped cleartomark
+%%EndFeature
+%%FoomaticRIPOptionSetting: *Fooint=30
+[{
+%% Fooint 30
+ } stopped cleartomark
+%%EndFeature
+%%FoomaticRIPOptionSetting: *Foointrange=30
+[{
+%% Foointrange 30
+ } stopped cleartomark
+%%EndFeature
+%%FoomaticRIPOptionSetting: *Foostr=String 3
+[{
+%% Foo String 3
+ } stopped cleartomark
+%%EndFeature
+%%FoomaticRIPOptionSetting: *JobPatchFile=1,2
+[{
+%% Patch 1
+
+%% Patch 1
+ } stopped cleartomark
+%%EndFeature
+%%FoomaticRIPOptionSetting: *HPPaperPolicy=NearestSizeNoAdjust
+[{
+   <</DeferredMediaSelection false
+     /Policies << /PageSize 5 >> >> setpagedevice } stopped cleartomark
+%%EndFeature
+%%FoomaticRIPOptionSetting: *Multi=noChoice1,noChoice2,noChoice3,noChoice4
+%%EndFeature
+%%FoomaticRIPOptionSetting: *PageSize=Letter
+[{
+    <</PageSize [612 792] /ImagingBBox null>> setpagedevice } stopped cleartomark
+%%EndFeature
+%%FoomaticRIPOptionSetting: *PageRegion=Letter
+[{
+    <</PageSize [612 792] /ImagingBBox null>> setpagedevice } stopped cleartomark
+%%EndFeature
+%%FoomaticRIPOptionSetting: *Duplex=None
+[{
+    <</Duplex false>> setpagedevice } stopped cleartomark
+%%EndFeature
+%%EndSetup
+%%Page: 1 1
+%%BeginPageSetup
+%%EndPageSetup
+/Courier
+findfont 200 scalefont setfont
+72 300 moveto
+(1) show
+showpage
+%%PageTrailer
+%%Page: 1 2
+%%BeginPageSetup
+%%FoomaticRIPOptionSetting: *Foocomp=V1
+%%  Foo=Value1 
+%%EndFeature
+%%FoomaticRIPOptionSetting: *Foo=@Value1
+[{
+%% Foo Value1 - Testing value of Foo - Value1
+ } stopped cleartomark
+%%EndFeature
+%%FoomaticRIPOptionSetting: *Foobool=True
+[{
+%% Foobool True
+ } stopped cleartomark
+%%EndFeature
+%%FoomaticRIPOptionSetting: *Fooint=30
+[{
+%% Fooint 30
+ } stopped cleartomark
+%%EndFeature
+%%FoomaticRIPOptionSetting: *Foointrange=30
+[{
+%% Foointrange 30
+ } stopped cleartomark
+%%EndFeature
+%%FoomaticRIPOptionSetting: *Foostr=String 3
+[{
+%% Foo String 3
+ } stopped cleartomark
+%%EndFeature
+%%FoomaticRIPOptionSetting: *JobPatchFile=1,2
+[{
+%% Patch 1
+
+%% Patch 1
+ } stopped cleartomark
+%%EndFeature
+%%FoomaticRIPOptionSetting: *HPPaperPolicy=NearestSizeNoAdjust
+[{
+   <</DeferredMediaSelection false
+     /Policies << /PageSize 5 >> >> setpagedevice } stopped cleartomark
+%%EndFeature
+%%FoomaticRIPOptionSetting: *Multi=noChoice1,noChoice2,noChoice3,noChoice4
+%%EndFeature
+%%FoomaticRIPOptionSetting: *PageRegion=Letter
+[{
+    <</PageSize [612 792] /ImagingBBox null>> setpagedevice } stopped cleartomark
+%%EndFeature
+%%FoomaticRIPOptionSetting: *Duplex=None
+[{
+    <</Duplex false>> setpagedevice } stopped cleartomark
+%%EndFeature
+%%FoomaticRIPOptionSetting: *PageRegion=Legal
+[{
+    <</PageSize [612 1008] /ImagingBBox null>> setpagedevice } stopped cleartomark
+%%EndFeature
+%%EndPageSetup
+/Courier
+findfont 200 scalefont setfont
+72 300 moveto
+(2) show
+showpage
+%%PageTrailer
+%%Page: 1 3
+%%BeginPageSetup
+%%FoomaticRIPOptionSetting: *Foocomp=V1
+%%  Foo=Value1 
+%%EndFeature
+%%FoomaticRIPOptionSetting: *Foo=@Value1
+[{
+%% Foo Value1 - Testing value of Foo - Value1
+ } stopped cleartomark
+%%EndFeature
+%%FoomaticRIPOptionSetting: *Foobool=True
+[{
+%% Foobool True
+ } stopped cleartomark
+%%EndFeature
+%%FoomaticRIPOptionSetting: *Fooint=30
+[{
+%% Fooint 30
+ } stopped cleartomark
+%%EndFeature
+%%FoomaticRIPOptionSetting: *Foointrange=30
+[{
+%% Foointrange 30
+ } stopped cleartomark
+%%EndFeature
+%%FoomaticRIPOptionSetting: *Foostr=String 3
+[{
+%% Foo String 3
+ } stopped cleartomark
+%%EndFeature
+%%FoomaticRIPOptionSetting: *JobPatchFile=1,2
+[{
+%% Patch 1
+
+%% Patch 1
+ } stopped cleartomark
+%%EndFeature
+%%FoomaticRIPOptionSetting: *HPPaperPolicy=NearestSizeNoAdjust
+[{
+   <</DeferredMediaSelection false
+     /Policies << /PageSize 5 >> >> setpagedevice } stopped cleartomark
+%%EndFeature
+%%FoomaticRIPOptionSetting: *Multi=noChoice1,noChoice2,noChoice3,noChoice4
+%%EndFeature
+%%FoomaticRIPOptionSetting: *PageSize=Letter
+[{
+    <</PageSize [612 792] /ImagingBBox null>> setpagedevice } stopped cleartomark
+%%EndFeature
+%%FoomaticRIPOptionSetting: *PageRegion=Letter
+[{
+    <</PageSize [612 792] /ImagingBBox null>> setpagedevice } stopped cleartomark
+%%EndFeature
+%%FoomaticRIPOptionSetting: *Duplex=None
+[{
+    <</Duplex false>> setpagedevice } stopped cleartomark
+%%EndFeature
+%%EndPageSetup
+/Courier
+findfont 200 scalefont setfont
+72 300 moveto
+(3) show
+showpage
+%%PageTrailer
+%%Trailer
+%%Pages: 3
+%%EOF
+%-12345X@PJL EOJ

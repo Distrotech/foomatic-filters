@@ -1,0 +1,402 @@
+*PPD-Adobe: "4.3"
+
+*% For information on using this, and to obtain the required backend
+*% script, consult http://www.linuxprinting.org/
+*%
+*% This file is published under the GNU General Public License
+*%
+*% Foomatic (3.0.0 or newer) generated this PPD file. It should be suitable
+*% for use with all programs and environments which use PPD files for
+*% printer capability information.
+*% 
+*% The "foomatic-rip" backend filter script uses this file as well.
+*%
+*% To save this file on your disk, wait until the download has completed
+*% (the animation of the browser logo must stop) and then use the
+*% "Save as..." command in the "File" menu of your browser.
+*%
+*% DO NOT cut and paste this file into an editor with your mouse. This can
+*% introduce additional line breaks which lead to unexpected results.
+*%
+*% You may save this file as 'Foomatic-Foo4000_Series_PS-Foodriver.ppd'
+*%
+*%
+*%============ COMMENTS ==================
+
+*%=== Device Capabilities ==================
+*%=== Device Capabilities ==================
+*% defaults
+*% settings
+*% query with setting
+*%=== JCL Features ==========================
+*% OpenUI with JCL
+*% DefaultMulti: Choice1
+*%=== Installable Options ==========================
+*% **** Installed RAM ******************************************************
+*%=== Installable Options ==========================
+*%=== UI Constraints =============================
+*% If A than not B
+*%=== Fit to Page ==========================
+*%=== Paper Sizes =================
+*%=== Custom Paper Support =================
+*%=== Duplex ====================================
+*% ================================
+*% For "PP Foo 4000" version 2014.108
+*% ================================
+*% END
+*%=== Job Patch File ==================
+
+*%============== REQUIRED =================
+
+*FileVersion: "1.0"
+*FormatVersion: "4.3"
+*LanguageEncoding: ISOLatin1
+*LanguageVersion: "English"
+*Manufacturer: "Foomatic"
+*ModelName: "Foomatic Foo4000 Series PS Model 1"
+*NickName: "Foomatic Foo4000 Series PS"
+*PCFileName: "FMF40001.PPD"
+*Product: "(Foomatic Foo4000 Series PS Model 1)"
+*PSVersion: "(2014.341) 0"
+*ShortNickName: "Foomatic Foo4000"
+
+*%============== OPTIONS =================
+
+*Throughput: "50"
+*ColorDevice: False
+*TTRasterizer: Type42
+*LanguageLevel: "2"
+*Protocols: PJL
+*JCLBegin: "<1B>%-12345X@PJL JOB<0A>"
+*JCLToPSInterpreter: "@PJL ENTER LANGUAGE = POSTSCRIPT <0A>"
+*JCLEnd: "<1B>%-12345X@PJL EOJ<0A><1B>%-12345X"
+*FreeVM: "6770000"
+*MaxMediaWidth: 100000
+*MaxMediaHeight: 100000
+*HWMargins: 0 0 0 0
+*FoomaticIDs: Fooprinter Foodriver
+*FoomaticRIPPostPipe: "( echo POSTPIPE &gt;&amp;2; /bin/cat ) "
+*FoomatciRIPCommandLine: " cat %A%B%C "
+*VariablePaperSize: True
+*OpenGroup: DeFooOptions
+*OpenSubGroup: DeSubFooOptions
+
+*OpenUI *SubFooOption1/SubFoo Option 1: Boolean
+*DefaultSubFooOption1: False
+*SubFooOption1 False/Not Installed: ""
+*SubFooOption1 True/Installed: ""
+*CloseUI: *SubFooOption1
+
+*OpenUI *SubFooOption2/SubFoo Option 2: Boolean
+*DefaultSubFooOption2: False
+*SubFooOption2 False/Not Installed: ""
+*SubFooOption2 True/Installed: ""
+*CloseUI: *SubFooOption2
+*CloseSubGroup: DeSubFooOptions
+
+*OpenUI *FooOption1/Foo Option 1: Boolean
+*DefaultFooOption1: False
+*FooOption1 False/Not Installed: ""
+*FooOption1 True/Installed: ""
+*CloseUI: *FooOption1
+
+*OpenUI *FooOption2/Foo Option 2: Boolean
+*DefaultFooOption2: False
+*FooOption2 False/Not Installed: ""
+*FooOption2 True/Installed: ""
+*CloseUI: *FooOption2
+*CloseGroup: DeFooOptions
+*OpenGroup: InstallableOptions
+
+*OpenUI *InstalledMemory/Installed RAM: PickOne
+*DefaultInstalledMemory: 16MB
+*InstalledMemory 16MB/Standard 16MB RAM: ""
+*InstalledMemory 32MB/32MB Total RAM: ""
+*InstalledMemory 48MB/48MB Total RAM: ""
+*InstalledMemory 64MB/64MB Total RAM: ""
+*InstalledMemory 80MB/80MB Total RAM: ""
+*CloseUI: *InstalledMemory
+
+*OpenUI *Option1/Tray 3: Boolean
+*DefaultOption1: False
+*Option1 False/Not Installed: ""
+*Option1 True/Installed: ""
+*CloseUI: *Option1
+*CloseGroup: InstallableOptions
+
+*JCLOpenUI *JCLResolution/Resolution: PickOne
+*OrderDependency: 10 JCLSetup *JCLResolution
+*DefaultJCLResolution: 600x600dpi
+*JCLResolution 600x600dpi/600 dpi: "@PJL SET RESOLUTION = 600<0A>"
+*JCLResolution 300x300dpi/300 dpi: "@PJL SET RESOLUTION = 300<0A>"
+*JCLResolution 1200x1200dpi/ProRes 1200: "@PJL SET RESOLUTION = 1200<0A>"
+*JCLCloseUI: *JCLResolution
+
+*OpenUI *Multi/PickMany Test: PickMany
+*OrderDependency: 10 AnySetup *Multi
+*DefaultMulti: noChoice1,noChoice2,noChoice3,noChoice4
+*Multi Choice1/Choice One: "
+%% Multi Choice 1
+"
+*End
+*Multi Choice2/Choice Two: "
+%% Multi Choice 2
+"
+*End
+*Multi Choice3/Choice Three: "
+%% Multi Choice 3
+"
+*End
+*Multi Choice4/Choice Four: "
+%% Multi Choice 4
+"
+*End
+*CloseUI: *Multi
+
+*OpenUI *HPPaperPolicy/Fit to Page: PickOne
+*OrderDependency: 10 AnySetup *HPPaperPolicy
+*DefaultHPPaperPolicy: NearestSizeNoAdjust
+*HPPaperPolicy NearestSizeNoAdjust/Nearest Size and Crop: "
+   <</DeferredMediaSelection false
+     /Policies << /PageSize 5 >> >> setpagedevice"
+*End
+*HPPaperPolicy PromptUser/Prompt User: "
+   << [ /DeferredMediaSelection true ] >> setpagedevice"
+*End
+*HPPaperPolicy NearestSizeAdjust/Nearest Size and Scale: "
+   <</DeferredMediaSelection false
+     /Policies << /PageSize 3 >> >> setpagedevice"
+*End
+*CloseUI: *HPPaperPolicy
+
+*OpenUI *PageSize/Page Size: PickOne
+*OrderDependency: 30 AnySetup *PageSize
+*DefaultPageSize: Letter
+*PageSize Letter/Letter: "
+    <</PageSize [612 792] /ImagingBBox null>> setpagedevice"
+*End
+*PageSize Legal/Legal: "
+    <</PageSize [612 1008] /ImagingBBox null>> setpagedevice"
+*End
+*PageSize Ledger/Ledger: "
+    <</PageSize [792 1224] /ImagingBBox null>> setpagedevice"
+*End
+*PageSize Executive/Executive: "
+    <</PageSize [522 756] /ImagingBBox null>> setpagedevice"
+*End
+*PageSize A4/A4: "
+    <</PageSize [595 842] /ImagingBBox null>> setpagedevice"
+*End
+*PageSize A5/A5: "
+    <</PageSize [420 595] /ImagingBBox null>> setpagedevice"
+*End
+*PageSize B5/B5 (JIS): "
+    <</PageSize [516 729] /ImagingBBox null>> setpagedevice"
+*End
+*PageSize Env10/Com-10: "
+    <</PageSize [297 684] /ImagingBBox null>> setpagedevice"
+*End
+*PageSize EnvMonarch/Monarch: "
+    <</PageSize [279 540] /ImagingBBox null>> setpagedevice"
+*End
+*PageSize EnvDL/DL: "
+    <</PageSize [312 624] /ImagingBBox null>> setpagedevice"
+*End
+*PageSize EnvC5/C5: "
+    <</PageSize [459 649] /ImagingBBox null>> setpagedevice"
+*End
+*PageSize EnvISOB5/B5 (ISO): "
+    <</PageSize [499 709] /ImagingBBox null>> setpagedevice"
+*End
+*PageSize Custom/Custom Size: "pop pop pop
+<</PageSize [ 5 -2 roll ] /ImagingBBox null>>setpagedevice"
+*End
+*CloseUI: *PageSize
+*DefaultPCLPageSize: Letter
+*PCLPageSize Letter/Letter: "<1B>&l2H"
+*PCLPageSize Legal/Legal: "<1B>&l3H"
+*PCLPageSize Ledger/Ledger: "<1B>&l6H"
+*PCLPageSize Executive/Executive: "<1B>&l1H"
+*PCLPageSize A4/A4: "<1B>&l26H"
+*PCLPageSize Env10/Com-10: "<1B>&l81H"
+
+*OpenUI *PageRegion/Page Region: PickOne
+*OrderDependency: 40 AnySetup *PageRegion
+*DefaultPageRegion: Letter
+*PageRegion Letter/Letter: "
+    <</PageSize [612 792] /ImagingBBox null>> setpagedevice"
+*End
+*PageRegion Legal/Legal: "
+    <</PageSize [612 1008] /ImagingBBox null>> setpagedevice"
+*End
+*PageRegion Executive/Executive: "
+    <</PageSize [522 756] /ImagingBBox null>> setpagedevice"
+*End
+*PageRegion A4/A4: "
+    <</PageSize [595 842] /ImagingBBox null>> setpagedevice"
+*End
+*PageRegion A5/A5: "
+    <</PageSize [420 595] /ImagingBBox null>> setpagedevice"
+*End
+*PageRegion B5/B5 (JIS): "
+    <</PageSize [516 729] /ImagingBBox null>> setpagedevice"
+*End
+*PageRegion Env10/Com-10: "
+    <</PageSize [297 684] /ImagingBBox null>> setpagedevice"
+*End
+*PageRegion EnvMonarch/Monarch: "
+    <</PageSize [279 540] /ImagingBBox null>> setpagedevice"
+*End
+*PageRegion EnvDL/DL: "
+    <</PageSize [312 624] /ImagingBBox null>> setpagedevice"
+*End
+*PageRegion EnvC5/C5: "
+    <</PageSize [459 649] /ImagingBBox null>> setpagedevice"
+*End
+*PageRegion EnvISOB5/B5 (ISO): "
+    <</PageSize [499 709] /ImagingBBox null>> setpagedevice"
+*End
+*PageRegion Custom/Custom Size: "pop pop pop
+<</PageSize [ 5 -2 roll ] /ImagingBBox null>>setpagedevice"
+*End
+*CloseUI: *PageRegion
+
+*OpenUI *Duplex/Duplex: PickOne
+*OrderDependency: 50 AnySetup *Duplex
+*DefaultDuplex: None
+*Duplex None/Off (1-Sided): "
+    <</Duplex false>> setpagedevice"
+*End
+*Duplex DuplexNoTumble/Flip on Long Edge (Standard): "
+    <</Duplex true /Tumble false>> setpagedevice"
+*End
+*Duplex DuplexTumble/Flip on Short Edge: "
+    <</Duplex true /Tumble true>> setpagedevice"
+*End
+*CloseUI: *Duplex
+*VMOption 16MB/Standard 16MB RAM: "6770000"
+*VMOption 32MB/32MB Total RAM: "23439000"
+*VMOption 48MB/48MB Total RAM: "31977000"
+*VMOption 64MB/64MB Total RAM: "31977000"
+*VMOption 80MB/80MB Total RAM: "31977000"
+*DefaultImageableArea: Letter
+*ImageableArea Letter/Letter: "12.24 12.06 599.76 780.06"
+*ImageableArea Legal/Legal: "12.24 12.06 599.76 996.06"
+*ImageableArea Executive/Executive: "13.32 12.06 508.68 744.06"
+*ImageableArea A4/A4: "13.44 12.06 581.76 829.74"
+*ImageableArea A5/A5: "12.00 12.00 408.00 583.00"
+*ImageableArea B5/B5 (JIS): "12.50 12.50 503.50 716.50"
+*ImageableArea Env10/Com-10: "12.12 12.06 284.76 672.06"
+*ImageableArea EnvMonarch/Monarch: "12.72 12.06 266.16 528.06"
+*ImageableArea EnvDL/DL: "13.80 12.06 297.96 611.58"
+*ImageableArea EnvC5/C5: "12.60 12.06 446.52 637.02"
+*ImageableArea EnvISOB5/B5 (ISO): "13.20 12.06 485.52 696.54"
+*ImageableArea Ledger/Ledger: "0 0 792 1224"
+*DefaultPaperDimension: Letter
+*PaperDimension Letter/Letter: "612 792"
+*PaperDimension Legal/Legal: "612 1008"
+*PaperDimension Executive/Executive: "522 756"
+*PaperDimension A4/A4: "595 842"
+*PaperDimension A5/A5: "420 595"
+*PaperDimension B5/B5 (JIS): "516 729"
+*PaperDimension Env10/Com-10: "297 684"
+*PaperDimension EnvMonarch/Monarch: "279 540"
+*PaperDimension EnvDL/DL: "312 624"
+*PaperDimension EnvC5/C5: "459 649"
+*PaperDimension EnvISOB5/B5 (ISO): "499 709"
+*PaperDimension Ledger/Ledger: "792 1224"
+*ParamCustomPageSize Width/Width: "1 points 36 100000"
+*ParamCustomPageSize Height/Height: "2 points 36 100000"
+*ParamCustomPageSize WidthOffset/Width Offset: "4 points 0 0"
+*ParamCustomPageSize HeightOffset/Height Offset: "5 points 0 0"
+*ParamCustomPageSize Orientation/Orientation: "3 int 0 0"
+*RequiresPageRegion All/All: "True"
+*FoomaticSystemOption Aliases/Aliases: "
+          duplex=Duplex&#x3d;DuplexNoTumble
+          simplex=Duplex&#x3d;None
+          DuplexNoTumble=Duplex&#x3d;DuplexNoTumble "
+*End
+*FoomaticSystemOption ForceInsert/Force Insert: "
+	0,JCLSetup:JCLSetup=*
+	"
+*End
+*FoomaticSystemOption UsePageRegion/Use Page Region: "
+	PageSize!=Letter
+ "
+*End
+*JCLSetup 1/1: "@PJL COMMENT JCL SETUP<0a>"
+
+*FoomaticRIPOption Foo: enum ps A 
+*FoomaticRIPDefault Foo: "Value1"
+*FoomaticRIPOptionSetting Foo=Value1: "%% Foo Value1 - Testing value o&&
+f Foo - \%s{Foo}
+"
+*End
+*FoomaticRIPOptionSetting Foo=Value2: "%% Foo Value2 - Testing value o&&
+f Foo - \%s{Foo}
+"
+*End
+
+*FoomaticRIPOption Foobool: bool ps A 
+*FoomaticRIPDefault Foobool: "False"
+*FoomaticRIPOptionSetting Foobool=False: "%% Foobool False
+"
+*End
+*FoomaticRIPOptionSetting Foobool=True: "%% Foobool True
+"
+*End
+
+*FoomaticRIPOption Foostr: string ps A 
+*FoomaticRIPDefault Foostr: "String 3"
+*FoomaticRIPOptionPrototype Foostr: "%% Foo %s
+"
+*End
+*FoomaticRIPAllowedChars Foostr: "\w\s"
+*FoomaticRIPAllowedRegExp Foostr: ".*"
+*FoomaticRIPMaxLength Foostr: "32"
+*FoomaticRIPOptionSetting Foostr=String_3: "String 3"
+*FoomaticRIPOptionSetting Foostr=Str1: "String 1"
+*FoomaticRIPOptionSetting Foostr=Str2: "String 2"
+
+*FoomaticRIPOption Fooint: int ps A 
+*FoomaticRIPDefault Fooint: "30"
+*FoomaticRIPOptionPrototype Fooint: "%% Fooint %s
+"
+*End
+*FoomaticRIPRange Fooint: "0 100"
+*FoomaticRIPOptionSetting Fooint=Int0: "1"
+*FoomaticRIPOptionSetting Fooint=Int1: "10"
+*FoomaticRIPOptionSetting Fooint=Int2: "20"
+*FoomaticRIPOptionSetting Fooint=Int3: "30"
+*FoomaticRIPOptionSetting Fooint=Int4: "40"
+*FoomaticRIPOptionSetting Fooint=Int5: "50"
+
+*FoomaticRIPOption Foointrange: int ps A 
+*FoomaticRIPDefault Foointrange: "30"
+*FoomaticRIPOptionPrototype Foointrange: "%% Foointrange %s
+"
+*End
+*FoomaticRIPRange Foointrange: "0 1000"
+
+*FoomaticRIPOption Foocomp: enum ps A 
+*FoomaticRIPDefault Foocomp: "V1"
+*FoomaticRIPOptionSetting Foocomp=V1: "Foo&#x3d;Value1
+"
+*End
+*FoomaticRIPOptionSetting Foocomp=V2: "Foo&#x3d;Value2
+"
+*End
+*JobPatchFile 1/1: "
+%% Patch 1
+"
+*End
+*JobPatchFile 2/2: "
+%% Patch 1
+"
+*End
+*PaperRegion Ledger/Ledger: "<</PageSize [792 1224] /ImagingBBox null>>setpagedevice"
+*UIConstraints: *Option1 False *InputSlot Lower
+*UIConstraints: *PageSize Legal *JCLResolution 600x600dpi
+*UIConstraints: *PageSize Letter *Foobool
+*UIConstraints: *Multi *PageSize Letter
+*NonUIConstraints: *CustomPageSize True *Duplex DuplexNoTumble

@@ -1,0 +1,945 @@
+%-12345X@PJL JOB
+@PJL COMMENT Setup=1
+@PJL COMMENT JCL SETUP
+@PJL COMMENT Resolution=600x600dpi
+@PJL SET RESOLUTION = 600
+@PJL ENTER LANGUAGE = POSTSCRIPT
+%!PS-Adobe-3.0
+%%Title: stdin
+%%For: Patrick Powell
+%%Creator: a2ps version 4.13
+%%CreationDate: Fri Dec 19 17:07:24 2003
+%%BoundingBox: 24 40 588 768
+%%DocumentData: Clean7Bit
+%%Orientation: Portrait
+%%Pages: 4
+%%PageOrder: Ascend
+%%DocumentMedia: Letterdj 612 792 0 () ()
+%%DocumentNeededResources: font Courier
+%%+ font Courier-Bold
+%%+ font Courier-BoldOblique
+%%+ font Courier-Oblique
+%%+ font Helvetica
+%%+ font Helvetica-Bold
+%%+ font Symbol
+%%+ font Times-Bold
+%%+ font Times-Roman
+%%DocumentProcessColors: Black 
+%%DocumentSuppliedResources: procset a2ps-a2ps-hdr
+%%+ procset a2ps-black+white-Prolog
+%%+ encoding ISO-8859-1Encoding
+%%EndComments
+/a2psdict 200 dict def
+a2psdict begin
+%%BeginProlog
+%%Copyright: (c) 1988, 89, 90, 91, 92, 93 Miguel Santana
+%%Copyright: (c) 1995, 96, 97, 98 Akim Demaille, Miguel Santana
+% Check PostScript language level.
+/languagelevel where {
+  pop /gs_languagelevel languagelevel def
+} {
+  /gs_languagelevel 1 def
+} ifelse
+
+% EPSF import as in the Red Book
+/BeginInclude {
+  /b4_Inc_state save def    		% Save state for cleanup
+  /dict_count countdictstack def	% Count objects on dict stack
+  /op_count count 1 sub def		% Count objects on operand stack 
+  userdict begin
+    0 setgray 0 setlinecap
+    1 setlinewidth 0 setlinejoin
+    10 setmiterlimit [ ] 0 setdash newpath
+    gs_languagelevel 1 ne {
+      false setstrokeadjust false setoverprint 
+    } if
+} bind def
+
+/EndInclude {
+  count op_count sub { pos } repeat	% Clean up stacks
+  countdictstack dict_count sub { end } repeat
+  b4_Inc_state restore
+} bind def
+
+/BeginEPSF {
+  BeginInclude
+  /showpage { } def
+} bind def
+
+/EndEPSF {
+  EndInclude
+} bind def
+
+% Page prefeed
+/page_prefeed {         % bool -> -
+  statusdict /prefeed known {
+    statusdict exch /prefeed exch put
+  } {
+    pop
+  } ifelse
+} bind def
+
+/deffont {
+  findfont exch scalefont def
+} bind def
+
+/reencode_font {
+  findfont reencode 2 copy definefont pop def
+} bind def
+
+% Function c-show (str => -)
+% centers text only according to x axis.
+/c-show { 
+  dup stringwidth pop
+  2 div neg 0 rmoveto
+  show
+} bind def
+
+% Function l-show (str => -)
+% prints texts so that it ends at currentpoint
+/l-show {
+  dup stringwidth pop neg 
+  0 
+  rmoveto show
+} bind def
+
+% center-fit show (str w => -)
+% show centered, and scale currentfont so that the width is less than w
+/cfshow {
+  exch dup stringwidth pop
+  % If the title is too big, try to make it smaller
+  3 2 roll 2 copy
+  gt
+  { % if, i.e. too big
+    exch div
+    currentfont exch scalefont setfont
+  } { % ifelse
+    pop pop 
+  }
+  ifelse
+  c-show			% center title
+} bind def
+
+% Return the y size of the current font
+% - => fontsize
+/currentfontsize {
+  currentfont /FontMatrix get 3 get 1000 mul
+} bind def
+
+% reencode the font
+% <encoding-vector> <fontdict> -> <newfontdict>
+/reencode { %def
+  dup length 5 add dict begin
+    { %forall
+      1 index /FID ne 
+      { def }{ pop pop } ifelse
+    } forall
+    /Encoding exch def
+
+    % Use the font's bounding box to determine the ascent, descent,
+    % and overall height; don't forget that these values have to be
+    % transformed using the font's matrix.
+    % We use `load' because sometimes BBox is executable, sometimes not.
+    % Since we need 4 numbers an not an array avoid BBox from being executed
+    /FontBBox load aload pop
+    FontMatrix transform /Ascent exch def pop
+    FontMatrix transform /Descent exch def pop
+    /FontHeight Ascent Descent sub def
+
+    % Define these in case they're not in the FontInfo (also, here
+    % they're easier to get to.
+    /UnderlinePosition 1 def
+    /UnderlineThickness 1 def
+    
+    % Get the underline position and thickness if they're defined.
+    currentdict /FontInfo known {
+      FontInfo
+      
+      dup /UnderlinePosition known {
+	dup /UnderlinePosition get
+	0 exch FontMatrix transform exch pop
+	/UnderlinePosition exch def
+      } if
+      
+      dup /UnderlineThickness known {
+	/UnderlineThickness get
+	0 exch FontMatrix transform exch pop
+	/UnderlineThickness exch def
+      } if
+      
+    } if
+    currentdict 
+  end 
+} bind def
+
+% Function print line number (<string> # -)
+/# {
+  gsave
+    sx cw mul neg 2 div 0 rmoveto
+    f# setfont
+    c-show
+  grestore
+} bind def
+
+% -------- Some routines to enlight plain b/w printings ---------
+
+% Underline
+% width --
+/dounderline {
+  currentpoint
+  gsave
+    moveto
+    0 currentfont /Descent get currentfontsize mul rmoveto
+    0 rlineto
+    stroke
+  grestore
+} bind def
+
+% Underline a string
+% string --
+/dounderlinestring {
+  stringwidth pop
+  dounderline
+} bind def
+
+/UL {
+  /ul exch store
+} bind def
+
+% Draw a box of WIDTH wrt current font
+% width --
+/dobox {
+  currentpoint
+  gsave
+    newpath
+    moveto
+    0 currentfont /Descent get currentfontsize mul rmoveto
+    dup 0 rlineto
+    0 currentfont /FontHeight get currentfontsize mul rlineto
+    neg 0 rlineto
+    closepath
+    stroke
+  grestore
+} bind def
+
+/BX {
+  /bx exch store
+} bind def
+
+% Box a string
+% string --
+/doboxstring {
+  stringwidth pop
+  dobox
+} bind def
+
+%
+% ------------- Color routines ---------------
+%
+/FG /setrgbcolor load def
+
+% Draw the background
+% width --
+/dobackground {
+  currentpoint
+  gsave
+    newpath
+    moveto
+    0 currentfont /Descent get currentfontsize mul rmoveto
+    dup 0 rlineto
+    0 currentfont /FontHeight get currentfontsize mul rlineto
+    neg 0 rlineto
+    closepath
+    bgcolor aload pop setrgbcolor
+    fill
+  grestore
+} bind def
+
+% Draw bg for a string
+% string --
+/dobackgroundstring {
+  stringwidth pop
+  dobackground
+} bind def
+
+
+/BG {
+  dup /bg exch store
+  { mark 4 1 roll ] /bgcolor exch store } if
+} bind def
+
+
+/Show {
+  bg { dup dobackgroundstring } if
+  ul { dup dounderlinestring } if
+  bx { dup doboxstring } if
+  show
+} bind def
+
+% Function T(ab), jumps to the n-th tabulation in the current line
+/T {
+  cw mul x0 add
+  bg { dup currentpoint pop sub dobackground } if
+  ul { dup currentpoint pop sub dounderline } if
+  bx { dup currentpoint pop sub dobox } if
+  y0 moveto
+} bind def
+
+% Function n: move to the next line
+/n {
+  /y0 y0 bfs sub store
+  x0 y0 moveto
+} bind def
+
+% Function N: show and move to the next line
+/N {
+  Show
+  /y0 y0 bfs sub store
+  x0 y0 moveto
+} bind def
+
+/S {
+  Show
+} bind def
+
+%%BeginResource: procset a2ps-a2ps-hdr 2.0 2
+%%Copyright: (c) 1988, 89, 90, 91, 92, 93 Miguel Santana
+%%Copyright: (c) 1995, 96, 97, 98 Akim Demaille, Miguel Santana
+% Function title: prints page header.
+% <ct> <rt> <lt> are passed as argument
+/title { 
+  % 1. Draw the background
+  x v get y v get moveto
+  gsave
+    0 th 2 div neg rmoveto 
+    th setlinewidth
+    0.95 setgray
+    pw 0 rlineto stroke
+  grestore
+  % 2. Border it
+  gsave
+    0.7 setlinewidth
+    pw 0 rlineto
+    0 th neg rlineto
+    pw neg 0 rlineto
+    closepath stroke
+  grestore
+  % stk: ct rt lt
+  x v get y v get th sub 1 add moveto
+%%IncludeResource: font Helvetica
+  fHelvetica fnfs 0.8 mul scalefont setfont
+  % 3. The left title
+  gsave
+    dup stringwidth pop fnfs 0.8 mul add exch % leave space took on stack
+    fnfs 0.8 mul hm rmoveto
+    show			% left title
+  grestore
+  exch
+  % stk: ct ltw rt
+  % 4. the right title
+  gsave
+    dup stringwidth pop fnfs 0.8 mul add exch % leave space took on stack
+    dup
+    pw exch stringwidth pop fnfs 0.8 mul add sub
+    hm
+    rmoveto
+    show			% right title
+  grestore
+  % stk: ct ltw rtw
+  % 5. the center title
+  gsave
+    pw 3 1 roll
+    % stk: ct pw ltw rtw
+    3 copy 
+    % Move to the center of the left room
+    sub add 2 div hm rmoveto
+    % What is the available space in here?
+    add sub fnfs 0.8 mul sub fnfs 0.8 mul sub
+    % stk: ct space_left
+%%IncludeResource: font Helvetica-Bold
+  fHelvetica-Bold fnfs scalefont setfont
+    cfshow
+  grestore
+} bind def
+
+% Function border: prints virtual page border
+/border { %def
+  gsave				% print four sides
+    0 setgray
+    x v get y v get moveto
+    0.7 setlinewidth		% of the square
+    pw 0 rlineto
+    0 ph neg rlineto
+    pw neg 0 rlineto
+    closepath stroke
+  grestore
+} bind def
+
+% Function water: prints a water mark in background
+/water { %def
+  gsave
+    scx scy moveto rotate
+%%IncludeResource: font Times-Bold
+  fTimes-Bold 100 scalefont setfont
+    .97 setgray
+    dup stringwidth pop 2 div neg -50 rmoveto
+    show
+  grestore
+} bind def
+
+% Function rhead: prints the right header
+/rhead {  %def
+  lx ly moveto
+  fHelvetica fnfs 0.8 mul scalefont setfont
+  l-show
+} bind def
+
+% Function footer (cf rf lf -> -)
+/footer {
+  fHelvetica fnfs 0.8 mul scalefont setfont
+  dx dy moveto
+  show
+
+  snx sny moveto
+  l-show
+  
+  fnx fny moveto
+  c-show
+} bind def
+%%EndResource
+%%BeginResource: procset a2ps-black+white-Prolog 2.0 1
+
+% Function T(ab), jumps to the n-th tabulation in the current line
+/T { 
+  cw mul x0 add y0 moveto
+} bind def
+
+% Function n: move to the next line
+/n { %def
+  /y0 y0 bfs sub store
+  x0 y0 moveto
+} bind def
+
+% Function N: show and move to the next line
+/N {
+  Show
+  /y0 y0 bfs sub store
+  x0 y0 moveto
+}  bind def
+
+/S {
+  Show
+} bind def
+
+/p {
+  false UL
+  false BX
+  fCourier bfs scalefont setfont
+  Show
+} bind def
+
+/sy {
+  false UL
+  false BX
+  fSymbol bfs scalefont setfont
+  Show
+} bind def
+
+/k {
+  false UL
+  false BX
+  fCourier-Oblique bfs scalefont setfont
+  Show
+} bind def
+
+/K {
+  false UL
+  false BX
+  fCourier-Bold bfs scalefont setfont
+  Show
+} bind def
+
+/c {
+  false UL
+  false BX
+  fCourier-Oblique bfs scalefont setfont
+  Show
+} bind def
+
+/C {
+  false UL
+  false BX
+  fCourier-BoldOblique bfs scalefont setfont
+  Show 
+} bind def
+
+/l {
+  false UL
+  false BX
+  fHelvetica bfs scalefont setfont
+  Show
+} bind def
+
+/L {
+  false UL
+  false BX
+  fHelvetica-Bold bfs scalefont setfont
+  Show 
+} bind def
+
+/str{
+  false UL
+  false BX
+  fTimes-Roman bfs scalefont setfont
+  Show
+} bind def
+
+/e{
+  false UL
+  true BX
+  fHelvetica-Bold bfs scalefont setfont
+  Show
+} bind def
+
+%%EndResource
+%%EndProlog
+%%BeginSetup
+%%FoomaticRIPOptionSetting: *Foocomp=V1
+%%  Foo=Value1 
+%%EndFeature
+%%FoomaticRIPOptionSetting: *Foo=@Value1
+[{
+%% Foo Value1 - Testing value of Foo - Value1
+ } stopped cleartomark
+%%EndFeature
+%%FoomaticRIPOptionSetting: *Foobool=False
+[{
+%% Foobool False
+ } stopped cleartomark
+%%EndFeature
+%%FoomaticRIPOptionSetting: *Fooint=30
+[{
+%% Fooint 30
+ } stopped cleartomark
+%%EndFeature
+%%FoomaticRIPOptionSetting: *Foointrange=30
+[{
+%% Foointrange 30
+ } stopped cleartomark
+%%EndFeature
+%%FoomaticRIPOptionSetting: *Foostr=String 3
+[{
+%% Foo String 3
+ } stopped cleartomark
+%%EndFeature
+%%FoomaticRIPOptionSetting: *JobPatchFile=1,2
+[{
+%% Patch 1
+
+%% Patch 1
+ } stopped cleartomark
+%%EndFeature
+%%FoomaticRIPOptionSetting: *HPPaperPolicy=NearestSizeNoAdjust
+[{
+   <</DeferredMediaSelection false
+     /Policies << /PageSize 5 >> >> setpagedevice } stopped cleartomark
+%%EndFeature
+%%FoomaticRIPOptionSetting: *Multi=noChoice1,noChoice2,noChoice3,noChoice4
+%%EndFeature
+%%FoomaticRIPOptionSetting: *PageSize=Letter
+[{
+    <</PageSize [612 792] /ImagingBBox null>> setpagedevice } stopped cleartomark
+%%EndFeature
+%%FoomaticRIPOptionSetting: *PageRegion=Letter
+[{
+    <</PageSize [612 792] /ImagingBBox null>> setpagedevice } stopped cleartomark
+%%EndFeature
+%%FoomaticRIPOptionSetting: *Duplex=None
+[{
+    <</Duplex false>> setpagedevice } stopped cleartomark
+%%EndFeature
+%%IncludeResource: font Courier
+%%IncludeResource: font Courier-Oblique
+%%IncludeResource: font Courier-Bold
+%%IncludeResource: font Times-Roman
+%%IncludeResource: font Symbol
+%%IncludeResource: font Courier-BoldOblique
+%%BeginResource: encoding ISO-8859-1Encoding
+/ISO-8859-1Encoding [
+/.notdef /.notdef /.notdef /.notdef /.notdef /.notdef /.notdef /.notdef 
+/.notdef /.notdef /.notdef /.notdef /.notdef /.notdef /.notdef /.notdef 
+/.notdef /.notdef /.notdef /.notdef /.notdef /.notdef /.notdef /.notdef 
+/.notdef /.notdef /.notdef /.notdef /.notdef /.notdef /.notdef /.notdef 
+/space /exclam /quotedbl /numbersign /dollar /percent /ampersand /quoteright 
+/parenleft /parenright /asterisk /plus /comma /minus /period /slash 
+/zero /one /two /three /four /five /six /seven 
+/eight /nine /colon /semicolon /less /equal /greater /question 
+/at /A /B /C /D /E /F /G 
+/H /I /J /K /L /M /N /O 
+/P /Q /R /S /T /U /V /W 
+/X /Y /Z /bracketleft /backslash /bracketright /asciicircum /underscore 
+/quoteleft /a /b /c /d /e /f /g 
+/h /i /j /k /l /m /n /o 
+/p /q /r /s /t /u /v /w 
+/x /y /z /braceleft /bar /braceright /asciitilde /.notdef 
+/.notdef /.notdef /.notdef /.notdef /.notdef /.notdef /.notdef /.notdef 
+/.notdef /.notdef /.notdef /.notdef /.notdef /.notdef /.notdef /.notdef 
+/.notdef /.notdef /.notdef /.notdef /.notdef /.notdef /.notdef /.notdef 
+/.notdef /.notdef /.notdef /.notdef /.notdef /.notdef /.notdef /.notdef 
+/space /exclamdown /cent /sterling /currency /yen /brokenbar /section 
+/dieresis /copyright /ordfeminine /guillemotleft /logicalnot /hyphen /registered /macron 
+/degree /plusminus /twosuperior /threesuperior /acute /mu /paragraph /bullet 
+/cedilla /onesuperior /ordmasculine /guillemotright /onequarter /onehalf /threequarters /questiondown 
+/Agrave /Aacute /Acircumflex /Atilde /Adieresis /Aring /AE /Ccedilla 
+/Egrave /Eacute /Ecircumflex /Edieresis /Igrave /Iacute /Icircumflex /Idieresis 
+/Eth /Ntilde /Ograve /Oacute /Ocircumflex /Otilde /Odieresis /multiply 
+/Oslash /Ugrave /Uacute /Ucircumflex /Udieresis /Yacute /Thorn /germandbls 
+/agrave /aacute /acircumflex /atilde /adieresis /aring /ae /ccedilla 
+/egrave /eacute /ecircumflex /edieresis /igrave /iacute /icircumflex /idieresis 
+/eth /ntilde /ograve /oacute /ocircumflex /otilde /odieresis /divide 
+/oslash /ugrave /uacute /ucircumflex /udieresis /yacute /thorn /ydieresis 
+] def
+%%EndResource
+% Initialize page description variables.
+/sh 792 def
+/sw 612 def
+/llx 24 def
+/urx 588 def
+/ury 768 def
+/lly 40 def
+/#copies 1 def
+/th 20.000000 def
+/fnfs 15 def
+/bfs 11.547912 def
+/cw 6.928747 def
+
+% Dictionary for ISO-8859-1 support
+/iso1dict 8 dict begin
+  /fCourier ISO-8859-1Encoding /Courier reencode_font
+  /fCourier-Bold ISO-8859-1Encoding /Courier-Bold reencode_font
+  /fCourier-BoldOblique ISO-8859-1Encoding /Courier-BoldOblique reencode_font
+  /fCourier-Oblique ISO-8859-1Encoding /Courier-Oblique reencode_font
+  /fHelvetica ISO-8859-1Encoding /Helvetica reencode_font
+  /fHelvetica-Bold ISO-8859-1Encoding /Helvetica-Bold reencode_font
+  /fTimes-Bold ISO-8859-1Encoding /Times-Bold reencode_font
+  /fTimes-Roman ISO-8859-1Encoding /Times-Roman reencode_font
+currentdict end def
+/bgcolor [ 0 0 0 ] def
+/bg false def
+/ul false def
+/bx false def
+% The font for line numbering
+/f# /Helvetica findfont bfs .6 mul scalefont def
+/fSymbol /Symbol findfont def
+/hm fnfs 0.25 mul def
+/pw
+   cw 81.400000 mul
+def
+/ph
+   677.862414 th add
+def
+/pmw 0 def
+/pmh 0 def
+/v 0 def
+/x [
+  0
+] def
+/y [
+  pmh ph add 0 mul ph add
+] def
+/scx sw 2 div def
+/scy sh 2 div def
+/snx urx def
+/sny lly 2 add def
+/dx llx def
+/dy sny def
+/fnx scx def
+/fny dy def
+/lx snx def
+/ly ury fnfs 0.8 mul sub def
+/sx 0 def
+/tab 8 def
+/x0 0 def
+/y0 0 def
+%%EndSetup
+
+%%Page: (1) 1
+%%BeginPageSetup
+/pagesave save def
+%%EndPageSetup
+iso1dict begin
+gsave
+llx lly 12 add translate
+/v 0 store
+/x0 x v get 4.850123 add sx cw mul add store
+/y0 y v get bfs th add sub store
+x0 y0 moveto
+(Documentation page for the Foomatic Foo4000 Series PS) p n
+() N
+(Invokation summary for the Foomatic Foo4000 Series PS) N
+() N
+(Use the following command line:) N
+() N
+(lpr -P <printer> -Z <option>=<choice> -Z <switch>=<True/False>) N
+(   -Z <num. option>=<value> -Z <string option>=<string> <file>) N
+() N
+(The following aliases are available for this printer:) N
+() N
+(   duplex \(Duplex=DuplexNoTumble\) simplex \(Duplex=None\) DuplexNoTumble \(Duplex=D) N
+(uplexNoTumble\)) N
+() N
+(The following options are available for this printer:) N
+() N
+(Option 'Duplex':) N
+(  Duplex) N
+(  An enumerated choice argument) N
+(  Possible choices:) N
+(   o None: Off \(1-Sided\)) N
+(   o DuplexNoTumble: Flip on Long Edge \(Standard\)) N
+(   o DuplexTumble: Flip on Short Edge) N
+(  Default: None) N
+(  Example: -Z Duplex=DuplexTumble) N
+() N
+(Option 'Foo':) N
+(  Foo) N
+(  An enumerated choice argument) N
+(  Possible choices:) N
+(   o Value1: Value1) N
+(   o Value2: Value2) N
+(  Default: Value1) N
+(  Example: -Z Foo=Value2) N
+() N
+(Option 'FooOption1':) N
+(  Foo Option 1) N
+(  A boolean argument) N
+(  Possible choices:) N
+(   o True: Installed) N
+(   o False: Not Installed) N
+(  Default: True) N
+(  Example: -Z FooOption1=True) N
+() N
+(Option 'FooOption2':) N
+(  Foo Option 2) N
+(  A boolean argument) N
+(  Possible choices:) N
+(   o True: Installed) N
+(   o False: Not Installed) N
+(  Default: True) N
+(  Example: -Z FooOption2=True) N
+() N
+(Option 'Foobool':) N
+(  Foobool) N
+(  A boolean argument) N
+(  Possible choices:) N
+(   o True: True) N
+(stdin) (Page 1/4) (Dec 19, 03 17:07) title
+border
+grestore
+(Printed by Patrick Powell) rhead
+() (1/4) (Friday December 19, 2003) footer
+end % of iso1dict
+pagesave restore
+showpage
+%%Page: (2) 2
+%%BeginPageSetup
+/pagesave save def
+%%EndPageSetup
+iso1dict begin
+gsave
+llx lly 12 add translate
+/v 0 store
+/x0 x v get 4.850123 add sx cw mul add store
+/y0 y v get bfs th add sub store
+x0 y0 moveto
+(   o False: False) p n
+(  Default: True) N
+(  Example: -Z Foobool=True) N
+() N
+(Option 'Foocomp':) N
+(  Foocomp) N
+(  An enumerated choice argument) N
+(  Possible choices:) N
+(   o V1: V1) N
+(   o V2: V2) N
+(  Default: V1) N
+(  Example: -Z Foocomp=V2) N
+() N
+(Option 'Fooint':) N
+(  Fooint) N
+(  An integer number argument) N
+(  Range: 0 <= x <= 100) N
+(  Default: 30) N
+(  Example: -Z Fooint=30 \() N
+(% Fooint 30) N
+(\)) N
+() N
+(Option 'Foointrange':) N
+(  Foointrange) N
+(  An integer number argument) N
+(  Range: 0 <= x <= 1000) N
+(  Default: 30) N
+(  Example: -Z Foointrange=30 \() N
+(% Foointrange 30) N
+(\)) N
+() N
+(Option 'Foostr':) N
+(  Foostr) N
+(  A string argument) N
+(  Maximum length: 32 characters) N
+(  Default: String 3) N
+(  Examples/special settings:) N
+(   o -Z Foostr=String_3 \(") N
+(%% Foo String 3) N
+(", String 3\)) N
+(   o -Z Foostr=Str1 \(") N
+(%% Foo String 1) N
+("\)) N
+(   o -Z Foostr=Str2 \(") N
+(%% Foo String 2) N
+("\)) N
+() N
+(Option 'HPPaperPolicy':) N
+(  Fit to Page) N
+(  An enumerated choice argument) N
+(  Possible choices:) N
+(   o NearestSizeNoAdjust: Nearest Size and Crop) N
+(   o PromptUser: Prompt User) N
+(   o NearestSizeAdjust: Nearest Size and Scale) N
+(  Default: NearestSizeNoAdjust) N
+(  Example: -Z HPPaperPolicy=NearestSizeAdjust) N
+() N
+(Option 'InstalledMemory':) N
+(stdin) (Page 2/4) (Dec 19, 03 17:07) title
+border
+grestore
+(Printed by Patrick Powell) rhead
+() (Friday December 19, 2003) (2/4) footer
+end % of iso1dict
+pagesave restore
+showpage
+%%Page: (3) 3
+%%BeginPageSetup
+/pagesave save def
+%%EndPageSetup
+iso1dict begin
+gsave
+llx lly 12 add translate
+/v 0 store
+/x0 x v get 4.850123 add sx cw mul add store
+/y0 y v get bfs th add sub store
+x0 y0 moveto
+(  Installed RAM) p n
+(  An enumerated choice argument) N
+(  Possible choices:) N
+(   o 16MB: Standard 16MB RAM) N
+(   o 32MB: 32MB Total RAM) N
+(   o 48MB: 48MB Total RAM) N
+(   o 64MB: 64MB Total RAM) N
+(   o 80MB: 80MB Total RAM) N
+(  Default: 16MB) N
+(  Example: -Z InstalledMemory=80MB) N
+() N
+(Option 'Multi':) N
+(  PickMany Test) N
+(  A pickmany choice argument) N
+(  Possible choices:) N
+(   o Choice1: Choice One) N
+(   o Choice2: Choice Two) N
+(   o Choice3: Choice Three) N
+(   o Choice4: Choice Four) N
+(  Default: noChoice1,noChoice2,noChoice3,noChoice4) N
+(  Example: -Z Multi=Choice4) N
+() N
+(Option 'Option1':) N
+(  Tray 3) N
+(  A boolean argument) N
+(  Possible choices:) N
+(   o True: Installed) N
+(   o False: Not Installed) N
+(  Default: True) N
+(  Example: -Z Option1=True) N
+() N
+(Option 'PageSize':) N
+(  Page Size) N
+(  An enumerated choice argument) N
+(  Possible choices:) N
+(   o Letter: Letter) N
+(   o Legal: Legal) N
+(   o Ledger: Ledger) N
+(   o Executive: Executive) N
+(   o A4: A4) N
+(   o A5: A5) N
+(   o B5: B5 \(JIS\)) N
+(   o Env10: Com-10) N
+(   o EnvMonarch: Monarch) N
+(   o EnvDL: DL) N
+(   o EnvC5: C5) N
+(   o EnvISOB5: B5 \(ISO\)) N
+(   o Custom: Custom Size) N
+(  Default: Letter) N
+(  Example: -Z PageSize=Custom) N
+() N
+(  Custom size: -Z PageSize=Custom.<width>x<height>[<unit>]) N
+(               Units: pt \(default\), in, cm, mm) N
+(  Example: -Z PageSize=Custom.4.0x6.0in) N
+() N
+(Option 'Resolution':) N
+(  Resolution) N
+(  An enumerated choice argument) N
+(stdin) (Page 3/4) (Dec 19, 03 17:07) title
+border
+grestore
+(Printed by Patrick Powell) rhead
+() (3/4) (Friday December 19, 2003) footer
+end % of iso1dict
+pagesave restore
+showpage
+%%Page: (4) 4
+%%BeginPageSetup
+/pagesave save def
+%%EndPageSetup
+iso1dict begin
+gsave
+llx lly 12 add translate
+/v 0 store
+/x0 x v get 4.850123 add sx cw mul add store
+/y0 y v get bfs th add sub store
+x0 y0 moveto
+(  Possible choices:) p n
+(   o 600x600dpi: 600 dpi) N
+(   o 300x300dpi: 300 dpi) N
+(   o 1200x1200dpi: ProRes 1200) N
+(  Default: 600x600dpi) N
+(  Example: -Z Resolution=1200x1200dpi) N
+() N
+(Option 'SubFooOption1':) N
+(  SubFoo Option 1) N
+(  A boolean argument) N
+(  Possible choices:) N
+(   o True: Installed) N
+(   o False: Not Installed) N
+(  Default: True) N
+(  Example: -Z SubFooOption1=True) N
+() N
+(Option 'SubFooOption2':) N
+(  SubFoo Option 2) N
+(  A boolean argument) N
+(  Possible choices:) N
+(   o True: Installed) N
+(   o False: Not Installed) N
+(  Default: True) N
+(  Example: -Z SubFooOption2=True) N
+() N
+(stdin) (Page 4/4) (Dec 19, 03 17:07) title
+border
+grestore
+(Printed by Patrick Powell) rhead
+() (Friday December 19, 2003) (4/4) footer
+end % of iso1dict
+pagesave restore
+showpage
+
+%%Trailer
+end
+%%EOF
+%-12345X@PJL EOJ

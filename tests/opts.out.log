@@ -1,0 +1,22 @@
+foomatic-rip version $Revision$ running...
+Options: -d', '--ppd=./tests/parse.ppd', '--config', './tests/filter.conf.test',
+   '-ZPageSize=letter', '-Zeven:pagesize=legal', '-Zsimplex'
+Parsing PPD file './tests/parse.ppd' ...
+Opening PPD file './tests/parse.ppd'
+Expanding Composite Option Defaults
+Pondering option 'Foocomp="V1"'
+ Maps to Foocomp='V1'
+Pondering option '@Foocomp@Foo=Value1'
+ Maps to Foo='Value1', controlled by Foocomp
+Parameter Summary
+-----------------
+Spooler: lprng
+Printer: 
+PPD file: ./tests/parse.ppd
+Printer model: PP Foo 4000 Series PS
+Job title: 
+File(s) to be printed: <STDIN>
+Output will be redirected to: ( echo POSTPIPE >&2; /bin/cat ) 
+Generating documentation page for the PP Foo 4000 Series PS
+Docgenerator finished
+Doc generator: status 0

@@ -1,0 +1,198 @@
+Documentation page for the Foomatic Foo4000 Series PS
+
+Invokation summary for the Foomatic Foo4000 Series PS
+
+Use the following command line:
+
+lpr -P <printer> -Z <option>=<choice> -Z <switch>=<True/False>
+   -Z <num. option>=<value> -Z <string option>=<string> <file>
+
+The following aliases are available for this printer:
+
+   duplex (Duplex=DuplexNoTumble) simplex (Duplex=None) DuplexNoTumble (Duplex=DuplexNoTumble)
+
+The following options are available for this printer:
+
+Option 'Duplex':
+  Duplex
+  An enumerated choice argument
+  Possible choices:
+   o None: Off (1-Sided)
+   o DuplexNoTumble: Flip on Long Edge (Standard)
+   o DuplexTumble: Flip on Short Edge
+  Default: None
+  Example: -Z Duplex=DuplexTumble
+
+Option 'Foo':
+  Foo
+  An enumerated choice argument
+  Possible choices:
+   o Value1: Value1
+   o Value2: Value2
+  Default: Value1
+  Example: -Z Foo=Value2
+
+Option 'FooOption1':
+  Foo Option 1
+  A boolean argument
+  Possible choices:
+   o True: Installed
+   o False: Not Installed
+  Default: True
+  Example: -Z FooOption1=True
+
+Option 'FooOption2':
+  Foo Option 2
+  A boolean argument
+  Possible choices:
+   o True: Installed
+   o False: Not Installed
+  Default: True
+  Example: -Z FooOption2=True
+
+Option 'Foobool':
+  Foobool
+  A boolean argument
+  Possible choices:
+   o True: True
+   o False: False
+  Default: True
+  Example: -Z Foobool=True
+
+Option 'Foocomp':
+  Foocomp
+  An enumerated choice argument
+  Possible choices:
+   o V1: V1
+   o V2: V2
+  Default: V1
+  Example: -Z Foocomp=V2
+
+Option 'Fooint':
+  Fooint
+  An integer number argument
+  Range: 0 <= x <= 100
+  Default: 30
+  Example: -Z Fooint=30 (
+% Fooint 30
+)
+
+Option 'Foointrange':
+  Foointrange
+  An integer number argument
+  Range: 0 <= x <= 1000
+  Default: 30
+  Example: -Z Foointrange=30 (
+% Foointrange 30
+)
+
+Option 'Foostr':
+  Foostr
+  A string argument
+  Maximum length: 32 characters
+  Default: String 3
+  Examples/special settings:
+   o -Z Foostr=String_3 ("
+%% Foo String 3
+", String 3)
+   o -Z Foostr=Str1 ("
+%% Foo String 1
+")
+   o -Z Foostr=Str2 ("
+%% Foo String 2
+")
+
+Option 'HPPaperPolicy':
+  Fit to Page
+  An enumerated choice argument
+  Possible choices:
+   o NearestSizeNoAdjust: Nearest Size and Crop
+   o PromptUser: Prompt User
+   o NearestSizeAdjust: Nearest Size and Scale
+  Default: NearestSizeNoAdjust
+  Example: -Z HPPaperPolicy=NearestSizeAdjust
+
+Option 'InstalledMemory':
+  Installed RAM
+  An enumerated choice argument
+  Possible choices:
+   o 16MB: Standard 16MB RAM
+   o 32MB: 32MB Total RAM
+   o 48MB: 48MB Total RAM
+   o 64MB: 64MB Total RAM
+   o 80MB: 80MB Total RAM
+  Default: 16MB
+  Example: -Z InstalledMemory=80MB
+
+Option 'Multi':
+  PickMany Test
+  A pickmany choice argument
+  Possible choices:
+   o Choice1: Choice One
+   o Choice2: Choice Two
+   o Choice3: Choice Three
+   o Choice4: Choice Four
+  Default: noChoice1,noChoice2,noChoice3,noChoice4
+  Example: -Z Multi=Choice4
+
+Option 'Option1':
+  Tray 3
+  A boolean argument
+  Possible choices:
+   o True: Installed
+   o False: Not Installed
+  Default: True
+  Example: -Z Option1=True
+
+Option 'PageSize':
+  Page Size
+  An enumerated choice argument
+  Possible choices:
+   o Letter: Letter
+   o Legal: Legal
+   o Ledger: Ledger
+   o Executive: Executive
+   o A4: A4
+   o A5: A5
+   o B5: B5 (JIS)
+   o Env10: Com-10
+   o EnvMonarch: Monarch
+   o EnvDL: DL
+   o EnvC5: C5
+   o EnvISOB5: B5 (ISO)
+   o Custom: Custom Size
+  Default: Letter
+  Example: -Z PageSize=Custom
+
+  Custom size: -Z PageSize=Custom.<width>x<height>[<unit>]
+               Units: pt (default), in, cm, mm
+  Example: -Z PageSize=Custom.4.0x6.0in
+
+Option 'Resolution':
+  Resolution
+  An enumerated choice argument
+  Possible choices:
+   o 600x600dpi: 600 dpi
+   o 300x300dpi: 300 dpi
+   o 1200x1200dpi: ProRes 1200
+  Default: 600x600dpi
+  Example: -Z Resolution=1200x1200dpi
+
+Option 'SubFooOption1':
+  SubFoo Option 1
+  A boolean argument
+  Possible choices:
+   o True: Installed
+   o False: Not Installed
+  Default: True
+  Example: -Z SubFooOption1=True
+
+Option 'SubFooOption2':
+  SubFoo Option 2
+  A boolean argument
+  Possible choices:
+   o True: Installed
+   o False: Not Installed
+  Default: True
+  Example: -Z SubFooOption2=True
+

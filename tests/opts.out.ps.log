@@ -1,0 +1,84 @@
+foomatic-rip version $Revision$ running...
+Options: --config', './filter.conf.test', '-lprng', '--ppd',
+   './parse.ppd', '-ZPageSize=letter', '-Zeven:pagesize=legal',
+   '-Zsimplex', '-Zdocs'
+Parsing PPD file './parse.ppd' ...
+Opening PPD file './parse.ppd'
+Expanding Composite Option Defaults
+Pondering option 'Foocomp="V1"'
+ Maps to Foocomp='V1'
+Pondering option '@Foocomp@Foo=Value1'
+ Maps to Foo='Value1', controlled by Foocomp
+Parameter Summary
+-----------------
+Spooler: lprng
+Printer: 
+PPD file: ./parse.ppd
+Printer model: PP Foo 4000 Series PS
+Job title: 
+File(s) to be printed: <STDIN>
+Output will be redirected to: ( echo POSTPIPE >&2; /bin/cat ) 
+Generating documentation page for the PP Foo 4000 Series PS
+Docgenerator finished
+================================================
+File: <STDIN>
+================================================
+Reading PostScript input ...
+Job does not appear to be PostScript.
+Starting file converter 'a2ps -1 --medium=Letterdj  -o -'
+Reading PostScript input ...
+Logger (File Converter): [stdin (plain): 3 pages on 3 sheets]
+File contains PostScript
+--> This document is DSC-conforming!
+-----------
+Found: %%BeginProlog
+Logger (File Converter): [Total: 3 pages on 3 sheets] sent to the standard output
+Inserting option code into "Prolog" section.
+Logger (File Converter): [1 line wrapped]
+Found: %%EndProlog
+-----------
+Found: %%BeginSetup
+Logger (File Converter): status 0
+Inserting option code into "Setup" section.
+Found: %%EndSetup
+-----------
+New page:  (1) 1
+Found: %%BeginPageSetup
+Found: %%EndPageSetup
+End of page header
+Start of new page found and previous not printed; print it now.
+Found: %%Page: (2) 2
+ --> Output going directly to the renderer now.
+Renderer command: cat 
+Starting postpipe "( echo POSTPIPE >&2; /bin/cat ) "
+Starting renderer 'cat '
+Logger (PostPipe): POSTPIPE
+-----------
+New page:  (2) 2
+Found:  %%Page: (2) 2
+ --> Output going to the FIFO buffer now.
+Found: %%BeginPageSetup
+Found: %%EndPageSetup
+End of page header
+Start of new page found and previous not printed; print it now.
+Found: %%Page: (3) 3
+ --> Output going directly to the renderer now.
+Renderer command: cat 
+-----------
+New page:  (3) 3
+Found:  %%Page: (3) 3
+ --> Output going to the FIFO buffer now.
+Found: %%BeginPageSetup
+Found: %%EndPageSetup
+End of page header
+Flushing FIFO.
+Renderer command: cat 
+File converter: status 0
+Closing renderer
+Logger (Render): status 0
+Renderer: status 0
+Fixup: status 0
+Document generator: process 34400 exited, status 0
+Logger (PostPipe): status 0
+PostPipe: status 0
+Closing foomatic-rip.

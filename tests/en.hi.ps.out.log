@@ -1,0 +1,67 @@
+foomatic-rip version $Revision$ running...
+Options: --config', './en.filter.conf.test', '--lprng', '--ppd',
+   './parse.ppd', '-ZPageSize=letter', '-Zeven:pagesize=legal',
+   '-Zsimplex'
+Parsing PPD file './parse.ppd' ...
+Opening PPD file './parse.ppd'
+Expanding Composite Option Defaults
+Pondering option 'Foocomp="V1"'
+ Maps to Foocomp='V1'
+Pondering option '@Foocomp@Foo=Value1'
+ Maps to Foo='Value1', controlled by Foocomp
+Parameter Summary
+-----------------
+Spooler: lprng
+Printer: 
+PPD file: ./parse.ppd
+Printer model: PP Foo 4000 Series PS
+Job title: 
+File(s) to be printed: <STDIN>
+Fixing User Options
+Pondering option 'PageSize=letter'
+ Maps to PageSize='Letter'
+Pondering option 'even:pagesize=legal'
+ Maps to even:PageSize='Legal'
+Pondering option 'simplex'
+ Option simplex is alias for duplex=none
+Pondering option 'duplex=none'
+ Maps to Duplex='None'
+Final Options Values:  Duplex=None PageSize=Letter even:PageSize=Legal
+Output will be redirected to: ( echo POSTPIPE >&2; /bin/cat ) 
+================================================
+File: <STDIN>
+================================================
+Reading PostScript input ...
+Job does not appear to be PostScript.
+Starting file converter 'enscript -G -M Letter -b "Page $%|" --margins=36:36:36:36 --mark-wrapped-lines=arrow --word-wrap -p-'
+Reading PostScript input ...
+Logger (File Converter): [ 1 pages * 1 copy ] left in -
+File contains PostScript
+--> This document is DSC-conforming!
+-----------
+Found: %%BeginProlog
+Logger (File Converter): status 0
+Inserting option code into "Prolog" section.
+Found: %%EndProlog
+-----------
+Found: %%BeginSetup
+Inserting option code into "Setup" section.
+Found: %%EndSetup
+-----------
+New page:  (1) 1
+Found: %%BeginPageSetup
+Found: %%EndPageSetup
+End of page header
+Flushing FIFO.
+Renderer command: cat 
+Starting postpipe "( echo POSTPIPE >&2; /bin/cat ) "
+Starting renderer 'cat '
+Logger (PostPipe): POSTPIPE
+File converter: status 0
+Closing renderer
+Logger (Render): status 0
+Renderer: status 0
+Fixup: status 0
+Logger (PostPipe): status 0
+PostPipe: status 0
+Closing foomatic-rip.
