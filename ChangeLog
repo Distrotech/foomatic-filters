@@ -1,3 +1,11 @@
+2003-03-22  Till Kamppeter <till.kamppeter@gmx.net>
+
+	* *: Tagged CVS for the release of foomatic-filters 3.0.0beta2. 
+	  Tag name: "foomatic-filters-3_0_0beta2".
+
+	* README, USAGE, foomatic-rip.1.in: Updated for version
+	  3.0.0beta2.
+
 2003-03-07  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* foomatic-rip.in: Workaround for bug in OpenOffice.org.

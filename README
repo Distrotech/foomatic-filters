@@ -1,5 +1,5 @@
 
-Foomatic 3.0.0beta1
+Foomatic 3.0.0beta2
 ===================
 
 
@@ -241,7 +241,7 @@ Raw queue
 
 When we have a raw queue, all the rest of the incoming data is
 directly passed to standard output or to the postpipe now. The
-following steps will be omited then.
+following steps will be omitted then.
 
 
 Print the job

@@ -130,7 +130,7 @@
 foomatic-rip \- Universal print filter/RIP wrapper
 .SH SYNOPSIS
 
-.SS \fRSpooler-less printing/CPS filter:
+.SS \fRSpooler-less printing/CPS (older versions) filter:
 .BI \fBfoomatic-rip\fR\ \fB[\fB-P\fR \ \fI<printer>\fR \ | \ \fB--ppd\fR \ \fI<ppdfile>\fR \fB]\fR \ [\fB-J\fR\ \fI<jobtitle>\fR ] \ [\fB-o\fR \ \fI<option>\fB=\fI<value>\fR \ [...]] \ \fB[\fI<files>\fB]\fR
 
 .SS \fRCUPS filter:
@@ -154,8 +154,11 @@ foomatic-rip \- Universal print filter/RIP wrapper
 .SS \fRPDQ filter:
 .BI foomatic-rip\ \fB--pdq\fR\ \fB--ppd\fR \ \fI<ppdfile>\fR \fB]\fR \ [\fB-o\fR \ \fI<option>\fB=\fI<value>\fR \ [...]] \ \fI<file>\fR
 
+.SS \fRCPS (newer versions) filter:
+.BI \fBfoomatic-rip\fR\ \fB--cps\fR\ \fB-P\fR \ \fI<printer>\fR \ [\fB-J\fR\ \fI<jobtitle>\fR ] \ [\fB-o\fR \ \fI<option>\fB=\fI<value>\fR \ [...]] \ \fB[\fI<files>\fB]\fR
+
 .SH DESCRIPTION
-foomatic-rip is a universal print filter which works with every know free
+foomatic-rip is a universal print filter which works with every known free
 software printer spooler. It has the following features:
 
 .Topic 
