@@ -1561,7 +1561,7 @@ if (my $cupsfilter = $dat->{'cupsfilter'}{"application/vnd.cups-raster"}) {
 	    }
 	}
 
-	if (1 || !$havepstoraster) {
+	if (!$havepstoraster) {
 
 	    # Build GhostScript command line
 	    $pstoraster = "gs -dQUIET -dDEBUG -dPARANOIDSAFER -dNOPAUSE -dBATCH -dNOMEDIAATTRS -sDEVICE=cups -sOutputFile=-%W -"
