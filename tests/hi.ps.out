@@ -8,7 +8,7 @@
 %%Title: stdin
 %%For: Patrick Powell
 %%Creator: a2ps version 4.13
-%%CreationDate: Fri Dec 19 17:07:23 2003
+%%CreationDate: Sun Jan  4 13:01:34 2004
 %%BoundingBox: 24 40 588 768
 %%DocumentData: Clean7Bit
 %%Orientation: Portrait
@@ -532,29 +532,29 @@ a2psdict begin
 %% Foo String 3
  } stopped cleartomark
 %%EndFeature
-%%FoomaticRIPOptionSetting: *JobPatchFile=1,2
+%%BeginFeature: *JobPatchFile 1,2
 [{
 %% Patch 1
 
-%% Patch 1
+%% Patch 2
  } stopped cleartomark
 %%EndFeature
-%%FoomaticRIPOptionSetting: *HPPaperPolicy=NearestSizeNoAdjust
+%%BeginFeature: *HPPaperPolicy NearestSizeNoAdjust
 [{
    <</DeferredMediaSelection false
      /Policies << /PageSize 5 >> >> setpagedevice } stopped cleartomark
 %%EndFeature
-%%FoomaticRIPOptionSetting: *Multi=noChoice1,noChoice2,noChoice3,noChoice4
+%%BeginFeature: *Multi noChoice1,noChoice2,noChoice3,noChoice4
 %%EndFeature
-%%FoomaticRIPOptionSetting: *PageSize=Letter
+%%BeginFeature: *PageSize Letter
 [{
     <</PageSize [612 792] /ImagingBBox null>> setpagedevice } stopped cleartomark
 %%EndFeature
-%%FoomaticRIPOptionSetting: *PageRegion=Letter
+%%BeginFeature: *PageRegion Letter
 [{
     <</PageSize [612 792] /ImagingBBox null>> setpagedevice } stopped cleartomark
 %%EndFeature
-%%FoomaticRIPOptionSetting: *Duplex=None
+%%BeginFeature: *Duplex None
 [{
     <</Duplex false>> setpagedevice } stopped cleartomark
 %%EndFeature
@@ -678,11 +678,11 @@ x0 y0 moveto
 (there) N
 (this is) N
 (another line) N
-(stdin) (Page 1/1) (Dec 19, 03 17:07) title
+(stdin) (Page 1/1) (Jan 04, 04 13:01) title
 border
 grestore
 (Printed by Patrick Powell) rhead
-() (1/1) (Friday December 19, 2003) footer
+() (1/1) (Sunday January 04, 2004) footer
 end % of iso1dict
 pagesave restore
 showpage

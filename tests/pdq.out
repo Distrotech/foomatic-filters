@@ -1,164 +1,10 @@
-driver "Foomatic-Foo4000-Series-PS-1071882439" {
+driver "Foomatic-Foo4000-Series-PS-1073320063-45965" {
 
   # This PDQ driver declaration file was generated automatically by
-  # foomatic-rip from information in the file /home/papowell/PRINTING_PROJECTS/LPRng/foomatic/foomatic-filters-3.1.0/TESTS/./parse.ppd.
+  # foomatic-rip from information in the file /home/papowell/PRINTING_PROJECTS/LPRng/foomatic/foomatic-filters-3.1.0/tests/files/parse.ppd.
   # It allows printing with PDQ on the Foomatic Foo4000 Series PS.
 
   requires "foomatic-rip"
-
-  option {
-    var = "Resolution"
-    desc = "Resolution"
-    default_choice "Resolution_600x600dpi"
-    choice "Resolution_600x600dpi" {
-      desc = "600 dpi"
-      value = " -o Resolution=600x600dpi"
-    }
-    choice "Resolution_300x300dpi" {
-      desc = "300 dpi"
-      value = " -o Resolution=300x300dpi"
-    }
-    choice "Resolution_1200x1200dpi" {
-      desc = "ProRes 1200"
-      value = " -o Resolution=1200x1200dpi"
-    }
-  }
-
-  option {
-    var = "Multi"
-    desc = "PickMany Test"
-    default_choice "Multi_noChoice1,noChoice2,noChoice3,noChoice4"
-    choice "Multi_Choice1" {
-      desc = "Choice One"
-      value = " -o Multi=Choice1"
-    }
-    choice "Multi_Choice2" {
-      desc = "Choice Two"
-      value = " -o Multi=Choice2"
-    }
-    choice "Multi_Choice3" {
-      desc = "Choice Three"
-      value = " -o Multi=Choice3"
-    }
-    choice "Multi_Choice4" {
-      desc = "Choice Four"
-      value = " -o Multi=Choice4"
-    }
-  }
-
-  option {
-    var = "InstalledMemory"
-    desc = "Installed RAM"
-    default_choice "InstalledMemory_16MB"
-    choice "InstalledMemory_16MB" {
-      desc = "Standard 16MB RAM"
-      value = " -o InstalledMemory=16MB"
-    }
-    choice "InstalledMemory_32MB" {
-      desc = "32MB Total RAM"
-      value = " -o InstalledMemory=32MB"
-    }
-    choice "InstalledMemory_48MB" {
-      desc = "48MB Total RAM"
-      value = " -o InstalledMemory=48MB"
-    }
-    choice "InstalledMemory_64MB" {
-      desc = "64MB Total RAM"
-      value = " -o InstalledMemory=64MB"
-    }
-    choice "InstalledMemory_80MB" {
-      desc = "80MB Total RAM"
-      value = " -o InstalledMemory=80MB"
-    }
-  }
-
-  option {
-    var = "Option1"
-    desc = "Tray 3"
-    default_choice "Option1"
-    choice "Option1" {
-      desc = "Installed"
-      value = " -o Option1=True"
-    }
-    choice "noOption1" {
-      desc = "Not Installed"
-      value = " -o Option1=False"
-    }
-  }
-
-  option {
-    var = "FooOption1"
-    desc = "Foo Option 1"
-    default_choice "FooOption1"
-    choice "FooOption1" {
-      desc = "Installed"
-      value = " -o FooOption1=True"
-    }
-    choice "noFooOption1" {
-      desc = "Not Installed"
-      value = " -o FooOption1=False"
-    }
-  }
-
-  option {
-    var = "FooOption2"
-    desc = "Foo Option 2"
-    default_choice "FooOption2"
-    choice "FooOption2" {
-      desc = "Installed"
-      value = " -o FooOption2=True"
-    }
-    choice "noFooOption2" {
-      desc = "Not Installed"
-      value = " -o FooOption2=False"
-    }
-  }
-
-  option {
-    var = "SubFooOption1"
-    desc = "SubFoo Option 1"
-    default_choice "SubFooOption1"
-    choice "SubFooOption1" {
-      desc = "Installed"
-      value = " -o SubFooOption1=True"
-    }
-    choice "noSubFooOption1" {
-      desc = "Not Installed"
-      value = " -o SubFooOption1=False"
-    }
-  }
-
-  option {
-    var = "SubFooOption2"
-    desc = "SubFoo Option 2"
-    default_choice "SubFooOption2"
-    choice "SubFooOption2" {
-      desc = "Installed"
-      value = " -o SubFooOption2=True"
-    }
-    choice "noSubFooOption2" {
-      desc = "Not Installed"
-      value = " -o SubFooOption2=False"
-    }
-  }
-
-  option {
-    var = "HPPaperPolicy"
-    desc = "Fit to Page"
-    default_choice "HPPaperPolicy_NearestSizeNoAdjust"
-    choice "HPPaperPolicy_NearestSizeNoAdjust" {
-      desc = "Nearest Size and Crop"
-      value = " -o HPPaperPolicy=NearestSizeNoAdjust"
-    }
-    choice "HPPaperPolicy_PromptUser" {
-      desc = "Prompt User"
-      value = " -o HPPaperPolicy=PromptUser"
-    }
-    choice "HPPaperPolicy_NearestSizeAdjust" {
-      desc = "Nearest Size and Scale"
-      value = " -o HPPaperPolicy=NearestSizeAdjust"
-    }
-  }
 
   option {
     var = "PageSize"
@@ -273,71 +119,156 @@ driver "Foomatic-Foo4000-Series-PS-1071882439" {
   }
 
   option {
-    var = "Foo"
-    desc = "Foo"
-    default_choice "Foo_Value1"
-    choice "Foo_Value1" {
-      desc = "Value1"
-      value = " -o Foo=Value1"
+    var = "Resolution"
+    desc = "Resolution"
+    default_choice "Resolution_600x600dpi"
+    choice "Resolution_600x600dpi" {
+      desc = "600 dpi"
+      value = " -o Resolution=600x600dpi"
     }
-    choice "Foo_Value2" {
-      desc = "Value2"
-      value = " -o Foo=Value2"
+    choice "Resolution_300x300dpi" {
+      desc = "300 dpi"
+      value = " -o Resolution=300x300dpi"
+    }
+    choice "Resolution_1200x1200dpi" {
+      desc = "ProRes 1200"
+      value = " -o Resolution=1200x1200dpi"
     }
   }
 
   option {
-    var = "Foobool"
-    desc = "Foobool"
-    default_choice "Foobool"
-    choice "Foobool" {
-      desc = "True"
-      value = " -o Foobool=True"
+    var = "HPPaperPolicy"
+    desc = "Fit to Page"
+    default_choice "HPPaperPolicy_NearestSizeNoAdjust"
+    choice "HPPaperPolicy_NearestSizeNoAdjust" {
+      desc = "Nearest Size and Crop"
+      value = " -o HPPaperPolicy=NearestSizeNoAdjust"
     }
-    choice "noFoobool" {
-      desc = "False"
-      value = " -o Foobool=False"
+    choice "HPPaperPolicy_PromptUser" {
+      desc = "Prompt User"
+      value = " -o HPPaperPolicy=PromptUser"
     }
-  }
-
-  argument {
-    var = "Foostr"
-    desc = "Foostr"
-    def_value "String 3"
-    help = "Maximum length: 32 characters, Examples/special settings: String_3: \"
-%% Foo String 3
-\" (String 3); Str1: \"
-%%%% Foo String 1
-\"; Str2: \"
-%%%%%%%% Foo String 2
-\""
-  }
-
-  argument {
-    var = "Fooint"
-    desc = "Fooint"
-    def_value "30"
-    help = "Minimum value: 0, Maximum value: 100"
-  }
-
-  argument {
-    var = "Foointrange"
-    desc = "Foointrange"
-    def_value "30"
-    help = "Minimum value: 0, Maximum value: 1000"
+    choice "HPPaperPolicy_NearestSizeAdjust" {
+      desc = "Nearest Size and Scale"
+      value = " -o HPPaperPolicy=NearestSizeAdjust"
+    }
   }
 
   option {
-    var = "Foocomp"
-    desc = "Foocomp"
-    default_choice "Foocomp_V1"
-    choice "Foocomp_V1" {
-      desc = "V1"
-      value = " -o Foocomp=V1"
+    var = "Multi"
+    desc = "PickMany Test"
+    default_choice "Multi_noChoice1,noChoice2,noChoice3,noChoice4"
+    choice "Multi_Choice1" {
+      desc = "Choice One"
+      value = " -o Multi=Choice1"
     }
-    choice "Foocomp_V2" {
-      desc = "V2"
-      value = " -o Foocomp=V2"
+    choice "Multi_Choice2" {
+      desc = "Choice Two"
+      value = " -o Multi=Choice2"
+    }
+    choice "Multi_Choice3" {
+      desc = "Choice Three"
+      value = " -o Multi=Choice3"
+    }
+    choice "Multi_Choice4" {
+      desc = "Choice Four"
+      value = " -o Multi=Choice4"
+    }
+  }
+
+  option {
+    var = "FooOption1"
+    desc = "Foo Option 1"
+    default_choice "FooOption1"
+    choice "FooOption1" {
+      desc = "Installed"
+      value = " -o FooOption1=True"
+    }
+    choice "noFooOption1" {
+      desc = "Not Installed"
+      value = " -o FooOption1=False"
+    }
+  }
+
+  option {
+    var = "FooOption2"
+    desc = "Foo Option 2"
+    default_choice "FooOption2"
+    choice "FooOption2" {
+      desc = "Installed"
+      value = " -o FooOption2=True"
+    }
+    choice "noFooOption2" {
+      desc = "Not Installed"
+      value = " -o FooOption2=False"
+    }
+  }
+
+  option {
+    var = "SubFooOption1"
+    desc = "SubFoo Option 1"
+    default_choice "SubFooOption1"
+    choice "SubFooOption1" {
+      desc = "Installed"
+      value = " -o SubFooOption1=True"
+    }
+    choice "noSubFooOption1" {
+      desc = "Not Installed"
+      value = " -o SubFooOption1=False"
+    }
+  }
+
+  option {
+    var = "SubFooOption2"
+    desc = "SubFoo Option 2"
+    default_choice "SubFooOption2"
+    choice "SubFooOption2" {
+      desc = "Installed"
+      value = " -o SubFooOption2=True"
+    }
+    choice "noSubFooOption2" {
+      desc = "Not Installed"
+      value = " -o SubFooOption2=False"
+    }
+  }
+
+  option {
+    var = "InstalledMemory"
+    desc = "Installed RAM"
+    default_choice "InstalledMemory_16MB"
+    choice "InstalledMemory_16MB" {
+      desc = "Standard 16MB RAM"
+      value = " -o InstalledMemory=16MB"
+    }
+    choice "InstalledMemory_32MB" {
+      desc = "32MB Total RAM"
+      value = " -o InstalledMemory=32MB"
+    }
+    choice "InstalledMemory_48MB" {
+      desc = "48MB Total RAM"
+      value = " -o InstalledMemory=48MB"
+    }
+    choice "InstalledMemory_64MB" {
+      desc = "64MB Total RAM"
+      value = " -o InstalledMemory=64MB"
+    }
+    choice "InstalledMemory_80MB" {
+      desc = "80MB Total RAM"
+      value = " -o InstalledMemory=80MB"
+    }
+  }
+
+  option {
+    var = "Option1"
+    desc = "Tray 3"
+    default_choice "Option1"
+    choice "Option1" {
+      desc = "Installed"
+      value = " -o Option1=True"
+    }
+    choice "noOption1" {
+      desc = "Not Installed"
+      value = " -o Option1=False"
     }
   }
 
@@ -372,9 +303,6 @@ driver "Foomatic-Foo4000-Series-PS-1071882439" {
         PageSize="${PageSize}.${PageWidth}x${PageHeight}${PageSizeUnit}"
       fi
 
-      # Foostr
-      Foostr=" -o Foostr='${Foostr}'"
-
       # Fooint
       # We aren't really checking for max/min,
       # this is done by foomatic-rip
@@ -389,8 +317,11 @@ driver "Foomatic-Foo4000-Series-PS-1071882439" {
         Foointrange=" -o Foointrange='${Foointrange}'"
       fi
 
+      # Foostr
+      Foostr=" -o Foostr='${Foostr}'"
+
       if ! test -e $INPUT.ok; then
-        sh -c "foomatic-rip --pdq --ppd=/home/papowell/PRINTING_PROJECTS/LPRng/foomatic/foomatic-filters-3.1.0/TESTS/./parse.ppd${Resolution}${Multi}${InstalledMemory}${Option1}${FooOption1}${FooOption2}${SubFooOption1}${SubFooOption2}${HPPaperPolicy}${PageSize}${Duplex}${Foo}${Foobool}${Foostr}${Fooint}${Foointrange}${Foocomp}${DRIVERDOCS} $INPUT > $OUTPUT"
+        sh -c "foomatic-rip --pdq --ppd=/home/papowell/PRINTING_PROJECTS/LPRng/foomatic/foomatic-filters-3.1.0/tests/files/parse.ppd${PageSize}${Duplex}${Resolution}${HPPaperPolicy}${Multi}${FooOption1}${FooOption2}${SubFooOption1}${SubFooOption2}${InstalledMemory}${Option1}${DRIVERDOCS} $INPUT > $OUTPUT"
         if ! test -e $OUTPUT; then 
           echo 'Error running foomatic-rip; no output!'
           exit 1

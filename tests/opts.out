@@ -23,15 +23,6 @@ Option 'Duplex':
   Default: None
   Example: -Z Duplex=DuplexTumble
 
-Option 'Foo':
-  Foo
-  An enumerated choice argument
-  Possible choices:
-   o Value1: Value1
-   o Value2: Value2
-  Default: Value1
-  Example: -Z Foo=Value2
-
 Option 'FooOption1':
   Foo Option 1
   A boolean argument
@@ -49,58 +40,6 @@ Option 'FooOption2':
    o False: Not Installed
   Default: True
   Example: -Z FooOption2=True
-
-Option 'Foobool':
-  Foobool
-  A boolean argument
-  Possible choices:
-   o True: True
-   o False: False
-  Default: True
-  Example: -Z Foobool=True
-
-Option 'Foocomp':
-  Foocomp
-  An enumerated choice argument
-  Possible choices:
-   o V1: V1
-   o V2: V2
-  Default: V1
-  Example: -Z Foocomp=V2
-
-Option 'Fooint':
-  Fooint
-  An integer number argument
-  Range: 0 <= x <= 100
-  Default: 30
-  Example: -Z Fooint=30 (
-% Fooint 30
-)
-
-Option 'Foointrange':
-  Foointrange
-  An integer number argument
-  Range: 0 <= x <= 1000
-  Default: 30
-  Example: -Z Foointrange=30 (
-% Foointrange 30
-)
-
-Option 'Foostr':
-  Foostr
-  A string argument
-  Maximum length: 32 characters
-  Default: String 3
-  Examples/special settings:
-   o -Z Foostr=String_3 ("
-%% Foo String 3
-", String 3)
-   o -Z Foostr=Str1 ("
-%% Foo String 1
-")
-   o -Z Foostr=Str2 ("
-%% Foo String 2
-")
 
 Option 'HPPaperPolicy':
   Fit to Page

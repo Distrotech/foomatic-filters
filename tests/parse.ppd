@@ -233,15 +233,21 @@
    = flush pop pop
    restore
 "
-%% ========= PCL =================
-*OrderDependency: 10 AnySetup *PCLPageSize
+*% ========= PCL =================
 *PCLPageSize Executive/Executive: "<1B>&l1H"
 *PCLPageSize Letter/Letter: "<1B>&l2H"
 *PCLPageSize Legal/Legal: "<1B>&l3H"
 *PCLPageSize Ledger/Ledger: "<1B>&l6H"
 *PCLPageSize A4/A4: "<1B>&l26H"
 *PCLPageSize Env10/Com-10: "<1B>&l81H"
-*End
+*% ========= PXL =================
+*PXLPageSize Executive/Executive: "_ubyte['EXECUTIVE']"
+*PXLPageSize Letter/Letter: "_ubyte['LETTER']"
+*PXLPageSize Legal/Legal: "_ubyte['LETTER']"
+*PXLPageSize Ledger/Ledger: "_ubyte['LEDGER']" 
+*PXLPageSize A4/A4: "_ubyte['A4']""
+*PXLPageSize Env10/Com-10: "_ubyte['Env10']"
+
 *CloseUI: *PageSize
 
 *OpenUI *PageRegion: PickOne
@@ -375,7 +381,7 @@
 *FoomaticSystemOption Aliases: "
           duplex=Duplex&#x3d;DuplexNoTumble
           simplex=Duplex&#x3d;None
-          DuplexNoTumble=Duplex&#x3d;DuplexNoTumble "
+          DuplexNoTumble=Duplex&#x3d;DuplexNoTumble
 	"
 *FoomaticSystemOption ForceInsert: "
 	0,JCLSetup:JCLSetup=*
@@ -387,7 +393,7 @@
  "
 
 *FoomaticRIPPostPipe: "( echo POSTPIPE &gt;&amp;2; /bin/cat ) "
-*FoomatciRIPCommandLine: " cat %A%B%C "
+*FoomaticRIPCommandLine: " cat %A%B%C "
 
 *FoomaticRIPOption Foo: enum ps A
 *FoomaticRIPDefault Foo: Value1
@@ -445,6 +451,22 @@ Foo=Value1
 *FoomaticRIPOptionSetting Foocomp=V2: "
 Foo=Value2
 "
+
+*OpenUI *REt/REt Setting: PickOne
+*FoomaticRIPOption REt: enum JCL A
+*OrderDependency: 100 AnySetup *REt
+*DefaultREt: Medium
+*REt Dark/Dark: "%% FoomaticRIPOptionSetting: REt=Dark"
+*FoomaticRIPOptionSetting REt=Dark: "SET RET=DARK"
+*REt Light/Light: "%% FoomaticRIPOptionSetting: REt=Light"
+*FoomaticRIPOptionSetting REt=Light: "SET RET=LIGHT"
+*REt Medium/Medium: "%% FoomaticRIPOptionSetting: REt=Medium"
+*FoomaticRIPOptionSetting REt=Medium: "SET RET=MEDIUM"
+*REt Off/Off: "%% FoomaticRIPOptionSetting: REt=Off"
+*FoomaticRIPOptionSetting REt=Off: "SET RET=OFF"
+*CloseUI: *REt
+
+
 *UIConstraints: *PageSize Legal *JCLResolution 600x600dpi
 *UIConstraints: *PageSize Letter *Foobool
 *UIConstraints: *Multi *PageSize Letter
@@ -455,5 +477,5 @@ Foo=Value2
 %% Patch 1
 "
 *JobPatchFile 2: "
-%% Patch 1
+%% Patch 2
 "

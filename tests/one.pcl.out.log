@@ -1,7 +1,10 @@
 foomatic-rip version $Revision$ running...
-Options: --lprng', '--ppd', './parse.ppd', '--config', './filter.conf.test'
+Options: --config', './filter.conf.test', '--lprng', '--ppd',
+   './parse.ppd'
 Parsing PPD file './parse.ppd' ...
 Opening PPD file './parse.ppd'
+Bad nesting CloseSubGroup *DeSubFooOptions
+WARNING: Unrecognized line in PPD file '	"'
 Expanding Composite Option Defaults
 Pondering option 'Foocomp="V1"'
  Maps to Foocomp='V1'
@@ -12,7 +15,7 @@ Parameter Summary
 Spooler: lprng
 Printer: 
 PPD file: ./parse.ppd
-Printer model: PP Foo 4000 Series PS
+Printer model: Foomatic Foo4000 Series PS
 Job title: 
 File(s) to be printed: <STDIN>
 Output will be redirected to: ( echo POSTPIPE >&2; /bin/cat ) 

@@ -17,8 +17,7 @@ getopts("s:d",$opt) or usage();
 
 $DEBUG = $opt->{'d'};
 
-my $SRC = $opt->{'s'};
-$SRC = "." if not $SRC;
+my $SRC = ($opt->{s} || ".");
 
 while(<>){
 	s/\@ETCDIR\@/${ETCDIR}/g;
@@ -26,7 +25,7 @@ while(<>){
 	s/^(\s*)(D)/$1\# $2/ if /^\s*D[1-9].*\(.*\);/ and not $DEBUG;
 	if( /^#INCLUDE\s+(\S+)/ ){
 	    $file = $1 ;
-	    open(FILE, "<$SRC/$file") or die "cannot open $file";
+	    open(FILE, "<$SRC/$file") or die "cannot open $SRC/$file";
 	    while( <FILE> ){
 		$_ =~ s/^/ /;
 		print $_;
@@ -41,7 +40,7 @@ while(<>){
 		    $file = $1 . ".pm";
 		    #print STDERR "file $file\n";
 		    print "# $_";
-		    open(FILE, "<$SRC/$file") or die "cannot open $file";
+		    open(FILE, "<$SRC/$file") or die "cannot open $SRC/$file";
 		    while( <FILE> ){
 			$_ =~ s/^package/#package/;
 			$_ =~ s/use\s+Foomatic/#$&/;

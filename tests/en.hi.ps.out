@@ -9,7 +9,7 @@
 %%Title: Enscript Output
 %%For: Patrick Powell
 %%Creator: GNU enscript 1.6.1
-%%CreationDate: Fri Dec 12 13:13:40 2003
+%%CreationDate: Sun Jan  4 13:11:11 2004
 %%Orientation: Portrait
 %%Pages: (atend)
 %%DocumentMedia: Letter 612 792 0 () ()
@@ -369,9 +369,21 @@
 %% Fooint 30
  } stopped cleartomark
 %%EndFeature
-%%FoomaticRIPOptionSetting: *Foostr=Str1
+%%FoomaticRIPOptionSetting: *Foointrange=30
 [{
-%% Foo Str1
+%% Foointrange 30
+ } stopped cleartomark
+%%EndFeature
+%%FoomaticRIPOptionSetting: *Foostr=String 3
+[{
+%% Foo String 3
+ } stopped cleartomark
+%%EndFeature
+%%BeginFeature: *JobPatchFile 1,2
+[{
+%% Patch 1
+
+%% Patch 2
  } stopped cleartomark
 %%EndFeature
 %%BeginFeature: *HPPaperPolicy NearestSizeNoAdjust
@@ -506,8 +518,8 @@ _S
 /ftail () def
 % User defined strings:
 /pagenumstr (1) def
-/moddatestr (12/12/03) def
-/modtimestr (13:13:40) def
+/moddatestr (01/04/04) def
+/modtimestr (13:11:11) def
 /user_header_p true def
 /user_header_left_str (Page 1) def
 /user_header_center_str () def

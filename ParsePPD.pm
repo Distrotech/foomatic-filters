@@ -9,7 +9,7 @@ Foomatic::ParsePPD.pm - PPD Parsing Support for Foomatic
 
 =head1 DESCRIPTION
 
-The Foormatic::Parse PPD package provides a large numbe
+The Foormatic::Parse PPD package provides a large number
 of utility functions for processing PPD files.
 
 =head1 EXPORTS
@@ -20,7 +20,7 @@ of utility functions for processing PPD files.
     checklongnames checkoptionvalue checksetting cutguiname findalias
     fix_foomatic_options fix_lang fix_numval fix_pagesize fix_pickmany
     fix_user_options fixoptionvalue generalentries getdocinfo getmargins
-	getmarginsformarginrecord getpapersize getppd htmlify
+	getmarginsformarginrecord getpapersize ppdfromperl htmlify
 	infobyname longname normalizename ppdfromvartoperl ppdtoperl readmline
 	ripdirective setnumericaldefaults sortargs sortoptions sortvals
 	stringvalid syncpagesize unhexify unhtmlify valbyname
@@ -42,7 +42,7 @@ of utility functions for processing PPD files.
 	checklongnames checkoptionvalue checksetting cutguiname findalias
 	fix_foomatic_options fix_lang fix_numval fix_pagesize fix_pickmany
 	fix_user_options fixoptionvalue generalentries getdocinfo getmargins
-	getmarginsformarginrecord getpapersize getppd htmlify
+	getmarginsformarginrecord getpapersize ppdfromperl htmlify
     infobyname longname normalizename ppdfromvartoperl ppdtoperl readmline
     ripdirective setnumericaldefaults sortargs sortoptions sortvals
     stringvalid syncpagesize unhexify unhtmlify valbyname
@@ -52,6 +52,7 @@ of utility functions for processing PPD files.
 use strict;
 
 use Data::Dumper;
+use Time::HiRes qw( gettimeofday time );
 use Foomatic::Debugging;
 
 # if you have module in file, then use 'use FoomaticDebugging'
@@ -60,8 +61,8 @@ import FoomaticDebugging;
 my $ver = "Patrick Powell - Version 1";
 
 sub argbyname($ $);
-sub check_option_type_conflict( $ $ );
-sub checkarg( $ $ ; $ );
+sub check_option_type_conflict( $ $ $ );
+sub checkarg( $ $ $ );
 sub checkdefaultoptions( $ );
 sub checklongnames( $ );
 sub checkoptionvalue( $ $ $ );
@@ -70,7 +71,7 @@ sub cutguiname( $ $ );
 sub findalias( $ $ );
 sub fix_foomatic_options ( $ $ $ $ $ $ );
 sub fix_lang( $ );
-sub fix_numval( $ $ );
+sub fix_numval( $ $ ; $ );
 sub fix_pagesize( $ );
 sub fix_pickmany( $ @ );
 sub fix_user_options ( $ $ $ $ $ $ );
@@ -80,7 +81,7 @@ sub getdocinfo( $ );
 sub getmargins( $ $ $ $ );
 sub getmarginsformarginrecord( $ $ $ $ );
 sub getpapersize( $ );
-sub getppd( $ $ $ );
+sub ppdfromperl( $ $ $ );
 sub htmlify( $; $);
 sub infobyname($ $);
 sub longname( $ );
@@ -275,7 +276,6 @@ Examples:
  *OrderDependency: 10 Setup *Resolution
  *OrderDependency: 10 JCLSetup *JCLResolution
  *OrderDependency: 40 Setup *PageSize Env
- *NonUIOrderDependency: 30 AnySetup *CustomPageSize
 
 The <order> value is the weighting used for the option.
 Smaller values come closer to the start of the option set.
@@ -424,7 +424,7 @@ See the *FoomaticRIPOption entry for more information.
 
 ${dat}->{cmd} = <code>
 
-=item *FoomaticRIPDefault <option>: <value> (or "value")
+=item *FoomaticRIPDefault <option>: <value> (or 'value')
 
 Set the default value for a Foomatic option.
 
@@ -450,7 +450,7 @@ information for the Foomatic option.
  $arg->{'type'} = <type>
  $arg->{'style'} = <style>
  $arg->{'spot'}{<lang>} = <spot>
- $arg->{'order'}{$language} = (<order> or 0);
+ $arg->{'order'}{$language} = (<order> or 100);
  $arg->{'section'}{$language} = ( <section> or 'AnySetup');
 
 =over 2
@@ -520,7 +520,7 @@ sub ppdtoperl($ $ $) {
     my @files = split /[,:]/, $ppdfile;
     my @ppd;
     foreach $ppdfile (@files){
-	next if not defined $ppdfile or $ppdfile eq "";
+	next if not defined $ppdfile or $ppdfile eq '';
 	$cmd = $ppdfile;
 	if( not -f $ppdfile ){
 	    $err = "Non-existent PPD file '$ppdfile'";
@@ -531,7 +531,7 @@ sub ppdtoperl($ $ $) {
 	    rip_die ($err, $EXIT_PRNERR_NORETRY_BAD_SETTINGS );
 	}
 	if($ppdfile =~ /\.gz$/i ){
-	    $gzip = (( $sysdeps and $sysdeps->{'gzip'} ) or "gzip");
+	    $gzip = (( $sysdeps and $sysdeps->{'gzip'} ) or 'gzip');
 	    $cmd = "$gzip -cd $ppdfile 2>&1 |";
 	}
 	D0("Opening PPD file '$cmd'\n");
@@ -581,10 +581,11 @@ sub ppdfromvartoperl($ $) {
     my @currentgroup;    # We are currently in this group/subgroup
     my @currentgrouptrans;     # Translation/long name for group/subgroup
     my $isfoomatic = 0;        # Do we have a Foomatic PPD?
+    my $foomatic_lang = 'ps'; # last foomatic language
 
     # If we have an old Foomatic 2.0.x PPD file, read its built-in Perl
     # data structure into @datablob and the default values in %ppddefaults
-    # Then delete the $dat structure, replace it by the one "eval"ed from
+    # Then delete the $dat structure, replace it by the one 'eval'ed from
     # @datablob, and correct the default settings according to the ones of
     # the main PPD structure
 
@@ -610,7 +611,7 @@ sub ppdfromvartoperl($ $) {
 	    $dat->{'info_byname'}{$argname} = $arg;
 	    next;
 	}
-	D4("LOOP: $_");
+	D4("LOOP: [$i] $_");
 	# Foomatic should also work with PPD files downloaded under
 	# Windows.
 	# Parse keywords
@@ -622,11 +623,11 @@ sub ppdfromvartoperl($ $) {
 	    my $code = readmline( $2, $ppd,  \$i );
 
 	    D4("<code> $code" );
-	    my $setting = "Custom";
-	    my $translation = "Custom Size";
+	    my $setting = 'Custom';
+	    my $translation = 'Custom Size';
 	    # Make sure that the argument is in the data structure
 	    # in both PageSize and PageRegion
-	    foreach my $argname ("PageSize", "PageRegion"){
+	    foreach my $argname ('PageSize', 'PageRegion'){
 		my $arg = checkarg ($dat, $argname, $language);
 		# Make sure that the setting is in the data structure
 		my $option = checksetting ($arg, $setting);
@@ -656,10 +657,12 @@ sub ppdfromvartoperl($ $) {
 	    D4("<group> $group");
 	    while( @currentgroup ){
 		my $closing = pop(@currentgroup);
-		if( $closing ne $group ){
-		    D0( "Bad nesting Close$1Group *$group");
-		}
 		pop(@currentgrouptrans);
+		if( $closing ne $group ){
+		    D0( "Bad nesting Close${1}Group *$group, should have been '$closing'");
+		} else {
+		    last;
+		}
 	    }
 	} elsif (m!^\*(JCL|PJL|PXL|PCL|)OpenUI\s+\*([^:]+):\s*(\S+)\s*$!) {
 	    # "*[JCL|PJL|PCL]OpenUI *<option>[/<translation>]: <type>"
@@ -667,7 +670,7 @@ sub ppdfromvartoperl($ $) {
 	    my $language = $1;
 	    my $argname= $2;
 	    my $argtype = $3;
-	    my $translation = "";
+	    my $translation = '';
 	    if ($argname=~ m!^([^:/\s]+)/([^:]*)$!) {
 		$argname = $1;
 		$translation = $2;
@@ -681,11 +684,11 @@ sub ppdfromvartoperl($ $) {
 
 	    D4("<lang> '$language' <option> '$argname', <trans> '$translation', type $argtype" );
 	    # Set the argument type only if not in conflict
-	    if ($argtype eq "PickOne") {
+	    if ($argtype eq 'PickOne') {
 		$argtype = 'enum';
-	    } elsif ($argtype eq "PickMany") {
+	    } elsif ($argtype eq 'PickMany') {
 		$argtype = 'pickmany';
-	    } elsif ($argtype eq "Boolean") {
+	    } elsif ($argtype eq 'Boolean') {
 		$argtype = 'bool';
 	    } else {
 		D0("Warning: option '$argname' unknown type '$argtype'");
@@ -717,17 +720,19 @@ sub ppdfromvartoperl($ $) {
 	    # <section> = 0, 1, ....  - section Prolog, DocumentSetup, PageSetup, JCLSetup, AnySetup
 	    D4("*FoomaticRIPOption (JCL|PJL|PXL|PCL|)<option>: <type> <style> <spot> [<order>[section]]" );
 	    # <order> only used for 1-choice enum options
-	    my $language = fix_lang($1);
 	    my $argname = $2;
 	    my( $argtype, $argstyle, $spot, $order, $section ) = split(' ', $3);
-	    foreach ( $argtype, $argstyle, $spot, $order, $section ) {
-		$_ = "" if not defined $_;
-	    }
-	    $argstyle = lc($argstyle);
-	    D4("<lang> $language <option> $argname, <type> $argtype, <style> $argstyle, <spot> $spot <order> $order <section> $section" );
+
+	    $order = 100 if not defined $order;
+	    $section = '' if not defined $section;
+
+	    # get the default style (language) for the foomatic options
+	    $foomatic_lang = $argstyle = fix_lang( $argstyle );
+	    D4("<option> $argname, <type> $argtype, <style> $argstyle, <spot> $spot <order> $order <section> $section" );
+	    D4("<foomatic_lang> $argstyle");
 	    # Make sure that the argument is in the data structure
 
-	    my $arg = checkarg ($dat, $argname,  $language);
+	    my $arg = checkarg ($dat, $argname,  $argstyle);
 	    # Store the values
 	    # <type> = enum, bool, string, password, int, float
 	    my $t = $arg->{'type'};
@@ -737,33 +742,17 @@ sub ppdfromvartoperl($ $) {
 	    } else {
 		$arg->{'type'} = $argtype;
 	    }
-	    if( $section ){
-		$arg->{'section'}{$language} = $section;
-	    } elsif( not defined $arg->{'section'}{$language} ){
-		$arg->{'section'}{$language} = 'AnySetup';
+	    if( not defined $arg->{'section'}{$argstyle} ){
+		$arg->{'section'}{$argstyle} = $section;
 	    }
-	    $arg->{'option'}{$language} = 1;
-
-	    $argstyle = fix_lang($argstyle);
-	    if ($argstyle eq 'pjl' ) {
-		$dat->{'jcl'} = 1;
-		$dat->{'pjl'} = 1;
-	    }
-	    D4("ARGNAME '$argname' ARGSTYLE '$argstyle'");
-	    $arg->{'argstyle'}{$argstyle} = $language;
-	    $arg->{'spot'}{$language} = $spot;
-	    $arg->{'order'}{$language} = ($order or 0);
-	    if( $section ){
-		$arg->{'section'}{$language} = $section;
-	    } elsif( not defined $arg->{'section'}{$language} ){
-		$arg->{'section'}{$language} = 'AnySetup';
-	    }
-	    check_option_type_conflict( $arg, "foomatic" );
+	    $arg->{'spot'}{$argstyle} = $spot;
+	    $arg->{'order'}{$argstyle} = $order;
+	    check_option_type_conflict( $arg, 'foomatic', $argstyle );
 	} elsif (m!^\*FoomaticRIPOptionPrototype\s+(JCL|PJL|PXL|PCL|)([^/:\s]+):\s*\"(.*)$!) {
 	    # "*FoomaticRIPOptionPrototype <option>: <code>"
 	    D4("*FoomaticRIPOptionPrototype <lang><option>: <code>" );
 	    # Used for numerical and string options only
-	    my $language = fix_lang($1);
+	    my $language = fix_lang($1 or $foomatic_lang);
 
 	    my $argname = $2;
 	    # Code string can have multiple lines, read all of them
@@ -772,12 +761,12 @@ sub ppdfromvartoperl($ $) {
 	    D4("<lang> $language <option> $argname, <code> $proto" );
 	    my $arg = checkarg ($dat, $argname, $language);
 	    $arg->{'proto'}{$language} = unhtmlify($proto);
-	    check_option_type_conflict( $arg, "foomatic" );
+	    check_option_type_conflict( $arg, 'foomatic', $language );
 	} elsif (m!^\*FoomaticRIPOptionRange\s+(JCL|PJL|PXL|PCL|)([^/:\s]+):\s*(\S+)\s+(\S+)\s*$!) {
 	    # "*FoomaticRIPOptionRange <option>: <min> <max>"
 	    D4("*FoomaticRIPOptionRange <lang><option>: <min> <max>" );
 	    # Used for numerical options only
-	    my $language = fix_lang($1);
+	    my $language = fix_lang($1 or $foomatic_lang);
 	    my $argname = $2;
 	    my $min = $3;
 	    my $max = $4;
@@ -788,12 +777,12 @@ sub ppdfromvartoperl($ $) {
 	    # Store the values
 	    $arg->{'min'} = $min;
 	    $arg->{'max'} = $max;
-	    check_option_type_conflict( $arg, "foomatic" );
+	    check_option_type_conflict( $arg, 'foomatic', $language );
 	} elsif (m!^\*FoomaticRIPOptionMaxLength\s+(JCL|PJL|PXL|PCL|)([^/:\s]+):\s*(\S+)\s*$!) {
 	    # "*FoomaticRIPOptionMaxLength <option>: <length>"
 	    D4("*FoomaticRIPOptionMaxLength <option>: <length>" );
 	    # Used for string options only
-	    my $language = fix_lang($1);
+	    my $language = fix_lang($1 or $foomatic_lang);
 	    my $argname = $2;
 	    my $maxlength = $3;
 
@@ -802,12 +791,12 @@ sub ppdfromvartoperl($ $) {
 	    my $arg = checkarg ($dat, $argname, $language);
 	    # Store the value
 	    $arg->{'maxlength'} = $maxlength;
-	    check_option_type_conflict( $arg, "foomatic" );
+	    check_option_type_conflict( $arg, 'foomatic', $language );
 	} elsif (m!^\*FoomaticRIPOptionAllowedChars\s+(JCL|PJL|PXL|PCL|)([^/:\s]+):\s*(\"?)(.*)$!) {
 	    # "*FoomaticRIPOptionAllowedChars <option>: <code>"
 	    D4("*FoomaticRIPOptionAllowedChars <lang><option>: <code>" );
 	    # Used for string options only
-	    my $language = fix_lang($1);
+	    my $language = fix_lang($1 or $foomatic_lang);
 	    my $argname = $2;
 	    # Code string can have multiple lines, read all of them
 	    my $code = $4;
@@ -818,12 +807,12 @@ sub ppdfromvartoperl($ $) {
 	    my $arg = checkarg ($dat, $argname, $language);
 	    # Store the value
 	    $arg->{'allowedchars'} = unhtmlify($code);
-	    check_option_type_conflict( $arg, "foomatic" );
+	    check_option_type_conflict( $arg, 'foomatic', $language );
 	} elsif (m!^\*FoomaticRIPOptionAllowedRegExp\s+(JCL|PJL|PXL|PCL|)([^/:\s]+):\s*(\"?)(.*)$!) {
 	    # "*FoomaticRIPOptionAllowedRegExp <lang><option>: <code>"
 	    D4("*FoomaticRIPOptionAllowedRegExp <lang><option>: <code>" );
 	    # Used for string options only
-	    my $language = fix_lang($1);
+	    my $language = fix_lang($1 or $foomatic_lang);
 	    my $argname = $2;
 
 	    # Code string can have multiple lines, read all of them
@@ -834,7 +823,7 @@ sub ppdfromvartoperl($ $) {
 	    my $arg = checkarg ($dat, $argname, $language);
 	    # Store the value
 	    $arg->{'allowedregexp'} = unhtmlify($code);
-	    check_option_type_conflict( $arg, "foomatic" );
+	    check_option_type_conflict( $arg, 'foomatic', $language );
 	} elsif ((m!^\*FoomaticRIPOptionSetting\s+(JCL|PJL|PXL|PCL|)([^/:=\s]+)=([^/:=\s]+):\s*(\"?)(.*)$!) ||
 		 (m!^\*FoomaticRIPOptionSetting\s+(JCL|PJL|PXL|PCL|)([^/:=\s]+)():\s*(\"?)(.*)$!)) {
 	    # "*FoomaticRIP(JCL|PJL|PXL|PCL|)OptionSetting <option>[=<choice>]: <code>"
@@ -846,18 +835,18 @@ sub ppdfromvartoperl($ $) {
 	    # - how do you get 'False'?  I smell a botch in the foomatic db
 	    # code.  Patrick Powell
 
-	    my $language = fix_lang($1);
+	    my $language = fix_lang($1 or $foomatic_lang);
 	    my $argname = $2;
 	    my $setting = $3;
 	    my $code = $5;
 	    $code = unhtmlify(readmline( $5, $ppd,  \$i )) if $4;
-	    D4("START <lang> $language <option> $argname <choice> $setting <code> $code" );
+	    D4("START <foomatic_lang> $foomatic_lang <lang> $language <option> $argname <choice> $setting <code> $code" );
 	    # Code string can have multiple lines, read all of them
-	    $setting = "True" if (!$setting);
+	    $setting = 'True' if (!$setting);
 
 	    D4("<lang> $language <option> $argname <choice> $setting <code> $code" );
 	    # Make sure that the argument is in the data structure
-	    my $arg = checkarg ($dat, $argname);
+	    my $arg = checkarg ($dat, $argname, $language);
 	    # Make sure that the setting is in the data structure (enum
 	    # options)
 	    my $option = checksetting ($arg, $setting);
@@ -866,18 +855,18 @@ sub ppdfromvartoperl($ $) {
 	    } else {
 		$option->{'driverval'}{$language} = ($code);
 	    }
-	    check_option_type_conflict( $arg, "foomatic" );
+	    check_option_type_conflict( $arg, 'foomatic', $language );
 	} elsif (m!^\*(NonUI|)OrderDependency:\s*(.*)\s*$!) {
 	    # "*OrderDependency: <order> <section> *<option>"
 	    # *OrderDependency: 10 AnySetup *Resolution
 	    # *OrderDependency: 10 JCLSetup *JCLResolution
 	    # *OrderDependency: 10 PCLSetup *PCLResolution
 	    D4("*OrderDependency: <order> <section> *<option>" );
-	    my $nonui = ($1 || "");
+	    my $nonui = ($1 || '');
 	    my( $order, $section, $argname, $option ) = split( ' ', $2 );
 	    $argname =~ s/^\*(JCL|PJL|PXL|PCL|)//;
 	    my $language = fix_lang($1);
-	    $option = "" if not defined $option;
+	    $option = '' if not defined $option;
 	    D4("<nonui> '$nonui' <order> $order <section> $section <lang> $language <argname> $argname <option> $option" );
 
 	    # Make sure that the argument is in the data structure
@@ -889,6 +878,7 @@ sub ppdfromvartoperl($ $) {
 	    $arg->{'order'}{$language} = $order;
 	    $arg->{'section'}{$language} = $section;
 	    $arg->{'nonui'}{$language} = $nonui;
+	    check_option_type_conflict( $arg, 'user', $language );
 	} elsif (m!^\*Default(JCL|PJL|PXL|PCL|)([^/:\s]+):\s*("?)(.*)\s*$!) {
 	    D4("*Default<lang><option>: <value>" );
 	    # "*Default<option>: <value>"
@@ -899,7 +889,7 @@ sub ppdfromvartoperl($ $) {
 	    $default = readmline( $4, $ppd,  \$i ) if( $3 );
 	    $default =~ s/^\s+//;
 	    $default =~ s/\s+$//;
-	    my $translation = "";
+	    my $translation = '';
 	    if ($default =~ m!^([^:/\s]+)/([^:]*)$!) {
 		$default = $1;
 		$translation = $2;
@@ -911,15 +901,15 @@ sub ppdfromvartoperl($ $) {
 	    my $arg = checkarg ($dat, $argname, $language);
 	    # Store the value
 	    # Store the value foomatic default value 'default'
-	    my $type = $arg->{'type'} || "";
+	    my $type = $arg->{'type'} || '';
 	    my $bool = $type eq 'bool';
 	    if ($bool) {
 		my $v = lc($default);
 		if (($v eq 'true') || ($v eq 'on') || ($v eq 'yes') ||
 		    ($v eq '1')) {
-		    $default = "True";
+		    $default = 'True';
 		} else {
-		    $default = "False";
+		    $default = 'False';
 		}
 	    }
 	    $arg->{'default'} = $default;
@@ -928,11 +918,12 @@ sub ppdfromvartoperl($ $) {
 		my $option = checksetting ($arg, $default);
 		$option->{'comment'} = $translation if $translation and $option;
 	    }
+	    check_option_type_conflict( $arg, 'user', $language );
 	} elsif (m!^\*FoomaticRIPDefault\s+(JCL|PJL|PXL|PCL|)([^/:\s]+):\s*(\"?)(.*?)\s*$!) {
 	    D4("*FoomaticRIPDefault <lang><option>: <value>" );
 	    # "*FoomaticRIPDefault <lang><option>: <value>"
 	    # Used for numerical options only
-	    my $language = fix_lang($1);
+	    my $language = fix_lang($1 or $foomatic_lang);
 	    my $argname = $2;
 	    my $default = $4;
 	    $default = readmline( $4, $ppd,  \$i ) if( $3 );
@@ -944,21 +935,21 @@ sub ppdfromvartoperl($ $) {
 	    # Make sure that the argument is in the data structure
 	    my $arg = checkarg ($dat, $argname, $language );
 	    # Store the value foomatic default value 'default'
-	    my $type = ($arg->{'type'} || "");
+	    my $type = ($arg->{'type'} || '');
 	    my $bool = $type eq 'bool';
 	    if ($bool) {
 		my $v = lc($default);
 		if (($v eq 'true') || ($v eq 'on') || ($v eq 'yes') ||
 		    ($v eq '1')) {
-		    $default = "True";
+		    $default = 'True';
 		} else {
-		    $default = "False";
+		    $default = 'False';
 		}
 	    }
 	    checksetting ($arg, $default)
 		    if( $type !~ /^(int|float|string)$/);
 	    $arg->{'default'} = $default;
-	    check_option_type_conflict( $arg, "foomatic" );
+	    check_option_type_conflict( $arg, 'foomatic', $language );
 	} elsif (m!^\*(JCL|PJL|PXL|PCL|)([^\?/:\s]+)\s+([^:]+):\s*(\"?)(.*)$!) {
 	    D4("*<lang><option> <choice>[/<translation>]: <code>" );
 	    # "*<lang><option> <choice>[/<translation>]: <code>"
@@ -967,7 +958,7 @@ sub ppdfromvartoperl($ $) {
 	    my $argname = $2;
 	    my $setting = $3;
 	    my $code = $5;
-	    my $translation = "";
+	    my $translation = '';
 	    $code = readmline( $5, $ppd,  \$i ) if( $4 );
 	    # Code string can have multiple lines, read all of them
 	    if ($setting =~ m!^([^:/\s]+)/([^:]*)$!) {
@@ -979,14 +970,14 @@ sub ppdfromvartoperl($ $) {
 	    # Make sure that the argument is in the data structure
 	    my $arg = checkarg ($dat, $argname, $language);
 	    # Make sure that the setting is in the data structure (enum options)
-	    my $bool = ($arg->{'type'} || "") eq 'bool';
+	    my $bool = ($arg->{'type'} || '') eq 'bool';
 	    if ($bool) {
 		my $v = lc($setting);
 		if (($v eq 'true') || ($v eq 'on') || ($v eq 'yes') ||
 		    ($v eq '1')) {
-		    $setting = "True";
+		    $setting = 'True';
 		} else {
-		    $setting = "False";
+		    $setting = 'False';
 		}
 	    }
 	    my $option = checksetting ($arg, $setting);
@@ -1000,7 +991,7 @@ sub ppdfromvartoperl($ $) {
 	    } else {
 		$option->{'driverval'}{$language} = ($code);
 	    }
-	    check_option_type_conflict( $arg, "user" );
+	    check_option_type_conflict( $arg, 'user', $language );
 	} elsif (m!^\*\?(JCL|PJL|PXL|PCL|)([^/:\s]+):\s*(\"?)(.*)$!) {
 	    D4("QUERY <lang><option>: <code>" );
 	    my $language = fix_lang($1);
@@ -1012,7 +1003,7 @@ sub ppdfromvartoperl($ $) {
 	    $arg->{'query'} = $code;
 	} elsif (m!^\*\% COMDATA \#(.*)$!) {
 	    # If we have an old Foomatic 2.0.x PPD file, collect its Perl 
-	    D4("COMDATA" );
+	    D4('COMDATA' );
 	    # data
 	    push (@datablob, $1);
 	} elsif (m!^\*(End)\s*$!) {
@@ -1072,7 +1063,7 @@ sub ppdfromvartoperl($ $) {
 	    my $argname = $1;
 	    my $code = $3;
 	    $code = readmline( $3, $ppd,  \$i ) if( $2 );
-	    my $quoted = ($2 ne "")?1:0;
+	    my $quoted = ($2 ne '')?1:0;
 	    D4("<name> $argname <quoted> $quoted <code> $code");
 	    my $arg = $dat->{'info_byname'}{$argname};
 	    if( not $arg ){
@@ -1085,11 +1076,11 @@ sub ppdfromvartoperl($ $) {
 	    $arg->{'info_last'} = $code;
 	    $dat->{'info_byname'}{$argname} = $arg;
 	} else {
-	    D0("WARNING: Unrecognized line in PPD file '$_'");
+	D0("WARNING: Unrecognized line in PPD file:\n[".($i-2).'] '.($ppd->[$i-2])."\n[".($i-1).'] '.($ppd->[$i-1])."\n[".($i).'] '.($ppd->[$i]));
 	}
     }
 
-    D1("AFTER Parsing: " . Dumper($dat));
+    D1("AFTER Parsing " . Dumper($dat) );
 
     # If we have an old Foomatic 2.0.x PPD file use its Perl data structure
     if ($#datablob >= 0) {
@@ -1187,24 +1178,24 @@ sub ppdfromvartoperl($ $) {
 
     # Set the defaults for the numerical options, taking into account
     # the "*FoomaticRIPDefault<option>: <value>" if they apply
-    setnumericaldefaults($dat);
+    # setnumericaldefaults($dat);
     # Let the default value of a boolean option be 
-    # "True" or "False".  if( 0 ) is dangerous when testing
+    # 'True' or 'False'.  if( 0 ) is dangerous when testing
     checkdefaultoptions( $dat );
 
-    # Some clean-up
-    checklongnames($dat);
-    generalentries($dat);
 
-    # Remove make and model fields and sort the options if we don't have 
-    # a Foomatic PPD file
+    # Extract make and model fields
     if ( not $dat->{foomatic} and not $isfoomatic) {
 	$dat->{'make'} = undef;
 	$dat->{'model'} = undef;
-	sortoptions($dat, 1);
     } else {
 	$dat->{foomatic} = 1;
     }
+
+    # Some clean-up for output
+    generalentries($dat);
+    checklongnames($dat);
+    sortoptions($dat, 1);
 
     return $dat;
 }
@@ -1219,14 +1210,14 @@ sub ppdfromvartoperl($ $) {
 #     push(@{$dat->{'args'}}, $argname);
 #       - the last puts them in order in $dat->{args}->[]
   
-sub checkarg( $ $ ; $ ) {
+sub checkarg( $ $ $ ) {
     # Check if there is already an argument record $argname in $dat, if not,
     # create one
     my ($dat, $argname, $language) = @_;
     my $lcname = lc( $argname ); 
     my $arg = $dat->{'args_byname'}{$argname};
     $language = fix_lang($language);
-    D4("checkarg $argname language '$language' " . ($arg?"DONE":""));
+    D4("checkarg $argname language '$language' " . ($arg?'DONE':''));
     $arg->{'name'} = $argname;
     # Default execution style is 'G' (PostScript) since all arguments for
     # which we don't find "*Foomatic..." keywords are usual PostScript
@@ -1281,10 +1272,10 @@ sub checksetting( $ $) {
 #  priority the user's change in *Default<option>
 #  would have no no effect.
 
-sub fix_numval( $ $ ){
-    my($arg, $defvalue ) = @_;
-    D2("fix_numval: starting value $defvalue");
-    D4("   NUM value $defvalue, min $arg->{'min'} max $arg->{'max'}");
+sub fix_numval( $ $ ; $ ){
+    my($arg, $defvalue, $gen_choicelist ) = @_;
+    D2("fix_numval: $arg->{name} starting value $defvalue");
+    D2("   NUM value $defvalue, min $arg->{'min'} max $arg->{'max'}");
     $arg->{'min'} = 0 if not defined $arg->{'min'};
     $arg->{'max'} = 32767 if not defined $arg->{'max'};
     $defvalue = $arg->{'min'} if not defined $defvalue;
@@ -1300,7 +1291,10 @@ sub fix_numval( $ $ ){
     my $mindiff = abs($arg->{'max'} - $arg->{'min'});
     my $closestvalue;
     D4("   MINDIFF $mindiff");
-    if( (not defined $arg->{'vals'}) and (not defined $arg->{'choicelist'}) ){
+    if( (not defined $arg->{'vals'})
+	and (not defined $arg->{'choicelist'})
+	and $gen_choicelist ){
+	D4("   GEN CHOICELIST");
 	if( $arg->{'type'} eq 'int' ){
 	    # Real numerical options do not exist in the Adobe
 	    # specification for PPD files. So we map the numerical
@@ -1311,7 +1305,7 @@ sub fix_numval( $ $ ){
 	    my $max = $arg->{'max'};
 	    my $second = $min + 1;
 	    my $stepsize = 1;
-	    if (($max - $min > 100) && ($arg->{'name'} ne "Copies")) {
+	    if (($max - $min > 100) && ($arg->{'name'} ne 'Copies')) {
 		# We don't want to have more than 100 values, but when the
 		# difference between min and max is more than 100 we should
 		# have at least 10 steps.
@@ -1432,7 +1426,7 @@ sub fix_numval( $ $ ){
 	    push (@choicelist, $choicestr);
 	    my $item = $second;
 	    my $i = 0;
-	    my $last = "";
+	    my $last = '';
 	    while ($item < $max){
 		$choicestr =  sprintf("%.${digits}f", $item);
 		# Prevent values from entering twice because of rounding
@@ -1454,23 +1448,43 @@ sub fix_numval( $ $ ){
 	}
     }
     if( $arg->{'vals'} and @{$arg->{'vals'}} ) {
-	for my $valname (@{$arg->{'vals'}}) {
-	    my $val = $arg->{'vals_byname'}{$valname};
-	    my $value = $val->{'driverval'}{'ps'};
-	    my $diff = abs($defvalue - $value);
-	    D4("   VALNAME VALS $valname VAL $value DIFF $diff");
-	    if ($diff < $mindiff) {
-		$mindiff = $diff;
-		$closestvalue = $value;
+	D4("  USING VALS " . join(',',@{$arg->{'vals'}}) );
+	my $val = valbyname($arg, "$defvalue");
+	if( not defined $val ){
+	    for my $valname (@{$arg->{'vals'}}) {
+		$val = valbyname($arg, $valname);
+		D4("  VAL " . Dumper($val) );
+		last if "$valname" eq "$defvalue";
+		my $value;
+		foreach my $lang( %{$val->{'driverval'}} ){
+		    D4("   VALNAME LANG '$lang'");
+		    last if defined( $value = $val->{'driverval'}{$lang} );
+		}
+		my $diff = abs($defvalue - $value);
+		D4("   VALNAME VALS '$valname' VAL '$value' DIFF $diff");
+		if ($diff <= $mindiff) {
+		    $mindiff = $diff;
+		    $closestvalue = $value;
+		    last if $diff == 0;
+		}
 	    }
+	} else {
+	    my $value;
+	    foreach my $lang( %{$val->{'driverval'}} ){
+		D4("   VALNAME LANG '$lang'");
+		last if defined( $value = $val->{'driverval'}{$lang} );
+	    }
+	    $closestvalue = $value;
 	}
-    } else {
+    } elsif( $arg->{'choicelist'} and @{$arg->{'choicelist'}} ) {
+	D4("  USING CHOICELIST");
 	for my $value (@{$arg->{'choicelist'}}) {
 	    my $diff = abs($defvalue - $value);
 	    D4("   VALNAME CHOICE VAL $value DIFF $diff");
-	    if ($diff < $mindiff) {
+	    if ($diff <= $mindiff) {
 		$mindiff = $diff;
 		$closestvalue = $value;
+		last if $diff == 0;
 	    }
 	}
     }
@@ -1527,8 +1541,8 @@ sub generalentries( $ ) {
 
     my ($dat) = @_;
 
-    $dat->{'compiled-at'} = localtime(time());
     $dat->{'timestamp'} = time();
+    $dat->{'compiled-at'} = localtime( $dat->{'timestamp'} );
 
     my $user = `whoami`; chomp $user;
     my $host = `hostname`; chomp $host;
@@ -1547,15 +1561,20 @@ sub sortoptions( $ $ ) {
 
     # The following stuff is very awkward to implement in C, so we do
     # it here.
-    D1("SORTOPTIONS");
+    D8('SORTOPTIONS');
 
-    # Sort options with "sortargs" function
-    my @sortedarglist = sort { sortargs($dat) }  @{$dat->{'args'}};
+    # Sort options with 'sortargs' function
+    my @sortedarglist = map { [ sortargs($dat, $_), $_] }  @{$dat->{'args'}};
+    D8("SORTOPTIONS START " . Dumper( \@sortedarglist) );
+	
+    @sortedarglist = sort { $a->[0] cmp $b->[0] }  @sortedarglist;
+    @sortedarglist = map { $_->[1] } @sortedarglist;
     @{$dat->{'args'}} = @sortedarglist;
+    D8("SORTOPTIONS END" . Dumper( \@sortedarglist) );
 
     return if $only_options;
 
-    # Sort values of enumerated options with "sortvals" function
+    # Sort values of enumerated options with 'sortvals' function
     for my $arg (@{$dat->{'args'}}) {
 	next if $arg->{'type'} !~ /^(pickmany|enum|string|password)$/;
 	@{$arg->{'vals'}} = sort sortvals keys(%{$arg->{'vals_byname'}});
@@ -1616,8 +1635,148 @@ sub unhexify( $ ) {
 # then by their names appearing in the list of functional areas. This way
 # it will be made easier to build the PPD file with option groups and in
 # user interfaces options will appear sorted by their functionality.
-sub sortargs($) {
-	my($dat) = @_;
+    my @standardopts = (
+			# The most important composite option
+			'printoutmode',
+			# Options which appear in the 'General' group in 
+			# CUPS and similar media handling options
+			'pagesize',
+			'papersize',
+			'mediasize',
+			'inputslot',
+			'papersource',
+			'mediasource',
+			'sheetfeeder',
+			'mediafeed',
+			'paperfeed',
+			'manualfeed',
+			'manual',
+			'outputtray',
+			'outputslot',
+			'outtray',
+			'faceup',
+			'facedown',
+			'mediatype',
+			'papertype',
+			'mediaweight',
+			'paperweight',
+			'duplex',
+			'sides',
+			'binding',
+			'tumble',
+			'notumble',
+			'media',
+			'paper',
+			# Other hardware options
+			'inktype',
+			'ink',
+			# Page choice/ordering options
+			'pageset',
+			'pagerange',
+			'pages',
+			'nup',
+			'numberup',
+			# Printout quality, colour/bw
+			'resolution',
+			'gsresolution',
+			'hwresolution',
+			'jclresolution',
+			'fastres',
+			'jclfastres',
+			'quality',
+			'printquality',
+			'printingquality',
+			'printoutquality',
+			'bitsperpixel',
+			'econo',
+			'jclecono',
+			'tonersav',
+			'photomode',
+			'photo',
+			'colormode',
+			'colourmode',
+			'color',
+			'colour',
+			'grayscale',
+			'gray',
+			'monochrome',
+			'mono',
+			'blackonly',
+			'colormodel',
+			'colourmodel',
+			'processcolormodel',
+			'processcolourmodel',
+			'printcolors',
+			'printcolours',
+			'outputtype',
+			'outputmode',
+			'printingmode',
+			'printoutmode',
+			'printmode',
+			'mode',
+			'imagetype',
+			'imagemode',
+			'image',
+			'dithering',
+			'dither',
+			'halftoning',
+			'halftone',
+			'floydsteinberg',
+			'ret$',
+			'cret$',
+			'photoret$',
+			'smooth',
+			# Adjustments
+			'gammacorrection',
+			'gammacorr',
+			'gammageneral',
+			'mastergamma',
+			'stpgamma',
+			'gammablack',
+			'gammacyan',
+			'gammamagenta',
+			'gammayellow',
+			'gamma',
+			'density',
+			'stpdensity',
+			'hpljdensity',
+			'tonerdensity',
+			'inkdensity',
+			'brightness',
+			'stpbrightness',
+			'saturation',
+			'stpsaturation',
+			'hue',
+			'stphue',
+			'tint',
+			'stptint',
+			'contrast',
+			'stpcontrast',
+			'black',
+			'stpblack',
+			'cyan',
+			'stpcyan',
+			'magenta',
+			'stpmagenta',
+			'yellow',
+			'stpyellow'
+			);
+
+    my @standardgroups = (
+			  'general',
+			  'media',
+			  'quality',
+			  'imag',
+			  'color',
+			  'output',
+			  'finish',
+			  'stapl',
+			  'extra',
+			  'install'
+			  );
+
+sub sortargs($ $) {
+    my($dat, $argname) = @_;
 
     # All sorting done case-insensitive and characters which are not a
     # letter or number are taken out!!
@@ -1625,219 +1784,91 @@ sub sortargs($) {
     # List of typical option names to appear at first
     # The terms must fit to the beginning of the line, terms which must fit
     # exactly must have '\$' in the end.
-    my @standardopts = (
-			# The most important composite option
-			"printoutmode",
-			# Options which appear in the "General" group in 
-			# CUPS and similar media handling options
-			"pagesize",
-			"papersize",
-			"mediasize",
-			"inputslot",
-			"papersource",
-			"mediasource",
-			"sheetfeeder",
-			"mediafeed",
-			"paperfeed",
-			"manualfeed",
-			"manual",
-			"outputtray",
-			"outputslot",
-			"outtray",
-			"faceup",
-			"facedown",
-			"mediatype",
-			"papertype",
-			"mediaweight",
-			"paperweight",
-			"duplex",
-			"sides",
-			"binding",
-			"tumble",
-			"notumble",
-			"media",
-			"paper",
-			# Other hardware options
-			"inktype",
-			"ink",
-			# Page choice/ordering options
-			"pageset",
-			"pagerange",
-			"pages",
-			"nup",
-			"numberup",
-			# Printout quality, colour/bw
-			"resolution",
-			"gsresolution",
-			"hwresolution",
-			"jclresolution",
-			"fastres",
-			"jclfastres",
-			"quality",
-			"printquality",
-			"printingquality",
-			"printoutquality",
-			"bitsperpixel",
-			"econo",
-			"jclecono",
-			"tonersav",
-			"photomode",
-			"photo",
-			"colormode",
-			"colourmode",
-			"color",
-			"colour",
-			"grayscale",
-			"gray",
-			"monochrome",
-			"mono",
-			"blackonly",
-			"colormodel",
-			"colourmodel",
-			"processcolormodel",
-			"processcolourmodel",
-			"printcolors",
-			"printcolours",
-			"outputtype",
-			"outputmode",
-			"printingmode",
-			"printoutmode",
-			"printmode",
-			"mode",
-			"imagetype",
-			"imagemode",
-			"image",
-			"dithering",
-			"dither",
-			"halftoning",
-			"halftone",
-			"floydsteinberg",
-			"ret\$",
-			"cret\$",
-			"photoret\$",
-			"smooth",
-			# Adjustments
-			"gammacorrection",
-			"gammacorr",
-			"gammageneral",
-			"mastergamma",
-			"stpgamma",
-			"gammablack",
-			"gammacyan",
-			"gammamagenta",
-			"gammayellow",
-			"gamma",
-			"density",
-			"stpdensity",
-			"hpljdensity",
-			"tonerdensity",
-			"inkdensity",
-			"brightness",
-			"stpbrightness",
-			"saturation",
-			"stpsaturation",
-			"hue",
-			"stphue",
-			"tint",
-			"stptint",
-			"contrast",
-			"stpcontrast",
-			"black",
-			"stpblack",
-			"cyan",
-			"stpcyan",
-			"magenta",
-			"stpmagenta",
-			"yellow",
-			"stpyellow"
-			);
-
-    my @standardgroups = (
-			  "general",
-			  "media",
-			  "quality",
-			  "imag",
-			  "color",
-			  "output",
-			  "finish",
-			  "stapl",
-			  "extra",
-			  "install"
-			  );
-
-    my $compare;
+    my ($compare, $i, $key, $arg );
 
     # Argument records
-    my $firstarg = $dat->{'args_byname'}{$a};
-    my $secondarg = $dat->{'args_byname'}{$b};
+    $arg = argbyname( $dat, $argname );
 
     # Bring the two option names into a standard form to compare them
     # in a better way
-    my $first = normalizename(lc($firstarg->{'name'}));
+    my $first = normalizename(lc($arg->{'name'}));
     $first =~ s/[\W_]//g;
-    my $second = normalizename(lc($secondarg->{'name'}));
-    $second =~ s/[\W_]//g;
 
     # group names
-    my $firstgr = ($firstarg->{'group'} || "");
-    my @firstgroup = split("/", $firstgr); 
-    my $secondgr = ($secondarg->{'group'} || "");
-    my @secondgroup = split("/", $secondgr);
-
-    my $i = 0;
-
-    # Compare groups
-    while ($firstgroup[$i] && $secondgroup[$i]) {
-
-	# Normalize group names
-	my $firstgr = normalizename(lc($firstgroup[$i]));
-	$firstgr =~ s/[\W_]//g;
-	my $secondgr = normalizename(lc($secondgroup[$i]));
-	$secondgr =~ s/[\W_]//g;
-	    
-	# Are the groups in the list of standard group names?
-	my $j;
-	for ($j = 0; $j <= $#standardgroups; $j++) {
-	    my $firstinlist = ($firstgr =~ /^$standardgroups[$j]/);
-	    my $secondinlist = ($secondgr =~ /^$standardgroups[$j]/);
-	    if (($firstinlist) && (!$secondinlist)) {return -1};
-	    if (($secondinlist) && (!$firstinlist)) {return 1};
-	    if (($firstinlist) && ($secondinlist)) {last};
+    my $firstgr = $arg->{'group'};
+    my ($gfirst);
+    if( $firstgr ){
+	$firstgr = join(' ', @{$firstgr} );
+	for( $i = 0; $i <@standardgroups; ++$i ){
+	    last if( $firstgr =~ $standardgroups[$i] );
 	}
-
-	# Compare normalized group names
-	$compare = $firstgr cmp $secondgr;
-	if ($compare != 0) {return $compare};
-
-	# Compare original group names
-	$compare = $firstgroup[$i] cmp $secondgroup[$i];
-	if ($compare != 0) {return $compare};
-	
-	$i++;
+	$gfirst = $i;
+    } else {
+	$firstgr = '_';
+	$gfirst = @standardgroups;
     }
 
-    # The one with a deeper level in the group tree will come later
-    if ($firstgroup[$i]) {return 1};
-    if ($secondgroup[$i]) {return -1};
+    $key = sprintf("%03d %-20s", $gfirst, $firstgr);
 
     # Check whether they argument names are in the @standardopts list
-    for ($i = 0; $i <= $#standardopts; $i++) {
-	my $firstinlist = ($first =~ /^$standardopts[$i]/);
-	my $secondinlist = ($second =~ /^$standardopts[$i]/);
-	if (($firstinlist) && (!$secondinlist)) {return -1};
-	if (($secondinlist) && (!$firstinlist)) {return 1};
-	if (($firstinlist) && ($secondinlist)) {last};
+    my( $sfirst );
+    for ($i = 0; $i < @standardopts; $i++) {
+	last if( ($first =~ /^$standardopts[$i]/));
     }
-
-    # None of the search terms in the list, compare the standard-formed
-    # strings
-    $compare = ( $first cmp $second );
-    if ($compare != 0) {return $compare};
-
-    # No other criteria fullfilled, compare the original input strings
-    return $firstarg->{'name'} cmp $secondarg->{'name'};
+    $sfirst = $i;
+    $key .= sprintf(" %03d %-20s %-20s", $sfirst, $first, $arg->{'name'});
+    return($key);
 }
 
+    my @standardvals = (
+			# Default setting
+			'default',
+			'printerdefault',
+			# 'Neutral' setting
+			'None$',
+			# Paper sizes
+			'letter$',
+			#'legal',
+			'a4$',
+			# Paper types
+			'plain',
+			# Printout Modes
+			'draft$',
+			'draft\.gray',
+			'draft\.mono',
+			'draft\.',
+			'draft',
+			'normal$',
+			'normal\.gray',
+			'normal\.mono',
+			'normal\.',
+			'normal',
+			'high$',
+			'high\.gray',
+			'high\.mono',
+			'high\.',
+			'high',
+			'veryhigh$',
+			'veryhigh\.gray',
+			'veryhigh\.mono',
+			'veryhigh\.',
+			'veryhigh',
+			'photo$',
+			'photo\.gray',
+			'photo\.mono',
+			'photo\.',
+			'photo',
+			# Trays
+			'upper',
+			'top',
+			'middle',
+			'mid',
+			'lower',
+			'bottom',
+			'highcapacity',
+			'multipurpose',
+			'tray',
+			);
 sub sortvals() {
 
     # All sorting done case-insensitive and characters which are not a letter
@@ -1846,55 +1877,6 @@ sub sortvals() {
     # List of typical choice names to appear at first
     # The terms must fit to the beginning of the line, terms which must fit
     # exactly must have '\$' in the end.
-    my @standardvals = (
-			# Default setting
-			"default",
-			"printerdefault",
-			# "Neutral" setting
-			"None\$",
-			# Paper sizes
-			"letter\$",
-			#"legal",
-			"a4\$",
-			# Paper types
-			"plain",
-			# Printout Modes
-			"draft\$",
-			"draft\.gray",
-			"draft\.mono",
-			"draft\.",
-			"draft",
-			"normal\$",
-			"normal\.gray",
-			"normal\.mono",
-			"normal\.",
-			"normal",
-			"high\$",
-			"high\.gray",
-			"high\.mono",
-			"high\.",
-			"high",
-			"veryhigh\$",
-			"veryhigh\.gray",
-			"veryhigh\.mono",
-			"veryhigh\.",
-			"veryhigh",
-			"photo\$",
-			"photo\.gray",
-			"photo\.mono",
-			"photo\.",
-			"photo",
-			# Trays
-			"upper",
-			"top",
-			"middle",
-			"mid",
-			"lower",
-			"bottom",
-			"highcapacity",
-			"multipurpose",
-			"tray",
-			);
 
     # Do not waste time if the input strings are equal
     if ($a eq $b) {return 0;}
@@ -1916,11 +1898,13 @@ sub sortvals() {
     for (my $i = 0; not $firstinlist and $i <= @standardvals; $i++) {
 	if( ($first =~ /^$standardvals[$i]/) ){
 	    $firstinlist = $first;
+	    last;
 	}
     }
     for (my $i = 0; not $secondinlist and $i <= @standardvals; $i++) {
 	if( ($second =~ /^$standardvals[$i]/) ){
 	    $secondinlist = $second;
+	    last;
 	}
     }
     if (($firstinlist) && (!$secondinlist)) {return -1};
@@ -1985,13 +1969,13 @@ sub normalizename ( $ ) {
 # flag an option to be a user option, a foomatic option, or both
 # Note that the user option has precedence
 
-sub check_option_type_conflict( $ $ ){
-    my ($arg, $value ) = @_;
+sub check_option_type_conflict( $ $ $){
+    my ($arg, $value, $language ) = @_;
     if( $value ne "user" and $value ne "foomatic" ){
 	rip_die("LOGIC ERROR: option type can be 'user' or 'foomatic', not $value",
 	    $EXIT_PRNERR_NORETRY_BAD_SETTINGS);
     }
-    $arg->{'option_type'}{$value} = 1;
+    $arg->{'option_type'}{$value}{$language} = 1;
 }
 
 sub checkoptionvalue( $ $ $ ) {
@@ -2213,17 +2197,23 @@ sub cutguiname( $ $ ) {
 
 sub readmline( $ $ $ ) {
     my( $line, $ppd, $ptr_i ) = @_;
-    D1("UNDEF") if( not defined $line );
+    #D1("UNDEF") if( not defined $line );
+    #D1("readmline: start '$line'");
     while ($line !~ m!\"!) {
 	if ($line =~ m!&&$!) {
 	    # line continues in next line
 	    $line = substr($line, 0, -2);
+	    #D1("readmline: fixed '$line'");
+	    # Read next line
+	} else {
+	    $line .= "\n";
 	}
-	# Read next line
 	${$ptr_i} ++;
-	$line .= "\n" . $ppd->[${$ptr_i}];
+	$line .= $ppd->[${$ptr_i}];
+	#D1("readmline: appended '$line'");
     }
     $line =~ m!^([^\"]*)\"!s;
+    #D1("readmline: FINAL '$1'");
     return( $1 );
 }
 
@@ -2263,7 +2253,7 @@ sub fixoptionvalue( $ $ $ ){
     my $name = $arg->{'name'};
     my $type = ($arg->{'type'} or 'enum');
     my $section = $arg->{'section'}{$language};
-    my $cmdvar = "";
+    my $cmdvar = '';
 
     my $sprintfcmd = ($arg->{'proto'}{$language} or "%s");
     $sprintfcmd =~ s/\%(?!s)/\%\%/g;
@@ -2273,7 +2263,7 @@ sub fixoptionvalue( $ $ $ ){
     my $lookupval = $arg->{$optionset};
 
 	
-    $lookupval = "" if not defined $lookupval and $type eq 'pickmany';
+    $lookupval = '' if not defined $lookupval and $type eq 'pickmany';
     if( not defined $lookupval ){
 	D10( " fixoptionvalue - name $name 'no lookupval' optionset '$optionset' value");
 	return $cmdvar;
@@ -2412,7 +2402,7 @@ sub fix_lang( $ ){
 sub fix_pickmany( $ @ ){
     my( $arg, @values ) = @_;
 
-    my $newvalue = "";
+    my $newvalue = '';
     my %used;
     my $err = 0;
     @values = grep { defined $_ } (@values);
@@ -2445,12 +2435,12 @@ sub fix_pickmany( $ @ ){
 
 =head1 Generating a PPD File
 
-The getppd() function will regenerate a PPD from the parsed
+The ppdfromperl() function will regenerate a PPD from the parsed
 information.  The PPD file that is produced will be suitable
 for use by various front ends.  That means that Foomatic specific
 information must be translated into formats compatible with
 the other front ends.
-
+ 
 The following actions must be done:
 
 =over 2
@@ -2460,15 +2450,28 @@ The following actions must be done:
 For the string, int, and float type of options,  a set of
 enumerated choices will be generated.
 
+ ppdfromperl( $dat, $shortgui, $update )
+
+   $dat = data information
+   $shortgui = long or short translation strings
+   $update = format
+
+If $shortgui is set, all GUI strings ("translations" in PPD files) will
+be cut to a maximum length of 39 characters. This is needed by the
+current (as of July 2003) version of the CUPS PostScript driver for
+Windows.
+
+If $update is set, then the PPD file will be updated with
+defaults or options set by command line options.
+
 =back
 
 =cut
 
 # Return a generic Adobe-compliant PPD for the "foomatic-rip" filter script
-# for all spoolers.  Built from the standard data; you must call getdat()
-# first.
+# for all spoolers.
 
-sub getppd( $ $ $ ) {
+sub ppdfromperl( $ $ $ ) {
 
     my ($dat, $shortgui, $update) = @_;
     # $dat is the Perl data structure of the current printer/driver combo.
@@ -2477,10 +2480,6 @@ sub getppd( $ $ $ ) {
     # be cut to a maximum length of 39 characters. This is needed by the
     # current (as of July 2003) version of the CUPS PostScript driver for
     # Windows.
-
-    # If $members_in_subgroup is set, the member options of a composite
-    # option go into a subgroup of the group where the composite option
-    # is located. Otherwise the member options go into a new main group
 
     # fix the page sizes
     fix_pagesize( $dat );
@@ -2510,31 +2509,26 @@ sub getppd( $ $ $ ) {
     );
 
     my $filename = ($dat->{'filename'} or "UNKNOWN");
-    my $out = "";
+    my $out = '';
 
     push(@headerblob, <<EOF );
 *PPD-Adobe: "4.3"
-
-*% For information on using this, and to obtain the required backend
-*% script, consult http://www.linuxprinting.org/
+*% Foomatic Generated PPD File
 *%
 *% This file is published under the GNU General Public License
 *%
 *% Foomatic (3.0.0 or newer) generated this PPD file. It should be suitable
 *% for use with all programs and environments which use PPD files for
-*% printer capability information.
-*% 
-*% The "foomatic-rip" backend filter script uses this file as well.
+*% printer capability information as well as "foomatic-rip" backend filter
+*% script.  For information on using this, and to obtain "foomatic-rip"
+*% consult http://www.linuxprinting.org/
 *%
-*% To save this file on your disk, wait until the download has completed
-*% (the animation of the browser logo must stop) and then use the
-*% "Save as..." command in the "File" menu of your browser.
-*%
-*% DO NOT cut and paste this file into an editor with your mouse. This can
+*% If downloading this file using a Web Browser, DO NOT cut and paste
+*% this file from the Web Browser into an editor with your mouse. This can
 *% introduce additional line breaks which lead to unexpected results.
 *%
-*% You may save this file as '$filename'
-*%
+*% Instead, use the appropriate command to save the document as a file.
+*% It is recommended that you save this file as '$filename'
 *%
 EOF
     my $used = { 'PPD-Adobe' => 1};
@@ -2545,6 +2539,22 @@ EOF
 	next if not $arg;
 	next if $used->{$name};
 	next if not $arg->{'info_code'};
+	# remove foomatic comments
+	for ( my $i = 0; $i < 50 and $i < @{$arg->{'info_code'}}; ++$i ){
+		my $line = $arg->{'info_code'}->[$i];
+		if( $line =~ /save this file as/ ){
+		    splice @{$arg->{'info_code'}}, 0, $i+1;
+		    last;
+		}
+	}
+	for ( my $i = 0; $i < 50 and $i < @{$arg->{'info_code'}}; ++$i ){
+		my $line = $arg->{'info_code'}->[$i];
+		if( $line =~ /=== COMMENTS ====/ ){
+		    splice @{$arg->{'info_code'}}, 0, $i;
+		    last;
+		}
+	}
+	
 	for ( my $i = 0; $i < 25 and $i < @{$arg->{'info_code'}}; ++$i ){
 	    push(@headerblob, $arg->{'info_code'}->[$i] . "\n");
 	}
@@ -2562,11 +2572,11 @@ EOF
 	my $code = $arg->{'info_last'};
 	if( not defined $code ){
 	    if( $default ){
-		D0("getppd: missing required value for '$name', using default '$default'");
+		D0("ppdfromperl: missing required value for '$name', using default '$default'");
 		$code = $default;
 		$use_list = 0;
 	    } else {
-		D0("getppd: missing required value for '$name'");
+		D0("ppdfromperl: missing required value for '$name'");
 		next;
 	    }
 	}
@@ -2588,69 +2598,73 @@ EOF
 	$used->{$name} = 1;
     }
 
-    push(@headerblob, "\n*%============== OPTIONS =================\n\n");
+    push(@optionblob, "\n*%============== INFO =================\n\n");
 
-    foreach my $name (@{$dat->{'info'}}){
+    my @plist = (sort @{$dat->{'info'}});
+    D10("ppd_from_perl: INFO PLIST '@plist'");
+    foreach my $name (@plist){
 	next if $used->{$name};
 	my $arg = infobyname( $dat, $name );
 	my $quoted = $arg->{'quoted'};
 	my $header = "*$name";
 	my $code = $arg->{'info_last'};
+	D10("ppd_from_perl: info $name, code $code");
 	next if grep { $name =~ /$_/i } @printer_messages;
+	my $cmdlinestr;
 	if( not $quoted ){
-	    push(@optionblob, "$header: $code\n");
-	} elsif( $name !~ /foomatic/ ){
-	    push(@optionblob, "$header: \"$code\"\n");
-	    if( $code =~ /\n/s ){
-		push( @optionblob, "\n*End;" );
-	    }
+	    $cmdlinestr = "$header: $code";
 	} else {
-	    my $cmdlinestr = ripdirective($header, $code);
-	    if( $cmdlinestr =~ /\n/s){
+	    if( $name !~ /foomatic/ ){
+		$cmdlinestr = "$header: \"$code\"";
+	    } else {
+		$cmdlinestr = ripdirective($header, $code);
+	    }
+	    if( $cmdlinestr =~ /\n/s ){
+		$cmdlinestr =~ s/$\n//;
 		$cmdlinestr .= "\n*End";
 	    }
-	    push(@optionblob, "$cmdlinestr\n");
 	}
+	D10("ppd_from_perl: info $name, out '$cmdlinestr'");
+	push(@optionblob, "$cmdlinestr\n");
 	$used->{$name} = 1;
     }
+
+    push(@optionblob, "\n*%============== OPTIONS =================\n\n");
 
     # sort the arguments by the Group and Subgroup fields first
     my @sorted_args;
     if( $dat->{'args'} ){
 	my $i = 0;
-	D10("sorted_args START @{$dat->{'args'}}");
-	@sorted_args = map { my $arg =argbyname($dat,$_);
-		[ $arg->{'group'}, $arg->{'name'}, ++$i ] }
-			@{$dat->{'args'}};
-	@sorted_args = sort {
-		my $ga = $a->[0]; my $gb = $b->[0];
-		return( 0 ) if not defined $ga and not defined $gb;
-		return( 1 ) if not defined $ga and defined $gb;
-		return( -1 ) if defined $ga and not defined $gb;
-		my $alen = @{$ga};
-		my $blen = @{$gb};
-		D40("A len $alen '".Dumper($ga));
-		D40("B len $blen '".Dumper($gb));
-		return( $a->[2] - $b->[2] ) if $alen == 0 and $blen == 0; 
-		return( 1 ) if $alen == 0 and $blen != 0; 
-		return( -1 ) if $alen != 0 and $blen == 0; 
-		for( my $i = 0; $i < $alen; ++$i){
-			my $av = $ga->[$i];
-			my $bv = $gb->[$i];
-			$bv = "" if not defined $bv;
-			my $cmp = $av cmp $bv;
-			return( $cmp ) if $cmp;
-		}
-		return(1) if( $alen < $blen );
-		return( $a->[2] - $b->[2] );
-		} @sorted_args;
-	D40("sorted_args " . Dumper( \@sorted_args ) );
+	foreach my $n (@{$dat->{'args'}}){
+	    my $arg =argbyname($dat,$n);
+	    my $open_ui = 0;
+	    if( $arg->{'option'} ){
+		$open_ui = keys %{$arg->{'option'}};
+	    }
+	    $open_ui = $open_ui?0:1;
+	    my $g = '';
+	    if( $arg->{'group'} ){
+		$g = join( ' ', @{$arg->{'group'}} );
+	    }
+	    if( not $g ){
+		$g = "_";
+	    }
+	    my $key = sprintf("%-40s $open_ui %05d ", $g, $i);
+	    push @sorted_args, [ $key, $n];
+	    ++$i;
+	}
+	D10("KEYS " . Dumper(@sorted_args));
+	@sorted_args = sort 
+		{ $a->[0] cmp $b->[0]; } @sorted_args;
+	D10("sorted_args " . Dumper( \@sorted_args ) );
 	@sorted_args = map { $_->[1] } @sorted_args;
     }
     D10("sorted_args FINAL @sorted_args" );
 
     my @groupstack; # In which group are we currently
     for my $name (@sorted_args){
+	D10("OPTION '$name'");
+	next if $used->{$name};
 	my $arg = argbyname( $dat, $name);
 	# you have to generate the following items
 	# *OpenUI *PageSize/Media Size: PickOne
@@ -2658,72 +2672,88 @@ EOF
 	# *DefaultPageSize: Letter
 	# *PageSize Letter/Letter: "<<..."
 	# *CloseUI: *PageSize
-	D10("OPTION '$name'");
-	{
-	    my @group;
-	    my $i;
-	    push @group, @{$arg->{'group'}} if $arg->{'group'};
-	    # now we check to see if we need to open or close a group
-	    for( $i = 0; $i < @group and $i < @groupstack; ++$i ){
-		my $newname = $group[$i];
-		my $oldname = $groupstack[$i];
-		last if $newname ne $oldname;
-	    }
-	    # now you close the groups
-	    while( $i < @groupstack ){
-		my $close = pop @groupstack;
-		push @optionblob,
-		     "*Close".(@groupstack?"Sub" : "")
-				."Group: " . $close . "\n";
-	    }
-	    for( ; $i < @group; ++$i ){
-		my $newname = $group[$i];
-		push @optionblob,
-		     "*Open".(@groupstack?"Sub" : "")
-				."Group: " . $newname . "\n";
-		push @groupstack, $newname;
+
+	$arg->{'default_out'} = 0;
+	my @group;
+	my $i;
+	push @group, @{$arg->{'group'}} if $arg->{'group'};
+	# now we check to see if we need to open or close a group
+	for( $i = 0; $i < @group and $i < @groupstack; ++$i ){
+	    my $newname = $group[$i];
+	    my $oldname = $groupstack[$i];
+	    last if $newname ne $oldname;
+	}
+	# now you close the groups
+	my $closed;
+	while( $i < @groupstack ){
+	    my $close = pop @groupstack;
+	    push @optionblob,
+		 "*Close".(@groupstack?'Sub' : '')
+			    .'Group: ' . $close . "\n";
+	    $closed = 1;
+	}
+	push @optionblob, "\n" if $closed;
+	for( ; $i < @group; ++$i ){
+	    my $newname = $group[$i];
+	    push @optionblob,
+		 "*Open".(@groupstack?'Sub' : '')
+			    .'Group: ' . $newname . "\n";
+	    push @groupstack, $newname;
+	}
+
+	my $type =( $arg->{'type'} || ''); 
+	my $fix_type = {
+		enum =>'PickOne', pickmany=>'PickMany',
+			bool =>'Boolean' };
+	my $fix_lang = { ps =>'',
+		pcl=>'PCL', pjl =>'JCL', pxl=>'PXL' };
+
+	my $ty = $fix_type->{$type};
+	if( $ty and my $v =$arg->{'option_type'}{'user'} ){
+	    D10("ppd_from_perl: user options " . join(',', keys %{$v}) );
+	    my %done;
+	    foreach my $lang ( 'ps', sort keys %{$v} ){
+		# *OpenUI *PageSize/Media Size: PickOne
+		# *OrderDependency: 10 AnySetup *PageSize
+		# *DefaultPageSize: Letter
+		# *PageSize Letter/Letter: "<<..."
+		# *CloseUI: *PageSize
+		next if not $v->{$lang} or $done{$lang};
+		my $prefix = $fix_lang->{$lang};
+		if( not defined $prefix ){
+		    rip_die ("ppd_from_perl: LOGIC ERROR! option '$name' has user information in language '$lang'", 
+			$EXIT_PRNERR_NORETRY_BAD_SETTINGS );
+		}
+		fix_user_options ( $arg, $ty, $shortgui, $lang, $prefix,
+		     \@optionblob );
+		$done{$lang} = 1;
 	    }
 	}
-	my $type =( $arg->{'type'} || ""); 
-	my $ty = "";
-	my $default = $arg->{'default'};
-	$ty = 'PickOne' if( $type eq 'enum' );
-	$ty = 'PickMany' if( $type eq 'pickmany' );
-	$ty = 'Boolean' if( $type eq 'bool' );
-	if( $arg->{'option_type'}{'user'} and $ty ){
-	    # *OpenUI *PageSize/Media Size: PickOne
-	    # *OrderDependency: 10 AnySetup *PageSize
-	    # *DefaultPageSize: Letter
-	    # *PageSize Letter/Letter: "<<..."
-	    # *CloseUI: *PageSize
-	    fix_user_options ( $arg, $ty, $shortgui, 'ps', '',
-		 \@optionblob );
-	    fix_user_options ( $arg, $ty, $shortgui, 'pjl', 'JCL',
-		 \@optionblob );
-	    fix_user_options ( $arg, $ty, $shortgui, 'pcl', 'PCL',
-		\@optionblob );
+	if( my $v =$arg->{'option_type'}{'foomatic'} ){
+	    D10("ppd_from_perl: foomatic options " . join(',', keys %{$v}) );
+	    my %done;
+	    foreach my $lang ( 'ps', sort keys %{$v} ){
+		# *FoomaticRIPOption Foo: enum ps A
+		# *FoomaticRIPOptionAllowedChars Foostr: "\w\s"
+		# *FoomaticRIPOptionAllowedRegExp Foostr: ".*"
+		# *FoomaticRIPOptionMaxLength Foostr: 32
+		# *FoomaticRIPOptionPrototype Fooint: "
+		# *FoomaticRIPOptionRange Fooint: 0 100
+		# *FoomaticRIPOptionSetting Foo=Value1: "
+		next if not $v->{$lang} or $done{$lang};
+		my $prefix = ($fix_lang->{$lang} || '' );
+		fix_foomatic_options ( $arg, $type, $shortgui, $lang, $prefix,
+		     \@optionblob );
+		$done{$lang} = 1;
+	    }
 	}
-	if( $arg->{'option_type'}{'foomatic'} ){
-	    # *FoomaticRIPOption Foo: enum ps A
-	    # *FoomaticRIPOptionAllowedChars Foostr: "\w\s"
-	    # *FoomaticRIPOptionAllowedRegExp Foostr: ".*"
-	    # *FoomaticRIPOptionMaxLength Foostr: 32
-	    # *FoomaticRIPOptionPrototype Fooint: "
-	    # *FoomaticRIPOptionRange Fooint: 0 100
-	    # *FoomaticRIPOptionSetting Foo=Value1: "
-	    fix_foomatic_options ( $arg, $type, $shortgui, 'ps', '',
-		 \@optionblob );
-	    fix_foomatic_options ( $arg, $type, $shortgui, 'pjl', 'JCL',
-		 \@optionblob );
-	    fix_foomatic_options ( $arg, $type, $shortgui, 'pcl', 'PCL',
-		\@optionblob );
-	}
+	$used->{$name} = 1;
     }
     # now you close the groups
     while( @groupstack ){
 	my $close = pop @groupstack;
 	push @optionblob,
-	     "*Close".(@groupstack?"Sub" : "")
+	     "*Close".(@groupstack?"Sub" : '')
 			."Group: " . $close . "\n";
     }
     foreach my $name (@printer_messages){
@@ -2762,7 +2792,7 @@ sub ripdirective( $ $ ){
     # If possible, make lines of this length
     my $maxlength = 72;
     # Header of continuation line
-    my $continueheader = "";
+    my $continueheader = '';
     # Two subsequent ampersands are not possible in an htmlified string,
     # so we can use them at the line end to mark that the current line
     # continues on the next line. A newline without this is also a newline
@@ -2793,7 +2823,7 @@ sub ripdirective( $ $ ){
 	    if (length($l) < $freelength) {
 		$freelength = length($l);
 	    }
-	    my $line = substr($l, 0, $freelength, "");
+	    my $line = substr($l, 0, $freelength, '');
 	    # Add the portion 
 	    $out .= $line;
 	    # Finish the line
@@ -2825,7 +2855,7 @@ sub fix_pagesize( $ ){
     my $maxpageheight = 100000;
 
     my $pagesize = argbyname( $dat, 'PageSize' );
-    my $setup = "";
+    my $setup = '';
 
     # if there is not PageSize, then
     # create a dummy PageSize.  This brutally assumes that
@@ -2909,7 +2939,7 @@ EOF
 	}
 	# Determine the unprintable margins
 	# Zero margins when no margin info exists
-	$setup = "";
+	$setup = '';
 	my $parg;
 	if( not($parg = argbyname($dat, 'ImageableArea'))
 		or not valbyname( $parg, $value ) ){
@@ -2932,7 +2962,7 @@ EOF
 	if( $setup ){
 	    my @lines = split( "\n", $setup );
 	    ppdfromvartoperl( $dat, \@lines );
-	    $setup ="";
+	    $setup ='';
 	}
     }
     # Make the header entries for a custom page size
@@ -2949,8 +2979,10 @@ EOF
 	# on the stack and insert a comment
 	# to advise the filter
 	
-	my $order = ($pagesize->{'order'}{'ps'} || 0 );
-	my $section = ($pagesize->{'section'}{'ps'} || 'AnySetup' );
+	my $order = $pagesize->{'order'}{'ps'};
+	$order = $pagesize->{'order'}{'ps'} = 100 if not defined $order;
+	my $section = $pagesize->{'section'}{'ps'};
+	$section = $pagesize->{'section'}{'ps'} = 'AnySetup' if not defined $section;
 	my $pscode = "pop pop pop
 <</PageSize [ 5 -2 roll ] /ImagingBBox null>>setpagedevice";
 	my ($left, $right, $top, $bottom) =
@@ -2960,7 +2992,6 @@ EOF
 *VariablePaperSize: True
 *MaxMediaWidth: $maxpaperdim
 *MaxMediaHeight: $maxpaperdim
-*NonUIOrderDependency: $order $section *CustomPageSize
 *CustomPageSize True: \"$pscode\"
 *End
 *ParamCustomPageSize Width: 1 points 36 $maxpagewidth
@@ -2975,7 +3006,7 @@ EOF
     if( $setup ){
 	my @lines = split( "\n", $setup );
 	ppdfromvartoperl( $dat, \@lines );
-	$setup ="";
+	$setup ='';
     }
 }
 
@@ -2987,56 +3018,63 @@ EOF
 # *CloseUI: *PageSize
 sub fix_user_options ( $ $ $ $ $ $ ){
     my( $arg, $ty, $shortgui, $lang, $prefix, $opts ) = @_;
-    my $section = $arg->{'section'}{$lang};
+    my $section = ($arg->{'section'}{$lang} || '');
     my $name = $arg->{'name'};
     my $default = $arg->{'default'};
     my $type = $arg->{'type'};
     my $outval = 0;
-    my $order = ($arg->{'order'}{$lang} || 0);
+    my $order = $arg->{'order'}{$lang};
+    my $open_ui = 0;
+    my $nonui = ($arg->{'nonui'}{$lang} || '');
     if( $arg->{'option'}{$lang} ){
+	$open_ui = keys %{$arg->{'option'}}
+    }
+    D10("fix_user_options: $name lang '$lang' section '$section' open_ui '$open_ui'");
+    if( $open_ui){
 	my $com = ($arg->{'comment'} || $arg->{'name'});;
 	push @{$opts},
 	    sprintf("\n*${prefix}OpenUI *${prefix}%s/%s: %s\n",
-		$name, cutguiname($com, $shortgui), $ty);
-    } else {
-	if( not $arg->{'vals'} or not @{$arg->{'vals'}}){
-	    $outval = 1;
-	}
+	    $name, cutguiname($com, $shortgui), $ty);
+    } elsif( not $arg->{'vals'} or not @{$arg->{'vals'}}){
+	$outval = 1;
     }
     if( $section ){
 	push @{$opts},
-	sprintf("*OrderDependency: %s %s *${prefix}%s\n", 
-	     $order, $section, $name);
+	sprintf("*%sOrderDependency: %s %s *${prefix}%s\n", 
+	     $nonui, $order, $section, $name);
     }
     foreach my $value (@{$arg->{'vals'}}){
 	my $option = valbyname( $arg, $value );
 	my $driverval = $option->{'driverval'}{$lang};
-	next if not defined $driverval;
-	$outval = 1;
-	last;
+	my $setting = $option->{'setting'}{$lang};
+	if( defined $driverval or defined $setting ){
+	    $outval = 1;
+	    last;
+	}
     }
-    if( $outval and defined $default ){
+    if( $outval and defined $default and not $arg->{'default_out'} ){
 	push @{$opts},
 	 sprintf("*Default${prefix}%s: %s\n", 
 	     $name, $default );
+	$arg->{'default_out'} = 1;
     }
     foreach my $value (@{$arg->{'vals'}}){
 	my $option = valbyname( $arg, $value );
 	my $comment = ($option->{'comment'} || $value);
 	my $driverval = $option->{'driverval'}{$lang};
-	next if not defined $driverval;
-	my $str = 
-	    sprintf("*${prefix}%s %s/%s: \"%s\"", 
-		$name, $value, $comment, $driverval);
+	my $setting = $option->{'setting'}{$lang};
+	next if not defined $driverval and not defined $setting;
+	my $str = sprintf("*${prefix}%s %s/%s: \"%s\"", 
+	    $name, $value, $comment, ($setting?$setting:$driverval) );
 	if( $str =~ /\n/s){
 	    $str .= "\n*End";
 	}
 	push @{$opts}, "$str\n";
     }
-    if( $arg->{'option'}{$lang} ){
+    if( $open_ui){
 	push @{$opts},
-	    sprintf("*${prefix}CloseUI: *${prefix}%s\n",
-		$name );
+	    sprintf("*${prefix}CloseUI *${prefix}%s\n",
+	    $name );
     }
 }
 
@@ -3050,27 +3088,28 @@ sub fix_user_options ( $ $ $ $ $ $ ){
 # *FoomaticRIPOptionSetting Foo=Value1: "
 sub fix_foomatic_options ( $ $ $ $ $ $ ){
     my( $arg, $ty, $shortgui, $lang, $prefix, $opts ) = @_;
-    my $section = $arg->{'section'}{$lang};
+    my $section = ($arg->{'section'}{$lang} || '');
     my $spot = ($arg->{'spot'}{$lang} || 'A');
-    my $order = ($arg->{'order'}{$lang} || 0);
+    my $order = $arg->{'order'}{$lang};
+    $order = $arg->{'order'}{$lang} = 100 if not defined $order;
     my $name = $arg->{'name'};
     my $type = $arg->{'type'};
     my $str = "$type $lang $spot ";
-    return if not defined($section);
     D10("fix_foomatic_options: name '$name' lang '$lang' type '$type' section '$section' spot '$spot' order '$order'");
     if( $section ne 'AnySetup' ){
 	$str = "$type $lang $spot " .  ($order+0). " $section";
     } elsif( $order ){
-	$str = "$type $lang $spot " .  ($order+0). "";
+	$str = "$type $lang $spot " .  ($order+0). '';
     }
     push @{$opts},
 	sprintf("\n*FoomaticRIPOption ${prefix}%s: %s\n",
 	    $name, $str);
-    if( defined ($str = $arg->{'default'}) ){
+    if( defined ($str = $arg->{'default'}) and not $arg->{'default_out'} ){
 	$str = ripdirective( "*FoomaticRIPDefault ${prefix}${name}",
 		 $str );
 	if( $str =~ /\n/s){ $str .= "\n*End"; }
 	push @{$opts}, $str . "\n";
+	$arg->{'default_out'} = 1;
     }
     if( ($str = $arg->{'proto'}{$lang}) ){
 	$str = ripdirective( "*FoomaticRIPOptionPrototype ${prefix}${name}",
@@ -3348,7 +3387,7 @@ sub getpapersize( $ ){
     }
 
     # This paper size is absolutely unknown, issue a warning
-    D0 "WARNING: Unknown paper size: $papersize!";
+    D0("WARNING: Unknown paper size: $papersize!");
     return "0 0";
 }
 
@@ -3458,12 +3497,12 @@ sub getmargins( $ $ $ $ ){
 sub fix_ppd_info( $ $ ){
 
     my( $dat, $update ) = @_;
-    my $out = "";
+    my $out = '';
     my($arg, $code, $str);
 
-    my $model = ($dat->{'model'} || "");
-    my $make = ($dat->{'make'} || "");
-    my $driver = ($dat->{'driver'} || "");
+    my $model = ($dat->{'model'} || '');
+    my $make = ($dat->{'make'} || '');
+    my $driver = ($dat->{'driver'} || '');
 
     $arg = infobyname( $dat, 'FoomaticRIPPostPipe');
     if( ((not $arg) or $update) and ($code = $dat->{'postpipe'}) ) {
@@ -3475,7 +3514,7 @@ sub fix_ppd_info( $ $ ){
 
     $arg = infobyname( $dat, 'PCFileName');
     if( (not $arg) or $update ){
-	my $pcfilename = "";
+	my $pcfilename = '';
 	if (($dat->{'pcmodel'}) && ($dat->{'pcdriver'})) {
 	    $pcfilename = uc("$dat->{'pcmodel'}$dat->{'pcdriver'}");
 	} elsif( $driver ){
@@ -3522,7 +3561,16 @@ sub fix_ppd_info( $ $ ){
 	$out .= "*Product:  \"$pnpmodel\"\n";
     }
 
-    my $filename = join('-',($make, $model, $driver));
+    my $filename = join('',($make, $model, $driver));
+    if( $filename ){
+	$filename = join('-',($make, $model, $driver));
+    } else {
+	$filename = infobyname($dat,"ShortNickName");
+	$filename = infobyname($dat,"NickName") if not $filename;
+	$filename = $filename->{'info_last'} if $filename;
+	$filename = "UNKNOWN" if not $filename;
+	$filename =~ s/\s/-/g;
+    }
     $filename =~ s![ /\(\)]!_!g;
     $filename =~ s![\+]!plus!g;
     $filename =~ s!__+!_!g;
@@ -3533,8 +3581,8 @@ sub fix_ppd_info( $ $ ){
     $dat->{'filename'} = "${filename}.ppd";
 
     # Do we use the recommended driver?
-    my $driverrecommended = "";
-    if ($driver eq ($dat->{'recdriver'} or "")) {
+    my $driverrecommended = '';
+    if ($driver eq ($dat->{'recdriver'} or '')) {
 	$driverrecommended = " (recommended)";
     }
     
@@ -3691,8 +3739,10 @@ EOF
     }
     D10("fix_ppd_info: out $out");
     my @lines = split( "\n", $out );
-    ppdfromvartoperl( $dat, \@lines );
-    D10("fix_ppd_info: AFTER" . Dumper($dat) );
+    if( @lines ){
+	ppdfromvartoperl( $dat, \@lines );
+	D10("fix_ppd_info: AFTER" . Dumper($dat) );
+    }
 }
 
 1;

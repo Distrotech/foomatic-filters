@@ -3,6 +3,8 @@ Options: --config', './filter.conf.test', '--lprng', '--ppd',
    './parse.ppd'
 Parsing PPD file './parse.ppd' ...
 Opening PPD file './parse.ppd'
+Bad nesting CloseSubGroup *DeSubFooOptions
+WARNING: Unrecognized line in PPD file '	"'
 Expanding Composite Option Defaults
 Pondering option 'Foocomp="V1"'
  Maps to Foocomp='V1'
@@ -13,7 +15,7 @@ Parameter Summary
 Spooler: lprng
 Printer: 
 PPD file: ./parse.ppd
-Printer model: PP Foo 4000 Series PS
+Printer model: Foomatic Foo4000 Series PS
 Job title: 
 File(s) to be printed: <STDIN>
 Output will be redirected to: ( echo POSTPIPE >&2; /bin/cat ) 
@@ -47,8 +49,12 @@ Pondering option 'Foobool=True'
  Maps to Foobool='True'
 Pondering option 'Fooint=30'
  Maps to Fooint='30'
-Pondering option 'Foostr=Str1'
- Maps to Foostr='Str1'
+Pondering option 'Foointrange=30'
+ Maps to Foointrange='30'
+Pondering option 'Foostr=String 3'
+ Maps to Foostr='String 3'
+Pondering option 'JobPatchFile=1,2'
+ Maps to JobPatchFile='1,2'
 Pondering option 'HPPaperPolicy=NearestSizeNoAdjust'
  Maps to HPPaperPolicy='NearestSizeNoAdjust'
 Pondering option 'Multi=noChoice1,noChoice2,noChoice3,noChoice4'
@@ -60,14 +66,15 @@ Pondering option 'PageRegion=Letter'
 Pondering option 'Duplex=None'
  Maps to Duplex='None'
 Warning: constraint violation  Foobool=True PageSize=Letter
-Renderer command: cat 
+Renderer command: cat  
 Starting postpipe "( echo POSTPIPE >&2; /bin/cat ) "
-Starting renderer 'cat '
+Starting renderer 'cat  '
 -----------
 New page:  1 2
 Found:  %%Page: 1 2
  --> Output going to the FIFO buffer now.
 Found: %%BeginPageSetup
+Logger (PostPipe): POSTPIPE
 Found: %%EndPageSetup
 End of page header
 Start of new page found and previous not printed; print it now.
@@ -81,8 +88,12 @@ Pondering option 'Foobool=True'
  Maps to Foobool='True'
 Pondering option 'Fooint=30'
  Maps to Fooint='30'
-Pondering option 'Foostr=Str1'
- Maps to Foostr='Str1'
+Pondering option 'Foointrange=30'
+ Maps to Foointrange='30'
+Pondering option 'Foostr=String 3'
+ Maps to Foostr='String 3'
+Pondering option 'JobPatchFile=1,2'
+ Maps to JobPatchFile='1,2'
 Pondering option 'HPPaperPolicy=NearestSizeNoAdjust'
  Maps to HPPaperPolicy='NearestSizeNoAdjust'
 Pondering option 'Multi=noChoice1,noChoice2,noChoice3,noChoice4'
@@ -101,8 +112,12 @@ Pondering option 'Foobool=True'
  Maps to Foobool='True'
 Pondering option 'Fooint=30'
  Maps to Fooint='30'
-Pondering option 'Foostr=Str1'
- Maps to Foostr='Str1'
+Pondering option 'Foointrange=30'
+ Maps to Foointrange='30'
+Pondering option 'Foostr=String 3'
+ Maps to Foostr='String 3'
+Pondering option 'JobPatchFile=1,2'
+ Maps to JobPatchFile='1,2'
 Pondering option 'HPPaperPolicy=NearestSizeNoAdjust'
  Maps to HPPaperPolicy='NearestSizeNoAdjust'
 Pondering option 'Multi=noChoice1,noChoice2,noChoice3,noChoice4'
@@ -110,13 +125,13 @@ Pondering option 'Multi=noChoice1,noChoice2,noChoice3,noChoice4'
 Pondering option 'PageRegion=Letter'
  Maps to PageRegion='Letter'
 Pondering option 'Duplex=None'
-Logger (PostPipe): POSTPIPE
  Maps to Duplex='None'
 Pondering option 'PageRegion=Legal'
  Maps to PageRegion='Legal'
 Warning: constraint violation  Resolution=600x600dpi PageSize=Legal
 Using PageRegion for PageSize
-Renderer command: cat 
+Using PageRegion for PageSize
+Renderer command: cat  
 -----------
 New page:  1 3
 Found:  %%Page: 1 3
@@ -133,8 +148,12 @@ Pondering option 'Foobool=True'
  Maps to Foobool='True'
 Pondering option 'Fooint=30'
  Maps to Fooint='30'
-Pondering option 'Foostr=Str1'
- Maps to Foostr='Str1'
+Pondering option 'Foointrange=30'
+ Maps to Foointrange='30'
+Pondering option 'Foostr=String 3'
+ Maps to Foostr='String 3'
+Pondering option 'JobPatchFile=1,2'
+ Maps to JobPatchFile='1,2'
 Pondering option 'HPPaperPolicy=NearestSizeNoAdjust'
  Maps to HPPaperPolicy='NearestSizeNoAdjust'
 Pondering option 'Multi=noChoice1,noChoice2,noChoice3,noChoice4'
@@ -153,8 +172,12 @@ Pondering option 'Foobool=True'
  Maps to Foobool='True'
 Pondering option 'Fooint=30'
  Maps to Fooint='30'
-Pondering option 'Foostr=Str1'
- Maps to Foostr='Str1'
+Pondering option 'Foointrange=30'
+ Maps to Foointrange='30'
+Pondering option 'Foostr=String 3'
+ Maps to Foostr='String 3'
+Pondering option 'JobPatchFile=1,2'
+ Maps to JobPatchFile='1,2'
 Pondering option 'HPPaperPolicy=NearestSizeNoAdjust'
  Maps to HPPaperPolicy='NearestSizeNoAdjust'
 Pondering option 'Multi=noChoice1,noChoice2,noChoice3,noChoice4'
@@ -166,7 +189,7 @@ Pondering option 'PageRegion=Letter'
 Pondering option 'Duplex=None'
  Maps to Duplex='None'
 Warning: constraint violation  Foobool=True PageSize=Letter
-Renderer command: cat 
+Renderer command: cat  
 Reading PostScript input ...
 Zero length input
 Closing renderer

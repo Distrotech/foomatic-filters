@@ -44,29 +44,29 @@
 %% Foo String 3
  } stopped cleartomark
 %%EndFeature
-%%FoomaticRIPOptionSetting: *JobPatchFile=1,2
+%%BeginFeature: *JobPatchFile 1,2
 [{
 %% Patch 1
 
-%% Patch 1
+%% Patch 2
  } stopped cleartomark
 %%EndFeature
-%%FoomaticRIPOptionSetting: *HPPaperPolicy=NearestSizeNoAdjust
+%%BeginFeature: *HPPaperPolicy NearestSizeNoAdjust
 [{
    <</DeferredMediaSelection false
      /Policies << /PageSize 5 >> >> setpagedevice } stopped cleartomark
 %%EndFeature
-%%FoomaticRIPOptionSetting: *Multi=noChoice1,noChoice2,noChoice3,noChoice4
+%%BeginFeature: *Multi noChoice1,noChoice2,noChoice3,noChoice4
 %%EndFeature
-%%FoomaticRIPOptionSetting: *PageSize=Letter
+%%BeginFeature: *PageSize Letter
 [{
     <</PageSize [612 792] /ImagingBBox null>> setpagedevice } stopped cleartomark
 %%EndFeature
-%%FoomaticRIPOptionSetting: *PageRegion=Letter
+%%BeginFeature: *PageRegion Letter
 [{
     <</PageSize [612 792] /ImagingBBox null>> setpagedevice } stopped cleartomark
 %%EndFeature
-%%FoomaticRIPOptionSetting: *Duplex=None
+%%BeginFeature: *Duplex None
 [{
     <</Duplex false>> setpagedevice } stopped cleartomark
 %%EndFeature
@@ -110,29 +110,29 @@ showpage
 %% Foo String 3
  } stopped cleartomark
 %%EndFeature
-%%FoomaticRIPOptionSetting: *JobPatchFile=1,2
+%%BeginFeature: *JobPatchFile 1,2
 [{
 %% Patch 1
 
-%% Patch 1
+%% Patch 2
  } stopped cleartomark
 %%EndFeature
-%%FoomaticRIPOptionSetting: *HPPaperPolicy=NearestSizeNoAdjust
+%%BeginFeature: *HPPaperPolicy NearestSizeNoAdjust
 [{
    <</DeferredMediaSelection false
      /Policies << /PageSize 5 >> >> setpagedevice } stopped cleartomark
 %%EndFeature
-%%FoomaticRIPOptionSetting: *Multi=noChoice1,noChoice2,noChoice3,noChoice4
+%%BeginFeature: *Multi noChoice1,noChoice2,noChoice3,noChoice4
 %%EndFeature
-%%FoomaticRIPOptionSetting: *PageRegion=Letter
+%%BeginFeature: *PageRegion Letter
 [{
     <</PageSize [612 792] /ImagingBBox null>> setpagedevice } stopped cleartomark
 %%EndFeature
-%%FoomaticRIPOptionSetting: *Duplex=None
+%%BeginFeature: *Duplex None
 [{
     <</Duplex false>> setpagedevice } stopped cleartomark
 %%EndFeature
-%%FoomaticRIPOptionSetting: *PageRegion=Legal
+%%BeginFeature: *PageRegion Legal
 [{
     <</PageSize [612 1008] /ImagingBBox null>> setpagedevice } stopped cleartomark
 %%EndFeature
@@ -173,29 +173,29 @@ showpage
 %% Foo String 3
  } stopped cleartomark
 %%EndFeature
-%%FoomaticRIPOptionSetting: *JobPatchFile=1,2
+%%BeginFeature: *JobPatchFile 1,2
 [{
 %% Patch 1
 
-%% Patch 1
+%% Patch 2
  } stopped cleartomark
 %%EndFeature
-%%FoomaticRIPOptionSetting: *HPPaperPolicy=NearestSizeNoAdjust
+%%BeginFeature: *HPPaperPolicy NearestSizeNoAdjust
 [{
    <</DeferredMediaSelection false
      /Policies << /PageSize 5 >> >> setpagedevice } stopped cleartomark
 %%EndFeature
-%%FoomaticRIPOptionSetting: *Multi=noChoice1,noChoice2,noChoice3,noChoice4
+%%BeginFeature: *Multi noChoice1,noChoice2,noChoice3,noChoice4
 %%EndFeature
-%%FoomaticRIPOptionSetting: *PageSize=Letter
+%%BeginFeature: *PageSize Letter
 [{
     <</PageSize [612 792] /ImagingBBox null>> setpagedevice } stopped cleartomark
 %%EndFeature
-%%FoomaticRIPOptionSetting: *PageRegion=Letter
+%%BeginFeature: *PageRegion Letter
 [{
     <</PageSize [612 792] /ImagingBBox null>> setpagedevice } stopped cleartomark
 %%EndFeature
-%%FoomaticRIPOptionSetting: *Duplex=None
+%%BeginFeature: *Duplex None
 [{
     <</Duplex false>> setpagedevice } stopped cleartomark
 %%EndFeature

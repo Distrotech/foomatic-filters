@@ -19,7 +19,7 @@ use vars qw(
 @EXPORT = qw(
     Parse_PCL_init Parse_PCL_setup Parse_PCL
     Parse_PXL_setup Parse_PXL PXL_assembler
-	Parse_PJL
+    Parse_PJL
 );
 
 use strict;
@@ -341,7 +341,7 @@ Input:
 =head2 Parse_PJL
 
 
- ($status, ${hash} ) = Parse_PJL( $input, $options, $read_fh );
+ ($status, ${hash} ) = Parse_PJL( $input, $read_fh );
 
 This routine parses the text in $input and reads from
 $readh_fh for PJL information.  This information has
@@ -608,11 +608,11 @@ sub Peek_PCL_input(){
     return( undef );
 }
 
-sub Get_PCL_input(){
+sub Get_char_input(){
     if( @PCL_input_chars or Parse_PCL_read_stdin() ){
 	return shift @PCL_input_chars;
     }
-    rip_die("Get_PCL_input: unexpected EOF",
+    rip_die("Get_char_input: unexpected EOF - " . Dumper($PCL_read_fh),
 	$EXIT_PRNERR_NORETRY);
 }
 
@@ -638,12 +638,12 @@ sub Peek_PCL_input_token(){
     return( undef );
 }
 
-sub Get_PCL_input_token(){
+sub Get_char_input_token(){
     Parse_PCL_read_stdin_token() if( not @PCL_input_tokens );
     if( @PCL_input_tokens ){
 	return shift @PCL_input_tokens;
     }
-    rip_die("Get_PCL_input_token: unexpected EOF",
+    rip_die("Get_char_input_token: unexpected EOF",
 	$EXIT_PRNERR_NORETRY);
 }
 
@@ -789,7 +789,7 @@ sub Parse_PCL( $ $ $ $ $ ){
 	# D100("Parse_PCL: left ". (scalar @PCL_input_chars) );
 	# no more input?
 	# we look at the first character
-	my $c1 = Get_PCL_input();
+	my $c1 = Get_char_input();
 	my $action = $raw_input_actions->{$c1};
  	#D100("Parse_PCL: '" . show_esc($c1) . "', ". Dumper($action) );
 	if( not defined $action ){
@@ -1045,7 +1045,7 @@ sub cmd_ESC {
     my @out;
     my($status);
     # we look for a character 48-126 for two char sequences
-    my $c1 = Get_PCL_input();
+    my $c1 = Get_char_input();
     goto DONE if not defined $c1;
     push @pcl_sequence, $c1;
     my $v = ord $c1;
@@ -1103,7 +1103,7 @@ sub cmd_ESC {
 	#   - the [num value] is optional, and is 0 if missing
 	#   - the '[num value] optkey' sections can be repeated
 	#     until the terminal char ord value is 64-94 ('@'- '^')
-	while( not $found and defined ($c1 = Get_PCL_input()) ){
+	while( not $found and defined ($c1 = Get_char_input()) ){
 	    push @pcl_sequence, $c1;
 	    $v = ord $c1;
 	    # termination is 64 - 94
@@ -1242,7 +1242,7 @@ sub cmd_ESC {
 		my @data;
 		if( ($opts & $pca_byte_data) ){
 		    my $i = 0;
-		    while( $i < $nv and defined( $c1 = Get_PCL_input() ) ){
+		    while( $i < $nv and defined( $c1 = Get_char_input() ) ){
 			push @data, $c1;
 			++$i;
 		    }
@@ -1326,7 +1326,7 @@ sub Callback_PCL{
     ++$Pcount;
 }
 
-sub TestParsePCL($ $ $){
+sub TestParse_PCL($ $ $){
     my( $debug, $test, $file) = @_;
     my $r;
 	
@@ -1339,8 +1339,8 @@ sub TestParsePCL($ $ $){
 	    $fh = new FileHandle ">$file" or die "cannot open $file - $!";
 	}
     }
-    D0("TestParsePCL: calling Parse_PCL_setup");
-    print $fh "TestParsePCL\n";
+    D0("TestParse_PCL: calling Parse_PCL_setup");
+    print $fh "TestParse_PCL\n";
     if( $test & 0x10){
 	print $fh "\ntest 0x10\n";
 	$r = Parse_PCL_setup(1, 0, "HEADER", "&u911D" );
@@ -1377,7 +1377,7 @@ sub TestParsePCL($ $ $){
     }
 }
 
-# TestParsePCL(0x300, 0x03,"/tmp/b");
+# TestParse_PCL(0x300, 0x03,"/tmp/b");
 
 # ---------------- PXL Parsing Information ---------------- #
 # symbolic names for the various items
@@ -2599,11 +2599,11 @@ sub Pagecallback_PXL {
     Parse_PXL_setup(1, $header, $replace );
 }
 
-sub TestParsePXL($ $ $){
+sub TestParse_PXL($ $ $){
     $Data::Dumper::Indent = 1;
 	my($debug, $text, $file) = @_;
 #	print  "tag_syntax  " . Dumper( $tag_syntax );
-    D0("TestParsePXL - text $text");
+    D0("TestParse_PXL - text $text");
     $Foomatic::Debugging::debug = $debug;
     my $r = 
     "\051\040\110\120\055\120\103\114\040\130\114\073\062\073\060\073".
@@ -2702,9 +2702,10 @@ sub TestParsePXL($ $ $){
     }
 }
 
-# TestParsePXL(0x300, 0, "/tmp/b");
-# TestParsePXL(0x300, 1, "/tmp/b");
-# TestParsePXL(0x300, 2, "/tmp/b");
+# TestParse_PXL(0x300, 0, "/tmp/b");
+# TestParse_PXL(0x300, 1, "/tmp/b");
+# TestParse_PXL(0x300, 2, "/tmp/b");
+# TestParse_PXL(0x000, 4, "/tmp/b");
 
 
 # Translation tables - all indexes are in lower case
@@ -2769,7 +2770,7 @@ sub PXL_assembler( $ $ $ $ $ ){
 	D100("PXL_assembler: tokens @PCL_input_tokens");
     }
     while(defined Peek_PCL_input_token()){
-	my $token = Get_PCL_input_token();
+	my $token = Get_char_input_token();
 	D100("PXL_assembler: token $token");
 	if( $token =~ /^_/ ){
 	    # data 
@@ -2830,7 +2831,9 @@ sub PXL_assembler( $ $ $ $ $ ){
 	    }
 	    my $value = [];
 	    if( $count =~ /(["'])(.*)\1/ ){
-		foreach my $ch ( split( //, $2) ){
+		my $string = $2;
+		$string =~ s/\\x(..)/chr hex($1)/eg;
+		foreach my $ch ( split( //, $string) ){
 		    push @{$value}, ord $ch;
 		}
 	    } else {
@@ -2839,16 +2842,17 @@ sub PXL_assembler( $ $ $ $ $ ){
 			rip_die("PXL_assembler: missing values for operator '$token'",
 			$EXIT_PRNERR_NORETRY );
 		    }
-		    my $v = Get_PCL_input_token();
+		    my $v = Get_char_input_token();
 		    D100("PXL_assembler: data token $v");
 		    my $enum;
 		    my $cv;
-		    if( $v =~ /(['"])(.*)\1/ ){
-			my @chars = split(//,$2);
-			foreach my $string( @chars ){
-			    $cv = ord $string;
-			    push @{$value}, ord $string;
-			    D100("PXL_assembler: char [$i] value $string, result $cv");
+		    if( $v =~ /(["'])(.*)\1/ ){
+			my $string = $2;
+			$string =~ s/\\x(..)/chr hex($1)/eg;
+			foreach my $ch ( split( //, $string) ){
+			    $cv = ord $ch;
+			    push @{$value}, $cv;
+			    D100("PXL_assembler: char [$i] value $ch result $cv");
 			    ++$i;
 			    last if $i >= $count;
 			}
@@ -2958,7 +2962,7 @@ sub TestPXL_assembler($ $ $){
     }
     if( $test & 0x20 ){
 	@out = PXL_assembler("_ubyte_array[2] 1 2 " .
-	"_ubyte_array[\"ABC\"] _ubyte_array[2] 'xy' _ubyte_array[3] 'ab' 30 ",
+	"_ubyte_array[\"ABC\\x30\"] _ubyte_array[2] 'xy' _ubyte_array[3] 'ab' 30 ",
 	1, 0, undef, undef );
 	print $fh @out, "\n"; @out = ();
     }
@@ -3027,8 +3031,9 @@ sub TestPXL_assembler($ $ $){
 sub Parse_PJL( $ $ ) {
     my( $input, $read_fh ) = @_;
     my @saved_input_chars = @PCL_input_chars;
-    my ($saved_read_fh, ) =
-	( $PCL_read_fh, );
+    my ($saved_read_fh, )
+	= ( $PCL_read_fh, );
+    ($PCL_read_fh, ) = $read_fh;
     @PCL_input_chars = split(//, $input ) if defined $input;
     D100("Parse_PJL: starting input '" . tr_esc( @PCL_input_chars) . '\'' );
     my $UEL_found = 0;
@@ -3059,14 +3064,14 @@ sub Parse_PJL( $ $ ) {
 		and defined($c = Peek_PCL_input())
 		and $c ne "\n" ){
 		D800("Parse_PJL: input $c");
-		$input .= Get_PCL_input();
+		$input .= Get_char_input();
 	    }
 	    if( $input !~ /^\@PJL/ ){
 		$input .= join('',@PCL_input_chars);
 		return( $input, $hash );
 	    }
 	    while(
-		defined($c = Get_PCL_input())
+		defined($c = Get_char_input())
 		and length($input) < 256 and $c ne "\n" ){
 		$input .= $c;
 	    }
@@ -3085,20 +3090,20 @@ sub Parse_PJL( $ $ ) {
 		if( $input =~ /^SET\s+(.*)/ ){
 		    my $v = $1;
 		    if( $v =~ m/^(["'])(.*)\1\s*$/ ){
-			$v = $1;
+			$v = $2;
 		    }
 		    D100("Parse_PJL: v '$v'");
-		    ($name,$value) = $v =~ m/^(.*?)=(.*)$/;
+		    ($name,$value) = $v =~ m/^(.*?)\s*=\s*(.*)$/;
 		    $hash->{COMMENTSET}{$name}=$value;
 		}
 	    } elsif( $input =~ /^\@PJL\s+SET\s+(.*)/ ){
 		$input = $1;
-		($name,$value) = split("=", $input, 2 );
+		($name,$value) = $input =~ m/^(.*?)\s*=\s*(.*)$/;
 		if( $value =~ m/^(["'])(.*)\1\s*$/ ){
 		    $value = $2;
 		}
 		D100("Parse_PJL: name $name value '$value'");
-		if( $value =~ m/^(.*?)=(.*)$/ ){
+		if( $value =~ m/^(.*?)\s*=\s*(.*)$/ ){
 		    $cmd = $name;
 		    ($name,$value) = ($1, $2);
 		    D100("Parse_PJL: sub name $name value '$value'");
@@ -3110,10 +3115,11 @@ sub Parse_PJL( $ $ ) {
 		$cmd = $1;
 		$input = $2;
 		D100("Parse_PJL: $cmd input '$input'");
+		$input =~ s/\s+=\s+/=/g;
 		my @list = split(' ', $input);
 		foreach my $v (@list){
 		    D100("Parse_PJL: $cmd option '$v'");
-		    ($name,$value) = split("=", $v, 2 );
+		    ($name,$value) = $v =~ m/^(.*?)\s*=\s*(.*)$/;
 		    if( $value =~ m/^(["'])(.*)\1\s*$/ ){
 			$value = $2;
 		    }
@@ -3214,12 +3220,12 @@ sub TestParse_PJL( $ $ ){
 @PJL COMMENT "Application Info: WordPad MFC Application;Microsoft(R) Windows NT(R) Operating System;5.00.1691.1;"
 @PJL COMMENT "Username: Computer"
 @PJL COMMENT SET Option1="value1"
-@PJL SET JOBATTR="JobAcct1=Computer"
+@PJL SET JOBATTR = "JobAcct1 = Computer"
 @PJL SET JOBATTR="JobAcct2=PatrickHome"
 @PJL SET JOBATTR="JobAcct3=workgroup"
 @PJL SET JOBATTR="JobAcct4=20031231110814"
 @PJL SET JOBATTR="JobAcct5=a0418ca0-3b81-11d8-812c-0000e863bf26"
-@PJL SET RET=MEDIUM
+@PJL SET RET = "MEDIUM"
 @PJL SET DUPLEX=OFF
 @PJL SET OUTBIN=UPPER
 @PJL SET FINISH=NONE

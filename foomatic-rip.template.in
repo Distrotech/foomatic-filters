@@ -654,6 +654,128 @@ by the PageRegion option, if it is present.
 
 =head2
 
+=head1 EXTENDED PPD FILE FORMAT FOR FOOMATIC RIP
+
+The original Postscript Printer Description (PPD) file format
+was designed around a PostScript only printer, and little consideration
+was given to supporting other non-PostScript features that
+might be needed for particular printer applications.
+
+One of the first of these to surface was the need to provide
+support for Printer Job Language (PJL) commands.  These commands
+are needed to enable various options that are not provided by
+the PostScript Interpreter.  The Foomatic-RIP filter extends
+this to PCL 5 and PXL (PCL 6) as follows:
+
+ Common Entries:
+
+ *OpenUI *PageSize: PickOne
+ *DefaultPageSize: Letter
+
+ PostScript Specific:
+
+ *OrderDependency: 30 AnySetup *PageSize
+ *PageSize Letter/Letter: "
+    <</PageSize [612 792] /ImagingBBox null>>
+    setpagedevice"
+ *End
+
+ PJL Specific:
+
+ *OrderDependency: 30 JCLAnySetup *JCLPageSize
+ *JCLPageSize Letter/Letter: "@PJL MEDIASIZE = LETTER<0a>"
+
+ PCL Specific:
+
+ *OrderDependency: 30 PCLAnySetup *PCLPageSize
+ *PCLPageSize Letter/Letter: "<1b>l&3H"
+
+ PXL (PCL 6) Specific:
+ *OrderDependency: 30 PXLAnySetup *PXLPageSize
+ *PXLPageSize Letter/Letter: "
+    _uchar_array['LETTER'] @MediaSize BeginPage "
+
+ *CloseUI
+
+The *Default entries are used to set default selections
+or values for an option.  The *OrderDependency entry
+is then used to set the order in which the options are
+to be placed into the output data stream.  While
+PJL, PCL and PXL do not have the same ordering restrictions
+that PostScript has,  this entry is used to cause the
+insertion of the appropriate language entry.
+
+The PJL, PCL, and PLX command information is escaped using
+the PJL escape mechanism.  As described in the PPD standard,
+only a subset of printable ASCII characters can be used
+for option values.  Non-printiable or other characters are
+represented by the <XX> sequence, where XX is the hexadecimal
+value of the character.
+
+Any whitespace in the PCL 5 escape sequences are deleted
+before <XX> character conversion.  Thus, <20> must be used
+to insert spaces where needed.
+
+The PXL command sequences are expressed in an assembler language
+format, similar to that used in the PCL XL Feature Reference
+document, available from Hewlett-Packard.
+This document is HP Company Confidential,  and will have to be
+obtained on an individual basis.  The reason for using this
+format is to deal with the various binary representations used
+by PXL.  It is easier to translate the high level textual
+format into the appropriate binary data streams than to
+try to provide a mechanism to deal with the multitudinous
+possible data encodings.
+
+=head1 START OF PAGE AND WATERMARK SUPPORT
+
+For various reasons,
+it is sometimes desireable to have some Postscript, PCL, or PXL
+code be executed at the start of each page.  This is usually
+done for WaterMark or other purposes, such as putting the user's
+name or other information on the first page.
+
+The Foomatic-RIP filter supports this by reserving the special
+StartOfPage option.
+
+ Defaults:
+
+ *OpenUI *StartOfPage: PickOne
+ *DefaultStartOfPage: None
+
+ *OrderDependency: 100 PageSetup *StartOfPage
+ *StartOfPage None/None: ''
+ *OrderDependency: 100 PageSetup *PCLStartOfPage
+ *PCLStartOfPage None/None: ''
+ *OrderDependency: 100 PageSetup *PXLStartOfPage
+ *PXLStartOfPage None/None: ''
+  
+ To Cause Insertion:
+
+ *StartOfPage Setup1/Setup1: "PostScript"
+ *StartOfPage PCLSetup1/Setup1: " PCL 5 Escape or Text"
+ *StartOfPage PXLSetup1/Setup1: " PXL command sequence"
+
+This option can be used with the Page Range facility and
+the command line:
+  
+  -o1:StartOfPage=Setup1 -o2-:StartOfPage=None
+
+=head1 FINE CONTROL OF FILTERING OPERATION
+
+The original Foomatic-RIP filter was designed to operate
+with PostScript input files,
+or with ASCII text files that would be converted to PostScript.
+The Foomatic-RIP filter could not be used with legacy
+text printers that required some simple CR to CRLF
+conversions.
+
+The current version of Foomatic-RIP can also operate on
+PCL, PXL, and text files.
+The method used to implement this is to expand the use of the
+Foomatic-RIP filter specification in the PPD file.
+
+
 =head1 AUTHOR
 
 Till   Kamppeter   <till.kamppeter@gmx.net>   with   parts  of
@@ -831,7 +953,7 @@ Periodically throughout filtering process the MAIN process will
 check to see if any process has exited with an error status.
 If any does, it will terminate processing.
 
-=head2 Renderer: render
+=head2 Render: render
 
 The rendering process. In most cases GhostScript, "cat"
 for native PostScript printers with their manufacturer's
@@ -1360,6 +1482,7 @@ use FileHandle;
 use Data::Dumper;
 use IO::Handle;
 use IO::Pipe;
+use Time::HiRes qw( gettimeofday time );
 
 ## include START
 use Foomatic::Debugging;
@@ -1519,7 +1642,7 @@ $ENV{TMP} = $tmpdir;
 
 # Set to 1 to insert postscript code for page accounting (CUPS only).
 my $ps_accounting = ($conf{ps_accounting} || 1 );
-my $accounting_prolog = "";
+my $accounting_prolog = '';
 
 # Enter here your personal command for converting non-postscript files
 # (especially text) to PostScript. If you leave it blank, at first the
@@ -1567,25 +1690,25 @@ $Data::Dumper::Indent=1;
 $spooler = 'direct';
 
 # PPD file name
-my $ppdfile = "";
+my $ppdfile = '';
 
 # Printer model
-my $model = "";
+my $model = '';
 
 # Printer queue name
-$printer = "";
+$printer = '';
 
 # Printing options
-my $optstr = "";
+my $optstr = '';
 
 # Command line options;
 my $xcmd_option = {};
 
 # Job title
-my $jobtitle = "";
+my $jobtitle = '';
 
 # Post pipe (command into which the output of this filter should be piped)
-my $postpipe = "";
+my $postpipe = '';
 
 # Files to be printed
 my @filelist = ();
@@ -1596,7 +1719,7 @@ my $jclbegin = "\033%-12345X\@PJL\n";
 
 # JCL command to switch the printer to the PostScript interpreter (Can
 # be modified by a "*JCLToPSInterpreter:" keyword in the PPD file):
-my $jcltointerpreter = "";
+my $jcltointerpreter = '';
 
 # JCL command to close a print job (Can be modified by a "*JCLEnd:"
 # keyword in the PPD file):
@@ -1625,11 +1748,11 @@ my @fileconverters = (
 
 # for filter support
 my @fixed_args = (
-	defined($ARGV[0])?$ARGV[0]:"",
-	defined($ARGV[1])?$ARGV[1]:"",
-	defined($ARGV[2])?$ARGV[2]:"",
-	defined($ARGV[3])?$ARGV[3]:"",
-	defined($ARGV[4])?$ARGV[4]:"" );
+	defined($ARGV[0])?$ARGV[0]:'',
+	defined($ARGV[1])?$ARGV[1]:'',
+	defined($ARGV[2])?$ARGV[2]:'',
+	defined($ARGV[3])?$ARGV[3]:'',
+	defined($ARGV[4])?$ARGV[4]:'' );
 
 my $spoolerfileconverters = {
     'cups' =>
@@ -1644,7 +1767,7 @@ my $spoolerfileconverters = {
 # to PostScript.  We can specify a full path or simply
 # the name of one of the filters
 
-my $fileconverter = ($conf{textfilter} || "");
+my $fileconverter = ($conf{textfilter} || '');
 
 ## Environment variables;
 
@@ -1764,6 +1887,8 @@ if ($debug) {
     # D1("LINE $line");
     trim_options( "Options: " . $line, 60, "   ");
 }
+
+{ my @t = gettimeofday(); D0("START XX " . localtime($t[0]) . " " . $t[1]); }
 
 ## Continue with named options
 
@@ -1889,7 +2014,7 @@ if ($argstr =~ s/\x01--pdq\x01/\x01/) {
 # "--appendpdq=<file>" appends the data to the <file>,
 # "--genpdq=<file>" creates/overwrites <file> for the data, and
 # "--genpdq" writes to standard output
-my $genpdqfile = "";
+my $genpdqfile = '';
 if (($argstr =~ s/\x01--(gen)(raw|)pdq(\x01|=|)([^\x01]*)\x01/\x01/) ||
     ($argstr =~ s/\x01--(append)(raw|)pdq(\x01|=|)([^\x01]+)\x01/\x01/)) {
     # Determine output file name
@@ -1953,7 +2078,7 @@ if ((($spooler eq 'direct') || ($spooler eq 'cps') || ($genpdqfile)) &&
 
 
 # remove extra spacing if running as LPRng filter
-$added_lf = "" if $spooler eq 'lprng';
+$added_lf = '' if $spooler eq 'lprng';
 
 ## Command line arguments without name
 
@@ -2307,13 +2432,18 @@ if (!$debug) {
 $ppdfile =~ s/^\s+//;
 $ppdfile =~ s/\s+$//;
 
+{ my @t = gettimeofday(); D0("START PARSING XX " . localtime($t[0]) . " " . $t[1]); }
+
 D0("Parsing PPD file '$ppdfile' ...\n");
 my $dat = {};
 
 ppdtoperl($dat, $ppdfile, \%conf);              # data structure for the options
+{ my @t = gettimeofday(); D0("END PARSING XX " . localtime($t[0]) . " " . $t[1]); }
 if( $genppd ){
-    getppd($dat,0,0);
+    { my @t = gettimeofday(); D0("START MAKE PPD XX " . localtime($t[0]) . " " . $t[1]); }
+    ppdfromperl($dat,0,0);
     print $dat->{'out'};
+    { my @t = gettimeofday(); D0("END MAKE PPD XX " . localtime($t[0]) . " " . $t[1]); }
     exit 0;
 }
 
@@ -2327,18 +2457,18 @@ if( $genppd ){
     if( ($arg = argbyname($dat, 'JobPatchFile')) ){
 	my $lang = 'ps';
 	$arg->{'type'} = 'pickmany';
-	my $val = fix_pickmany( $arg, "" );
+	my $val = fix_pickmany( $arg, '' );
 	D10("Fix JobPatchFile: start pickmany default $val");
 	$val =~ s/\,no/,/g;
 	$val =~ s/^no//g;
 	$arg->{'default'} = $val;
 	$arg->{'section'}{$lang} = 'AnySetup';
 	$arg->{'order'}{$lang} = 0;
-	D10("Fix JobPatchFile: final pickmany default $arg->{default}");
+	D10("Fix JobPatchFile: final pickmany default $arg->{default}, order 0");
 	$arg->{'precedence'} = $Precedence_values{optionspermanent};
     }
 
-    my $value = ($dat->{foomatic_option}{'aliases'} || "");
+    my $value = ($dat->{foomatic_option}{'aliases'} || '');
     foreach my $entry (split(' ', $value) ){
 	D10("ALIAS: value '$entry'");
 	my($key,$value) = split('=',$entry,2);
@@ -2373,7 +2503,7 @@ if( $genppd ){
     #              (i.e. - PickOne option with non-changeable value)
     #     *        Adds all values to the section
     #              (i.e. - PickMany, all selected, and non-changeable)
-    $value = ($dat->{foomatic_option}{'forceinsert'} || "");
+    $value = ($dat->{foomatic_option}{'forceinsert'} || '');
     foreach my $entry ( split(' ', $value) ){
 	#   [[Order,]Section:]OptionName[=Value]
 	my($order, $section, $name,$set,$lang,$val);
@@ -2387,7 +2517,7 @@ if( $genppd ){
 	($lang,$name) = ($1, $2) if $name =~ m!^(JCL|PJL|PCL|)(.*)$!;
 
 	$lang = fix_lang($lang);
-	$val = "" if not defined $val;
+	$val = '' if not defined $val;
 	$order = 0 if not defined $order;
 	$section = 'AnySetup' if not defined $section;
 	D10("ForceInsert: entry '$entry' <option> '$name' <value> '$val' <section> '$section'");
@@ -2405,7 +2535,7 @@ if( $genppd ){
 		$arg->{'precedence'} = $Precedence_values{optionspermanent};
 	    } else {
 		$arg->{'type'} = 'pickmany';
-		$val = fix_pickmany( $arg, "" );
+		$val = fix_pickmany( $arg, '' );
 		$val =~ s/,no/,/g;
 		$val =~ s/^no//g;
 		$arg->{'default'} = $val;
@@ -2423,7 +2553,7 @@ if( $genppd ){
     #   Value         Action
     #   Option=Value  Use PageRegion when Option has this Value
     #   Option!=Value Use PageRegion when Option does not have this Value
-    $value = ($dat->{foomatic_option}{'usepageregion'} or "");
+    $value = ($dat->{foomatic_option}{'usepageregion'} or '');
     foreach my $entry ( split(' ', $value) ){
 	#   [[Order,]Section:]OptionName[=Value]
 	my $other;
@@ -2486,12 +2616,12 @@ if( @opts ){
 }
 
 # now we set the defaults from the PPD file
-@opts = split(' ',($dat->{foomatic_option}{default} ||""));
+@opts = split(' ',($dat->{foomatic_option}{default} ||''));
 if( @opts ){
     expandoptions( $dat, \@opts, 'default', 1, $Precedence_values{optionsdefault}, "User Options: " );
 }
 
-@opts = split(' ',($dat->{foomatic_option}{permanent}||""));
+@opts = split(' ',($dat->{foomatic_option}{permanent}||''));
 if( @opts ){
     expandoptions( $dat, \@opts, 'default', 1, $Precedence_values{optionspermanent}, "User Options: " );
 }
@@ -2563,7 +2693,7 @@ D0("File(s) to be printed: ${added_lf}@filelist${added_lf}\n");
 
 # Variable for PPR's backend interface name (parallel, tcpip, atalk, ...)
 
-my $backend = "";
+my $backend = '';
 
 # Array to collect unknown options so that they can get passed to the
 # backend interface of PPR. For other spoolers we ignore them.
@@ -2639,7 +2769,7 @@ if( $do_docs ){
     $dat->{'userval'} = undef;
     D1("All Options Done: " . Dumper($dat));
     if( $option_values ){
-	my $line = "";
+	my $line = '';
 	foreach my $opt ( sort keys %{$option_values} ){
 	    my $v = $option_values->{$opt};
 	    my $name = $v->{'name'};
@@ -2712,7 +2842,7 @@ if ($spooler eq 'ppr_int') {
 # CUPS and PDQ have their own backends, they do not need a $postpipe
 if (($spooler eq 'cups') || ($spooler eq 'pdq')) {
     # No $postpipe for CUPS or PDQ, even if one is defined in the PPD file
-    $postpipe = "";
+    $postpipe = '';
 }
 
 # CPS needs always a $postpipe, set the default one for local printing
@@ -2790,7 +2920,7 @@ for my $file (@filelist) {
     }
 
     my $conversionattempts = 0;  # We increment this each time we have a conversion attempt
-    my $uel = "";                # uel at the end of a job
+    my $uel = '';                # uel at the end of a job
 
  AGAIN:
 
@@ -2846,7 +2976,7 @@ for my $file (@filelist) {
 
     my $comment = 0;                # current line is a comment to be ignored
 
-    my $onelinebefore = "";         # The line before the current line
+    my $onelinebefore = '';         # The line before the current line
                                     # (Non-DSC comments are ignored)
 
     my @psheader = ();              # The header of the PostScript file,
@@ -2952,20 +3082,21 @@ for my $file (@filelist) {
     my $ooo110 = 0;                 # Flag to work around an application
                                     # bug.
 
-    my $have_uel = "";              # we have UEL at start
+    my $have_uel = '';              # we have UEL at start
     my $pjl_info = undef;           # we have PJL information
-    my $previous_command = "";      # previous render command
-    my $previous_pjl = "";          # previous pjl
-    my $previous_pcl = "";          # previous pcl
-    my $previous_setupprepend = ""; # previous ps setup code
-    my $previous_pagesetupprepend = ""; # previous ps pagesetup code
+    my $previous_command = '';      # previous render command
+    my $previous_pjl = '';          # previous pjl
+    my $previous_pcl = '';          # previous pcl
+    my $previous_pxl = '';          # previous pxl
+    my $previous_setupprepend = ''; # previous ps setup code
+    my $previous_pagesetupprepend = ''; # previous ps pagesetup code
 
 
 
 
     my $line = "$uel";              # Line read from stdin
-    my $read = "";		    # total amount read from STDIN
-    $uel = "";                      # clear UEL
+    my $read = '';		    # total amount read from STDIN
+    $uel = '';                      # clear UEL
 
     D0("Reading PostScript input ...\n");
     D10("START maxlines '$maxlines' linect '$linect'\n");
@@ -3001,7 +3132,7 @@ for my $file (@filelist) {
     ($line, $pjl_info) = Parse_PJL( $line, \*STDIN );
     $have_uel = ($pjl_info->{UEL_found} || 0);
     D10("READ: UEL, have_uel $have_uel '$line'"); 
-    if( $line eq "" ){
+    if( $line eq '' ){
 	D0("End of data");
 	next READFILE;
     }
@@ -3045,7 +3176,7 @@ for my $file (@filelist) {
 	goto AGAIN;
     }
 
-    D0("File contains PostScript" . (($have_uel)?" with PJL header":""));
+    D0("File contains PostScript" . (($have_uel)?" with PJL header":''));
 
     # we have PostScript file, but we may not need to parse it
     # we discard all of the PJL and other stuff before the PostScript
@@ -3093,7 +3224,7 @@ for my $file (@filelist) {
 	D40( "ripped off input line '$1'"); 
 	push @readlines, $1;
     }
-    if( $line ne "" ){
+    if( $line ne '' ){
 	D40( "final line '$1'"); 
 	push @readlines, $line;
     }
@@ -3147,7 +3278,7 @@ for my $file (@filelist) {
 		D10("READ linect $linect '$line'");
 		if( $line =~ m/^(\x04|)(\x1b\%-12345X.*)$/ ){
 		    $uel = $2 . join( '', (@readlines) ); 
-		    $line = "";
+		    $line = '';
 		    next;
 		}
 	    }
@@ -3308,7 +3439,7 @@ for my $file (@filelist) {
 			if (!$setupfound or !$prologfound) {
 			    # Here we add some stuff which still belongs
 			    # into the header
-			    my $stillforheader = "";
+			    my $stillforheader = '';
 			    buildcommandline($dat, $optionset);
 			    if (!$prologfound) {
 				# "Prolog" missing, insert it here
@@ -3602,10 +3733,15 @@ for my $file (@filelist) {
 			# the command line can have changed so check to
 			# see if this is the case and
 			# close the renderer if needed
-			if (($renderpid) &&
-			    (($dat->{'commandline'} ne $previous_command )
-			    or ($dat->{'pjl_command'} ne $previous_pjl )
-			    or ($dat->{'pcl_command'} ne $previous_pcl )) ){
+			if (($renderpid) && (
+    ($dat->{'commandline'} ne $previous_command )
+    or (($dat->{'prefix_pjl'} or $dat->{'pjl_change_restart'})
+	and $dat->{'pjl_command'} ne $previous_pjl )
+    or (($dat->{'pcl_change_restart'})
+	and $dat->{'pcl_command'} ne $previous_pcl )
+    or (($dat->{'pxl_change_restart'})
+	and $dat->{'pxl_command'} ne $previous_pxl )
+			) ){
 			    D0("Command line/JCL options changed, restarting renderer\n");
 			    closerenderhandle ($renderhandle, $renderpid, $fixuppid);
 			    $renderpid = $fixuppid = 0;
@@ -3623,9 +3759,13 @@ for my $file (@filelist) {
 			$previous_command = $dat->{'commandline'};
 			$previous_pjl = $dat->{'pjl_command'};
 			$previous_pcl = $dat->{'pcl_command'};
+			$previous_pxl = $dat->{'pxl_command'};
 			$previous_setupprepend = $dat->{'setupprepend'};
 			$previous_pagesetupprepend = $dat->{'pagesetupprepend'};
 			D20("XXX psheader XX " . join("XXX ", @psheader) . "XXX END") if @psheader;
+			if( $dat->{'prefix_pjl'} ){
+			    print $renderhandle ($dat->{'pjl_command'});
+			}
 			print $renderhandle  @psheader;
 			# we add this code to save the current
 			# set of options and their states
@@ -3656,9 +3796,9 @@ for my $file (@filelist) {
 				ne $dat->{'pagesetupprepend'}) ){
 			    print $renderhandle ($dat->{'setupprepend'});
 			    $previous_setupprepend
-				= ($dat->{'setupprepend'} || "");
+				= ($dat->{'setupprepend'} || '');
 			    $previous_pagesetupprepend
-				= ($dat->{'pagesetupprepend'} || "");
+				= ($dat->{'pagesetupprepend'} || '');
 			}
 			print $renderhandle 
 			    ($pagesetupfound ?():($dat->{'pagesetupprepend'}));
@@ -3740,10 +3880,15 @@ for my $file (@filelist) {
 	# the command line can have changed so check to
 	# see if this is the case and
 	# close the renderer if needed
-	if (($renderpid) &&
-	    (($dat->{'commandline'} ne $previous_command )
-	    or ($dat->{'pjl_command'} ne $previous_pjl )
-	    or ($dat->{'pcl_command'} ne $previous_pcl )) ){
+	if (($renderpid) && (
+    ($dat->{'commandline'} ne $previous_command )
+    or (($dat->{'prefix_pjl'} or $dat->{'pjl_change_restart'})
+	and $dat->{'pjl_command'} ne $previous_pjl )
+    or (($dat->{'pcl_change_restart'})
+	and $dat->{'pcl_command'} ne $previous_pcl )
+    or (($dat->{'pxl_change_restart'})
+	and $dat->{'pxl_command'} ne $previous_pxl )
+			) ){
 	    D0("Command line/JCL options changed, restarting renderer\n");
 	    closerenderhandle ($renderhandle, $renderpid, $fixuppid);
 	    $renderpid = $fixuppid = 0;
@@ -3757,9 +3902,13 @@ for my $file (@filelist) {
 	    $previous_command = $dat->{'commandline'};
 	    $previous_pjl = $dat->{'pjl_command'};
 	    $previous_pcl = $dat->{'pcl_command'};
+	    $previous_pxl = $dat->{'pxl_command'};
 	    $previous_setupprepend = $dat->{'setupprepend'};
 	    $previous_pagesetupprepend = $dat->{'pagesetupprepend'};
 	    D10( "renderpid '$renderpid'");
+	    if( $dat->{'prefix_pjl'} ){
+		print $renderhandle ($dat->{'pjl_command'});
+	    }
 	    print $renderhandle  @psheader;
 	    # print $renderhandle "/foomatic-saved-state save def\n";
 	}
@@ -3780,9 +3929,9 @@ for my $file (@filelist) {
 		D10("E print " .  $dat->{'setupprepend'} ."\n");
 		print $renderhandle ($dat->{'setupprepend'});
 		$previous_setupprepend
-		    = ($dat->{'setupprepend'} || "");
+		    = ($dat->{'setupprepend'} || '');
 		$previous_pagesetupprepend
-		    = ($dat->{'pagesetupprepend'} || "");
+		    = ($dat->{'pagesetupprepend'} || '');
 	    }
 	    # print $renderhandle "foomatic-saved-state restore\n";
 	    print $renderhandle 
@@ -3843,7 +3992,7 @@ sub startpostpipe( $ ){
 	select STDOUT; $| = 1;
 	pipe PP_READ_FH, PP_WRITE_FH
 	    or rip_die("startpostpipe: pipe() failed - $!", $EXIT_PRNERR);
-	($pid) = run_subprocess_with_logger( "PostPipe", [ \*PP_READ_FH, \*PP_WRITE_FH ], "",
+	($pid) = run_subprocess_with_logger( "PostPipe", [ \*PP_READ_FH, \*PP_WRITE_FH ], '',
 			"Logger", "system", $postpipe  );
 	# now bind Postpipe input to STDOUT
 	my $fd = fileno( PP_WRITE_FH );
@@ -3865,9 +4014,11 @@ sub getrendercommand( $ $ ) {
     my ($dat, $optionset) = @_;
 
     # Build the command line and get the JCL commands
-    my $commandline = $dat->{'currentcmd'};
-	
-    $commandline =~ s/^\s*|\s*//;
+    my $commandline = ($dat->{'currentcmd'} || "");
+
+    $commandline =~ s/^\s*\|//;
+    $commandline =~ s/^\s+//;
+    $commandline =~ s/\%[A-Z]//g;
 
     my $gspath = ($conf{gspath} || 'gs');
     if(
@@ -3905,7 +4056,7 @@ sub getrendercommand( $ $ ) {
     # you may not want to do this, but modify the filter definition instead
     #$commandline =~ s: \-q  ::g;
 
-    D0("Renderer command: $commandline\n");
+    D0("Render command: $commandline\n");
 
     # If the renderer command line contains the "echo"
     # command, replace the "echo" by the user-chosen $myecho
@@ -3926,7 +4077,7 @@ sub getrendercommand( $ $ ) {
 
 sub startrender( $ ) {
     my( $dat ) = @_;
-    my $commandline = $dat->{commandline};
+    my $commandline = $dat->{'commandline'};
 
     D0("${added_lf}Starting renderer '$commandline'\n");
     # Actually run the thing...
@@ -3967,7 +4118,7 @@ sub startrender( $ ) {
 
 
     # Debug output
-    ($pid2) = run_subprocess( "Fixup", [$fh, \*RENDER_WRITEH], "", \&sendpjloutput, $dat, \*STDIN, "");
+    ($pid2) = run_subprocess( "Fixup", [$fh, \*RENDER_WRITEH], '', \&sendpjloutput, $dat, \*STDIN, '');
     close($fh);
 	sleep(0.125);
     return( \*RENDER_WRITEH, $pid1, $pid2 );
@@ -4027,7 +4178,7 @@ sub sendpjloutput( $ $ $ ) {
     }
     D10("Fixup: END '$line'");
     # we can try to determine the language
-    my $lang = "";
+    my $lang = '';
     if( $line =~ /^.?%!/ ){
 	$lang = 'ps';
     } elsif( $line =~ /\xb1E\b1/ ){
@@ -4067,11 +4218,11 @@ sub closerenderhandle( $ $ $ ) {
     my ($fh, $rpid, $fpid ) = @_;
 
     D0("${added_lf}Closing renderer\n");
-    if( $fh ){
+    if( $fh and $rpid ){
 	close $fh or
 	    rip_die( "Error closing renderer - $!", $EXIT_PRNERR );
     }
-    childwait( $rpid, "Renderer");
+    childwait( $rpid, "Render");
     childwait( $fpid, "Fixup");
     return $EXIT_PRINTED;
 }
@@ -4119,7 +4270,7 @@ sub getfileconverter( $ $ ) {
 		    }
 		}
 	    }
-	    last if ($f ne "");
+	    last if ($f ne '');
 	}
     } else {
 	# check to see if it is in the list
@@ -4149,7 +4300,7 @@ sub getfileconverter( $ $ ) {
 	    return( undef, undef );
 	}
     }
-    if ($f eq "") {
+    if ($f eq '') {
 	D0("No fileconverter- Cannot convert file to PostScript!");
 	return( undef, undef );
     }
@@ -4162,7 +4313,7 @@ sub getfileconverter( $ $ ) {
 	my $arg;
 	my $sizestr = (($arg = $dat->{'args_byname'}{'PageSize'})
 		       ? $arg->{'header'}
-		       : "");
+		       : '');
 	if ($sizestr) {
 	    # Use wider margins so that the pages come out completely on
 	    # every printer model (especially HP inkjets)
@@ -4175,7 +4326,7 @@ sub getfileconverter( $ $ ) {
 	    }
 	    $optstr .= $sizestr;
 	} else {
-	    $optstr = "";
+	    $optstr = '';
 	}
 	$f =~ s/\@\@([^@]+)\@\@PAGESIZE\@\@/$optstr/;
     }
@@ -4193,7 +4344,7 @@ sub getfileconverter( $ $ ) {
 	    $optstr = $titlearg . ($titlearg =~ /\"/ ? '' : '"') .
 		($arg ? "$arg\"" : '"');
 	} else {
-	    $optstr = "";
+	    $optstr = '';
 	}
 	$f =~ s/\@\@([^@]+)\@\@JOBTITLE\@\@/$optstr/;
     }
@@ -4205,7 +4356,7 @@ sub getfileconverter( $ $ ) {
     # already converted to PostScript by CUPS.
     if ($spooler eq 'cups') {
 	my $command = "pstops";
-	my $path = "";
+	my $path = '';
 	for (split(':', $ENV{'PATH'})) {
 	    my $p = "$_/$command";
 	    if(-x "$p" ){
@@ -4213,7 +4364,7 @@ sub getfileconverter( $ $ ) {
 		last;
 	    }
 	}
-	if( $path eq "" ){
+	if( $path eq '' ){
 	    rip_die ("Cannot find executable 'pstops' in \$PATH",
 		     $EXIT_PRNERR_NORETRY_BAD_SETTINGS);
 	}
@@ -4270,7 +4421,7 @@ sub getfileconverter( $ $ ) {
     $fh = new FileHandle( $f ) or
         rip_die ("cannot execute fileconverter '$f'", $EXIT_PRNERR);
 
-    if( $read ne "" ){
+    if( $read ne '' ){
 	print $fh $read
 	    or rip_die ("cannot write line to fileconverter '$f",
 		$EXIT_PRNERR);
@@ -4336,10 +4487,10 @@ sub docgenerator( $ ) {
 	 $stropt, $stroptleft, $stroptequal, $stroptright,
 	 $optsep, $trailer, $custompagesize) =
 	     ("lpr -P $printerstr ",
-	      "-o ", "", "=", "",
-	      "-o ", "no", "", "=", "",
-	      "-o ", "", "=", "",
-	      "-o ", "", "=", "",
+	      "-o ", '', "=", '',
+	      "-o ", "no", '', "=", '',
+	      "-o ", '', "=", '',
+	      "-o ", '', "=", '',
 	      " "," <file>",
 	      "\n  Custom size: -o PageSize=Custom." .
 	      "<width>x<height>[<unit>]\n" .
@@ -4354,10 +4505,10 @@ sub docgenerator( $ ) {
 	 $stropt, $stroptleft, $stroptequal, $stroptright,
 	 $optsep, $trailer, $custompagesize) =
 	     ("lpr -P $printerstr -J \"",
-	      "", "", "=", "",
-	      "", "", "", "=", "",
-	      "", "", "=", "",
-	      "", "", "=", "",
+	      '', '', "=", '',
+	      '', '', '', "=", '',
+	      '', '', "=", '',
+	      '', '', "=", '',
 	      " ", "\" <file>",
 	      "\n  Custom size: PageSize=Custom." .
 	      "<width>x<height>[<unit>]\n" .
@@ -4372,10 +4523,10 @@ sub docgenerator( $ ) {
 	 $stropt, $stroptleft, $stroptequal, $stroptright,
 	 $optsep, $trailer, $custompagesize) =
 	     ("lpr -P $printerstr ",
-	      "-o ", "", "=", "",
-	      "-o ", "", "", "=", "",
-	      "-o ", "", "=", "",
-	      "-o ", "", "=", "",
+	      "-o ", '', "=", '',
+	      "-o ", '', '', "=", '',
+	      "-o ", '', "=", '',
+	      "-o ", '', "=", '',
 	      " "," <file>",
 	      "\n  Custom size: -o PageSize=Custom." .
 	      "<width>x<height>[<unit>]\n" .
@@ -4390,10 +4541,10 @@ sub docgenerator( $ ) {
 	 $stropt, $stroptleft, $stroptequal, $stroptright,
 	 $optsep, $trailer, $custompagesize) =
 	     ("lpr -P $printerstr ",
-	      "-Z ", "", "=", "",
-	      "-Z ", "", "", "=", "",
-	      "-Z ", "", "=", "",
-	      "-Z ", "", "=", "",
+	      "-Z ", '', "=", '',
+	      "-Z ", '', '', "=", '',
+	      "-Z ", '', "=", '',
+	      "-Z ", '', "=", '',
 	      " "," <file>",
 	      "\n  Custom size: -Z PageSize=Custom." .
 	      "<width>x<height>[<unit>]\n" .
@@ -4408,10 +4559,10 @@ sub docgenerator( $ ) {
 	 $stropt, $stroptleft, $stroptequal, $stroptright,
 	 $optsep, $trailer, $custompagesize) =
 	     ("ppr -d $printerstr --ripopts \"",
-	      "", "", "=", "",
-	      "", "", "", "=", "",
-	      "", "", "=", "",
-	      "", "", "=", "",
+	      '', '', "=", '',
+	      '', '', '', "=", '',
+	      '', '', "=", '',
+	      '', '', "=", '',
 	      " ","\" <file>",
 	      "\n  Custom size: PageSize=Custom." .
 	      "<width>x<height>[<unit>]\n" .
@@ -4426,10 +4577,10 @@ sub docgenerator( $ ) {
 	 $stropt, $stroptleft, $stroptequal, $stroptright,
 	 $optsep, $trailer, $custompagesize) =
 	     ("ppr -d $printerstr -i \"",
-	      "", "", "=", "",
-	      "", "", "", "=", "",
-	      "", "", "=", "",
-	      "", "", "=", "",
+	      '', '', "=", '',
+	      '', '', '', "=", '',
+	      '', '', "=", '',
+	      '', '', "=", '',
 	      " ","\" <file>",
 	      "\n  Custom size: PageSize=Custom." .
 	      "<width>x<height>[<unit>]\n" .
@@ -4444,10 +4595,10 @@ sub docgenerator( $ ) {
 	 $stropt, $stroptleft, $stroptequal, $stroptright,
 	 $optsep, $trailer, $custompagesize) =
 	     ("lpr -P $printerstr ",
-	      "-o ", "", "=", "",
-	      "-o ", "", "", "=", "",
-	      "-o ", "", "=", "",
-	      "-o ", "", "=", "",
+	      "-o ", '', "=", '',
+	      "-o ", '', '', "=", '',
+	      "-o ", '', "=", '',
+	      "-o ", '', "=", '',
 	      " "," <file>",
 	      "\n  Custom size: -o PageSize=Custom." .
 	      "<width>x<height>[<unit>]\n" .
@@ -4462,10 +4613,10 @@ sub docgenerator( $ ) {
 	 $stropt, $stroptleft, $stroptequal, $stroptright,
 	 $optsep, $trailer, $custompagesize) =
 	     ("$programname -P $printerstr ",
-	      "-o ", "", "=", "",
-	      "-o ", "", "", "=", "",
-	      "-o ", "", "=", "",
-	      "-o ", "", "=", "",
+	      "-o ", '', "=", '',
+	      "-o ", '', '', "=", '',
+	      "-o ", '', "=", '',
+	      "-o ", '', "=", '',
 	      " "," <file>",
 	      "\n  Custom size: -o PageSize=Custom." .
 	      "<width>x<height>[<unit>]\n" .
@@ -4480,10 +4631,10 @@ sub docgenerator( $ ) {
 	 $stropt, $stroptleft, $stroptequal, $stroptright,
 	 $optsep, $trailer, $custompagesize) =
 	     ("pdq -P $printerstr ",
-	      "-o", "", "_", "",
-	      "-o", "no", "", "_", "",
-	      "-a", "", "=", "",
-	      "-a", "", "=", "",
+	      "-o", '', "_", '',
+	      "-o", "no", '', "_", '',
+	      "-a", '', "=", '',
+	      "-a", '', "=", '',
 	      " "," <file>",
 	      "\n" .
 	      "Option 'PageWidth':\n".
@@ -4517,7 +4668,7 @@ sub docgenerator( $ ) {
 	or print "Error closing STDIN for docs print\n";
 
     print "\nInvokation summary for the $model\n\n";
-    my $line = "";
+    my $line = '';
     print "Use the following command line:\n\n";
     if ($booloptfalseprefix) {
 	# I think that what you want to indicate is that the prefix for a false
@@ -4547,10 +4698,10 @@ sub docgenerator( $ ) {
 
     if( $dat->{'aliases'} ){
 	print "The following aliases are available for this printer:\n\n";
-	$line = "";
+	$line = '';
 	my $prefix = "  ";
-	my $value = ($dat->{foomatic_option}{'aliases'} || "");
-	foreach my $entry (split(' ', ($dat->{foomatic_option}{'aliases'} || "") )){
+	my $value = ($dat->{foomatic_option}{'aliases'} || '');
+	foreach my $entry (split(' ', ($dat->{foomatic_option}{'aliases'} || '') )){
 	    D10("ALIAS: value '$entry'");
 	    my($key,$value) = split('=',$entry,2);
 	    $key = (unhtmlify($key));
@@ -4558,7 +4709,7 @@ sub docgenerator( $ ) {
 	    $line .= " $key ($value)";
 	    if( length($line) > 60 ){
 		print $prefix . $line . "\n";
-		$line = "";
+		$line = '';
 	    }
 	}
 	print $prefix . $line . "\n" if $line;
@@ -4573,7 +4724,7 @@ sub docgenerator( $ ) {
 	next if (!$arg->{'option'});
         my ($name, $type, $comment, $default, $hidden)
 	 = ($arg->{'name'}, $arg->{'type'}, $arg->{'comment'},
-	     ($arg->{'default'}||""), ($arg->{'hidden'}||"") );
+	     ($arg->{'default'}||''), ($arg->{'hidden'}||'') );
 
 	D2("name $name, type $type, comment $comment, " );
 	D2("	default $default, hidden $hidden");
@@ -4588,7 +4739,7 @@ sub docgenerator( $ ) {
 
 	# Skip hidden choice options
 	next if $hidden;
-	my $commentstr = "";
+	my $commentstr = '';
 	if ($comment) {
 	    $commentstr = "  $comment\n";
 	}
@@ -4620,7 +4771,7 @@ sub docgenerator( $ ) {
 		print "   o $name: ${comment_true}\n";
 		print "   o $booloptfalseprefix$name: ${comment_false}\n";
 		if (defined($default)) {
-		    my $defstr = ($default ? "" : "$booloptfalseprefix");
+		    my $defstr = ($default ? '' : "$booloptfalseprefix");
 		    print "  Default: $defstr$name\n";
 		}
 		print "  Example: ${boolopt}${booloptleft}${name}" .
@@ -4937,7 +5088,7 @@ sub parsepageranges( $ $ ) {
 	    }
 	}
     }
-    D10("parsepageranges: value '" . ($value?$value:"") . "'");
+    D10("parsepageranges: value '" . ($value?$value:'') . "'");
 	
     return( $value );
 }
@@ -4988,56 +5139,57 @@ sub buildcommandline( $ $ ) {
     expandoptions( $dat, $opts, $optionset, 1, $Precedence_values{file}, "PostScript File: " );
     $dat->{$optionset} = undef;
 
-    my $languages = [qw(ps pjl cmdline pcl ) ];
+    my $languages = [qw(ps pjl cmdline pcl pxl ) ];
 
     # Construct the proper command line.
     my @prologprepend;
     my @setupprepend;
     my @pagesetupprepend;
     my @jclprepend;
-    my @jclappend;
 
     $dat->{'currentcmd'} = $dat->{'cmd'};
-    $dat->{'pcl_command'} = "";
-    $dat->{'pjl_command'} = "";
+    $dat->{'pcl_command'} = '';
+    $dat->{'pjl_command'} = '';
 
     checkconstraints( $dat, $optionset );
 
+    my $arg_lists = {};
+    foreach my $argname (@{$dat->{'args'}}) {
+	my $arg = $dat->{'args_byname'}{$argname};
+	#D10("BUILDCOMMANDLINE: arg $argname: argstyle: " .  Dumper( $arg->{'argstyle'} ));
+	next if not defined $arg->{'argstyle'};
+	foreach my $lang ( keys %{$arg->{'argstyle'}} ){
+	    my $order = $arg->{'order'}{$lang};
+	    $order = 100 if not defined $order;
+	    push( @{$arg_lists->{$lang}}, [ $order, $arg->{'name'} ] );
+	}
+    }
+
+    D10("BUILDCOMMANDLINE ARG_LISTS " . Dumper($arg_lists));
+
+    my @composite = @{$arg_lists->{'composite'}}
+	if $arg_lists->{'composite'};
+    D10("COMPOSITE XX " . Dumper(\@composite));
+    @composite = sort { $a->[0] <=> $b->[0] or $a->[1] cmp $b->[1] } @composite;
+    D10("SORTED COMPOSITE '" . Dumper(\@composite));
+    @composite = map { $_->[1] } @composite;
+    D10("FINAL COMPOSITE '" . Dumper(\@composite));
+
     foreach my $lang ( @{$languages} ){
 	D10("BUILDCOMMANDLINE LANGUAGE $lang");
-	my @list;
-	my @composite;
-	foreach my $argname (@{$dat->{'args'}}) {
-	    my $arg = $dat->{'args_byname'}{$argname};
-	    #D10("BUILDCOMMANDLINE: arg $argname: argstyle: " .  Dumper( $arg->{'argstyle'} ));
-	    my $order = ($arg->{'order'}{$lang} or 0);
-	    if( defined $arg->{'argstyle'}{'composite'} ){
-		push( @composite, [ $order, $arg->{'name'} ] );
-		next;
-	    }
-	    next if not defined $arg->{'argstyle'}{$lang};
-	    #D10("BUILDCOMMANDLINE: using $argname");
-	    push( @list, [ $order, $arg->{'name'} ] );
-	}
+	my @list = @{$arg_lists->{$lang}}
+	    if $arg_lists->{$lang};
+	next if not @list;
 	
-	#D10("LIST XX " . Dumper(@list));
-	my @l = sort { $a->[0] <=> $b->[0] or $a->[1] cmp $b->[1] } @list;
-	#D10("SORTED LIST '" . Dumper(@l));
-	@l = map { $_->[1] } @l;
-	#D10("FINAL LIST '" . Dumper(@list));
-	@list = map { $dat->{'args_byname'}{$_} } @l;
-	D10("DOING optionset '$optionset' lang $lang '".join(', ', map { $_->{'name'} } @list) . "'");
+	#D10("LIST XX $lang" . Dumper(@list));
+	@list = sort { $a->[0] <=> $b->[0] or $a->[1] cmp $b->[1] } @list;
+	#D10("SORTED LIST '" . Dumper(\@list));
+	@list = map { $_->[1] } @list;
+	#D10("FINAL LIST '" . Dumper(\@list));
+	D10("DOING optionset '$optionset' lang $lang, list @list");
 
-	#D10("COMPOSITE XX " . Dumper(@composite));
-	@l = sort { $a->[0] <=> $b->[0] or $a->[1] cmp $b->[1] } @composite;
-	#D10("SORTED COMPOSITE '" . Dumper(@l));
-	@l = map { $_->[1] } @l;
-	#D10("FINAL COMPOSITE '" . Dumper(@list));
-	@composite = map { $dat->{'args_byname'}{$_} } @l;
-	D10("COMPOSITE optionset '$optionset' lang $lang '".join(', ', map { $_->{'name'} } @composite) . "'");
-
-	# we have already handled the composite options
-	for my $arg (@composite, @list){
+	for my $argname ( @list ){
+	    my $arg = argbyname( $dat, $argname );
 	    # If we have both "PageSize" and "PageRegion" options, we kept
 	    # them all the time in sync, so we don't need to insert the settings
 	    # of both options. So skip "PageRegion".
@@ -5046,9 +5198,27 @@ sub buildcommandline( $ $ ) {
 	    #     (defined($dat->{'args_byname'}{'PageRegion'})));
 
 	    my $userval = $arg->{$optionset};
+	    my $name = $arg->{'name'};
+	    $userval = $arg->{$optionset};
+	    $arg->{header_cmdvar}{$lang} = '' if( $optionset eq 'header');
+
+	    if( not defined $userval ){
+		if( $lang eq 'ps' ){
+		    my $header_cmdvar = $arg->{header_cmdvar}{$lang};
+		    push (@setupprepend, $header_cmdvar)
+			if $header_cmdvar;
+		}
+		D10( "ARG '$name' NO $optionset VALUE");
+		next;
+	    }
+	    my $type = ($arg->{'type'} or '');
+	    my $section = ($arg->{'section'}{$lang} or '');
+	    my $spot = ($arg->{'spot'}{$lang} or 'A');
+
+	    D10("ARG name $name, lang '$lang', value '$userval', type '$type', section '$section', spot '$spot'"); 
 
 	    # check to see if we use the 'PageRegion' entry
-	    if( $arg->{'name'} eq 'PageSize' ){
+	    if( $lang eq 'ps' and $arg->{'name'} eq 'PageSize' ){
 		my $pr = $dat->{'usepageregion'};
 		my $pr_arg = argbyname( $dat, 'PageRegion' );
 		my $v = checkoptionvalue($pr_arg, $userval, 0) if $pr_arg;
@@ -5060,7 +5230,7 @@ sub buildcommandline( $ $ ) {
 			my $check = $pr->{$testv}{$set};
 			my $chk_arg = argbyname( $dat, $testv );
 			my $chk_val = $chk_arg->{$optionset} if $chk_arg;
-			$chk_val = "" if not defined $chk_val;
+			$chk_val = '' if not defined $chk_val;
 			D10("USEPAGEREGION '$testv' = $chk_val, $set compared to " . Dumper($check));
 			foreach my $checkval (keys %{$check} ){
 			    if( $set =~ /true/ and "$chk_val" eq "$checkval" ){
@@ -5081,63 +5251,42 @@ sub buildcommandline( $ $ ) {
 		    }
 		}
 	    }
-	    my $name = $arg->{'name'};
-	    my $composite = ($arg->{'argstyle'}{'composite'} or "");
-	    my $type = ($arg->{'type'} or "");
-	    my $section = ($arg->{'section'}{$lang} or "");
-	    D10( "X4 arg '$name' lang $lang', optionset '$optionset' section '$section'");
 
-	    # we make the brutal assumption that we will ignore options without
-	    # a fully defined section definition.
-	    # This is compatible with the PPD standard.
-	    next if not $section;
-
-	    my $spot = ($arg->{'spot'}{$lang} or 'A');
 	    # we get the value AND the new set of user options.  This solves a problem with
 	    # pickmany options
 	    my ($cmdvar, $newargs) = fixoptionvalue( $arg, $lang, $optionset );
 	    $cmdvar = fixopts( $dat,  $optionset, $cmdvar );
-	    $userval = $arg->{$optionset};
-	    my $header_userval = $arg->{'header'};
-	    my ($header_cmdvar, $header_newargs) = fixoptionvalue( $arg, $lang, 'header' );
-	    $header_cmdvar = fixopts( $dat, 'header', $header_cmdvar );
-	    my $controlled_by = ($arg->{'controlled_by'}?'@':'');
-	    my $user = (not $controlled_by and not $composite and $arg->{'foomatic_rip_option'} =~ /user/);
-
+	    $cmdvar = '' if not defined $cmdvar;
 	    $userval = $newargs if $newargs;
-	    $header_userval = $header_newargs if $header_newargs;
-	    $cmdvar = "" if not defined $cmdvar;
-	    $header_cmdvar = "" if not defined $header_cmdvar;
-	    D10( "X4 cmdvar $cmdvar");
+
+	    my $controlled_by = ($arg->{'controlled_by'}?'@':'');
+	    my $user = ((not $controlled_by and $arg->{'option_type'}{user}{$lang}) or 0);
+
+	    D10( "  X4 cmdvar $cmdvar");
 	    # Insert the built snippet at the correct place
 	    if ($lang eq 'ps') {
-		if( $composite ){
-		    $cmdvar =~ s/\s+/ /g;
-		    $cmdvar = '%% ' . $cmdvar . "\n" if $cmdvar;
-		    $header_cmdvar =~ s/\s+/ /g;
-		    $header_cmdvar = '%% ' . $header_cmdvar . "\n" if $header_cmdvar;
-		}
 		# Place this Postscript command onto the prepend queue
 		# for the appropriate section.
-		my $open = "%%BeginFeature: *$name $userval\n";
-		my $foomaticopen = "%%FoomaticRIPOptionSetting: *$name=${controlled_by}$userval\n";
-		my $header_open = "%%BeginFeature: *$name $header_userval\n";
-		my $header_foomaticopen = "%%FoomaticRIPOptionSetting: *$name=${controlled_by}$header_userval\n";
-		my $close = "%%EndFeature\n";
-		$cmdvar = '[{' . $cmdvar . " } stopped cleartomark\n" if( $cmdvar and not $composite );
-		$header_cmdvar = '[{' . $header_cmdvar . " } stopped cleartomark\n" if( $header_cmdvar and not $composite );
+		my( $open, $close );
 		if( $user ){
-		    $cmdvar = $open.$cmdvar.$close;
-		    $header_cmdvar = $header_open.$header_cmdvar.$close;
+		    $open = "%%BeginFeature: *$name $userval\n";
 		} else {
-		    $cmdvar = $foomaticopen.$cmdvar.$close;
-		    $header_cmdvar = $header_foomaticopen.$header_cmdvar.$close;
+		    $open = "%%FoomaticRIPOptionSetting: *$name=${controlled_by}$userval\n";
 		}
+		$close = "%%EndFeature\n";
+		$cmdvar = '[{' . $cmdvar . " } stopped cleartomark\n"
+			if( $cmdvar );
+		$cmdvar = $open.$cmdvar.$close;
+		D10( "  X5 optionset '$optionset' lang '$lang' cmdvar '$cmdvar'");
+		if( $optionset eq 'header' ){
+		    $arg->{header_cmdvar}{$lang} = $cmdvar;
+		}
+		my $header_cmdvar = $arg->{header_cmdvar}{$lang};
 		if ($section eq "Prolog") {
 		    push (@prologprepend, $cmdvar);
 		} elsif( $section ne "PageSetup" ){
 		    push (@setupprepend, $header_cmdvar);
-		    if( ($header_userval ne $userval) ) {
+		    if( ($header_cmdvar ne $cmdvar) ) {
 			push (@pagesetupprepend, $cmdvar);
 		    }
 		} else {
@@ -5145,55 +5294,49 @@ sub buildcommandline( $ $ ) {
 		}
 	    } elsif ($lang eq 'pjl') {
 		# JCL argument
-		$dat->{'jcl'} = 1;
-		$dat->{'pjl'} = 1;
+		next if $cmdvar eq '';
 		# put JCL commands onto JCL stack...
-		my @list = split( "\n", unhexify($cmdvar) );
-		map  { s/\x1b\%-12345X// } @list;
-		foreach (@list){
-		    s/^\s+//;
-		    s/\s+$//;
-		    next if not $_;
-		    if( not /^\@PJL/ ){
-			    $_ = '@PJL ' . $_;
-		    }
-		    $_ .= "\n";
-		}
 		D10("    PJL - $name = $userval");
-		push (@jclprepend, "\@PJL COMMENT $name=$userval\n", @list);
+		push (@jclprepend, "\@PJL COMMENT $name=$userval\n", $cmdvar);
 	    } elsif ($lang eq 'cmdline') {
+		next if $cmdvar eq '';
 		# command-line argument
-
 		# Insert the processed argument in the commandline
 		# just before every occurance of the spot marker.
 		D10("    CMDLINE - spot $spot, cmdvar $cmdvar");
 		$dat->{'currentcmd'} =~ s!\%$spot!$cmdvar\%$spot!g;
 		D10("    CMDLINE - output " . $dat->{'currentcmd'});
 	    } elsif ($lang eq 'pcl'){
+		next if $cmdvar eq '';
 		D10("    PCLLINE - $name = $userval, cmdvar $cmdvar");
 		$dat->{'pcl_command'} .= $cmdvar;
 		D10("    PCLLINE - pclcommand " . $dat->{'pcl_command'});
+	    } elsif ($lang eq 'pxl'){
+		next if $cmdvar eq '';
+		D10("    PXLLINE - $name = $userval, cmdvar $cmdvar");
+		$dat->{'pxl_command'} .= ' ' . $cmdvar;
+		D10("    PXLLINE - pclcommand " . $dat->{'pxl_command'});
 	    }
 	}
 	
 
-	### Tidy up after computing option statements for all of P, J, and
-	### C types:
+	### Tidy up after computing option statements
 
-	## C type finishing
+	## Commandline type finishing
 	# Pluck out all of the %n's from the command line prototype
 	if( $lang eq 'cmdline' ){
 	    $dat->{'currentcmd'} =~ s!\%[A-Z]!!g;
 	}
 
-	## J type finishing
+	## PJL type finishing
 	# Compute the proper stuff to say around the job
 
 	if ( ($lang eq 'pjl' or $lang eq 'jcl') and
 	    ( $dat->{'jcl'} or $dat->{'pjl'} ) ) {
 
             # Command to start job
-	    my $jcl = ($dat->{pjl_support}{'begin'} or $jclbegin);
+	    my $jcl = ($dat->{pjl_support}{'begin'} or $jclbegin) .
+		join("\n", @jclprepend );
 	    my @list = split( "\n", unhexify($jcl) );
 	    map  { s/\x1b\%-12345X// } @list;
 	    foreach (@list){
@@ -5202,7 +5345,7 @@ sub buildcommandline( $ $ ) {
 		if( not /^\@PJL/ ){ $_ = '@PJL ' . $_; }
 		$_ .= "\n";
 	    }
-	    unshift @jclprepend, reverse @list;
+	    $dat->{'jclprepend'} = join('',(@list));
 
 	    # Arrange for JCL RESET command at end of job
 	    $jcl = ($dat->{pjl_support}{'end'} or $jclend );
@@ -5214,11 +5357,9 @@ sub buildcommandline( $ $ ) {
 		if( not /^\@PJL/ ){ $_ = '@PJL ' . $_; }
 		$_ .= "\n";
 	    }
-	    push @jclappend, @list;
+	    $dat->{'jclappend'} = join('',(@list));
 
 	    # Put the JCL stuff into the data structure
-	    $dat->{'jclprepend'} = join('',(@jclprepend));
-	    $dat->{'jclappend'} = join('',(@jclappend));
 	    $dat->{pjl_command} = $dat->{'jclprepend'} . $dat->{'jclappend'};
 	}
 
@@ -5228,6 +5369,9 @@ sub buildcommandline( $ $ ) {
 	    $dat->{'prologprepend'}    = join( '', (@prologprepend) );
 	    $dat->{'setupprepend'}     = join( '', (@setupprepend) );
 	    $dat->{'pagesetupprepend'} = join( '', (@pagesetupprepend) );
+	    D10(" X6 prologprepend " . $dat->{prologprepend} );
+	    D10(" X7 setupprepend " . $dat->{setupprepend} );
+	    D10(" X8 pagesetupprepend " . $dat->{pagesetupprepend} );
 	}
 	if( $lang eq 'pcl' ){
 	    # remove whitespace and then unhexify
@@ -5254,7 +5398,7 @@ sub set_jcl_enterlanguage( $ $ ){
     if( @list ){
 	return join('', @list);
     }
-    return "";
+    return '';
 }
 
 sub buildpdqdriver( $ $ ) {
@@ -5283,14 +5427,14 @@ sub buildpdqdriver( $ $ ) {
     my $pageunit = "pt";
 
     # Appears to be a hangover from some other code
-    my $prefix = "";
+    my $prefix = '';
 
 
     ## First, compute the various option/value clauses
     for my $argname (@{$dat->{'args'}}) {
 	my $arg = $dat->{'args_byname'}{$argname};
 	next if not $arg->{'option'};
-	$arg->{'type'} = "" if not defined $arg->{'type'};
+	$arg->{'type'} = '' if not defined $arg->{'type'};
 	if ($arg->{'type'} eq 'enum' or $arg->{'type'} eq 'pickmany') {
 	
 	    # Option with only one choice, omit it, foomatic-rip will set
@@ -5374,7 +5518,7 @@ sub buildpdqdriver( $ $ ) {
 	    }
 
 	    push(@driveropts,
-		 "    default_choice \"" . $nam . "_" . ($def || "") . "\"\n",
+		 "    default_choice \"" . $nam . '_' . ($def || '') . "\"\n",
 		 @valstmp,
 		 "  }\n\n");
 
@@ -5439,7 +5583,7 @@ sub buildpdqdriver( $ $ ) {
 	    my $legal = $arg->{'legal'} =
 		"Minimum value: $min, Maximum value: $max";
 	
-	    my $defstr = "";
+	    my $defstr = '';
 	    if ($def) {
 		$defstr = sprintf("    def_value \"%s\"\n", $def);
 	    }
@@ -5470,7 +5614,7 @@ sub buildpdqdriver( $ $ ) {
 	    $arg->{'varname'} =~ s![\-\/\.]!\_!g;
 	    my $varn = $arg->{'varname'};
 	
-	    my $defstr = "";
+	    my $defstr = '';
 	    if ($def) {
 		$defstr = sprintf("    default_choice \"%s\"\n",
 				  $def ? "$nam" : "no$nam");
@@ -5539,7 +5683,7 @@ sub buildpdqdriver( $ $ ) {
 
 	    $arg->{'legal'} = $legal;
 	
-	    my $defstr = "";
+	    my $defstr = '';
 	    if ($def) {
 		$defstr = sprintf("    def_value \"%s\"\n", $def);
 	    }
@@ -5612,25 +5756,24 @@ sub buildpdqdriver( $ $ ) {
 		 ($arg->{'type'} ne 'string') &&
 		 ($arg->{'type'} ne 'password'));
 
-	my $comment = $arg->{'comment'};
+	my $comment = ($arg->{'comment'} || '');
 	my $name = $arg->{'name'};
-	my $varname = $arg->{'varname'};
-		
+	my $varname = ($arg->{'varname'} || $name);
+
 	# If the option's variable is non-null, put in the
 	# argument.  Otherwise this option is the empty
 	# string.  Error checking?
-		
-	$arg->{'type'} = "" if not defined $arg->{'type'};
+
+	$arg->{'type'} = '' if not defined $arg->{'type'};
 	push(@psfilter,
 	     "      # $comment\n",
 	     (($arg->{'type'} eq 'int') || ($arg->{'type'} eq 'float') ?
 	      ("      # We aren't really checking for max/min,\n",
 	       "      # this is done by foomatic-rip\n",
-	       "      if [ \"x\${$varname}\" != 'x' ]; then\n  ") : ""),
-	     #"      $varname=`echo \${$varname} | perl -p -e \"s/'/'\\\\\\\\\\\\\\\\''/g\"`\n",
+	       "      if [ \"x\${$varname}\" != 'x' ]; then\n  ") : ''),
 	     "      $varname=\" -o $name='\${$varname}'\"\n",
 	     (($arg->{'type'} eq 'int') || ($arg->{'type'} eq 'float') ?
-	      "      fi\n" : ""),
+	      "      fi\n" : ''),
 	     "\n");
     }
 
@@ -5691,7 +5834,7 @@ sub checkchild(){
 	$name = "Stderr logger" if $pid == $debugpid;
 	$name = "Document generator" if  $pid == $docgeneratorpid;
 	$name = "File converter" if $pid == $fileconverterpid;
-	$name = "Renderer" if $pid == $renderpid;
+	$name = "Render" if $pid == $renderpid;
 	$name = "Fixup" if $pid == $fixuppid;
 	$name = "Postpipe" if $pid == $postpipepid;
 	my ($s, $signal, $retval) = decode_status($?);
@@ -5747,11 +5890,11 @@ sub expandoptions( $ $ $ $ $ $){
 
 	# Is the command line option limited to certain page ranges? If so,
 	# mark the setting with a hash key containing the ranges
-	my $controlled_by = "";
+	my $controlled_by = '';
 	if ($option =~ s/^(@[^@]*@)//i) {
 	    $controlled_by = $1;
 	}
-	my $pagerange = "";
+	my $pagerange = '';
 	if ($option =~ s/^(even|odd|[\d,-]+)://i) {
 	    $pagerange = "$1:";
 	}
@@ -5892,7 +6035,7 @@ sub expandoptions( $ $ $ $ $ $){
 				D0("  The $name option is not a PageSetup, ".
 				"AnySetup, or JCLSetup option, so it cannot be restricted to " .
 				"a page range.\n");
-				$range = "";
+				$range = '';
 			    }
 			}
 			# If this argument is PageSize or PageRegion,
@@ -5910,7 +6053,7 @@ sub expandoptions( $ $ $ $ $ $){
 				syncpagesize($dat, $name, $value, $optionset );
 			    }
 			}
-			my $cb = "";
+			my $cb = '';
 			if( $controlled_by ){
 			    my ($n) = $controlled_by =~ m/\@([^@]*)\@/;
 			    $arg->{'controlled_by'} = $n;
@@ -5935,7 +6078,7 @@ sub expandoptions( $ $ $ $ $ $){
 				    D0("  No value for composite option $name =$val");
 				    next;
 				}
-				my $string = ($expand->{driverval}{$lang} || "");
+				my $string = ($expand->{driverval}{$lang} || '');
 				$string =~ s/\s+/ /g;
 				D10("    COMPOSITE setting '$string'");
 				# now we need to get the options, which have the
@@ -6005,7 +6148,7 @@ sub expandoptions( $ $ $ $ $ $){
 
 sub trim_options( $ $ $ ){
     my( $line, $length, $indent ) = @_; 
-    my $header = "";
+    my $header = '';
     $line = '' if not defined $line;
     while( length($line) > 0 ){
 	$line =~ s/^\s+//;
@@ -6019,7 +6162,7 @@ sub trim_options( $ $ $ ){
 
 sub trim_options_stdout( $ $ $ ){
     my( $line, $length, $indent ) = @_; 
-    my $header = "";
+    my $header = '';
     $line = '' if not defined $line;
     while( length($line) > 0 ){
 	$line =~ s/^\s+//;
@@ -6045,7 +6188,7 @@ sub checkconstraints( $ $ ){
     my $constraint = $dat->{constraint};
     D20("checkconstraints: " . Dumper($constraint) );
     if( $constraint ){
-	chkconstr( $dat, $optionset, $constraint, "" );
+	chkconstr( $dat, $optionset, $constraint, '' );
     }
 }
 
@@ -6165,20 +6308,20 @@ sub chkconstr( $ $ $ $ ){
 
 sub termval( $ $ $ ){
     my($dat, $optionset, $term ) = @_;
-    my $v = "";
+    my $v = '';
     $term =~ s/^\s+//;
     $term =~ s/\s+$//;
     my $neg = ($term =~ s/^\!\s*//);
-    D10("termval:  neg $neg, term '$term'");
+    D10("   termval:  neg $neg, term '$term'");
     if( $neg ){
 	$v = termval( $dat, $optionset, $term );
 	$v = not $v;
-	$v = "" if not defined $v;
+	$v = '' if not defined $v;
 	D10("termval:  neg return '$v'");
 	return $v;
     }
     my( $prefix, $suffix ) = split( /\./, $term, 2 );
-    D10("termval:  prefix '$prefix' suffix '".($suffix?$suffix:"UNDEF")."'");
+    D10("   termval:  prefix '$prefix' suffix '".($suffix?$suffix:"UNDEF")."'");
     if( not defined $suffix ){
 	if( $prefix eq 'DATE' ){
 	    $v = strftime( "%Y-%m-%d-%H:%M:%S",localtime time);
@@ -6191,17 +6334,17 @@ sub termval( $ $ $ ){
 	    $v = $arg->{$optionset};
 	}
     } elsif( $prefix eq 'cmd' ){
-	$v = "" if( not defined ($v = $dat->{cmd_option}{$suffix}) ); 
+	$v = '' if( not defined ($v = $dat->{cmd_option}{$suffix}) ); 
     }
-    $v = "" if not defined $v;
-    D10("termval:  return '$v'");
+    $v = '' if not defined $v;
+    D10("   termval:  return '$v'");
     return $v;
 }
 
 sub repval( $ $ $ $ $ ){
     my($dat, $optionset, $opt, $format, $term ) = @_;
     my( $test, $true, $false ) = $term =~ m/^([^\?]*?)\?([^\:]*)\:(.*)$/;
-    my $v = "";
+    my $v = '';
     if( not $test ){
 	$v = termval( $dat, $optionset, $term );
     } else {
@@ -6212,12 +6355,12 @@ sub repval( $ $ $ $ $ ){
 	    $left = termval( $dat, $optionset, $left );
 	    $right = termval( $dat, $optionset, $right );
 	    if( $cmp =~ /^[a-z]*$/ ){
-		$left = "" if not defined $left;
-		$right = "" if not defined $right;
+		$left = '' if not defined $left;
+		$right = '' if not defined $right;
 		$result = eval "'$left' $cmp '$right'";
 	    } else {
-		$left = 0 if not defined $left or $left eq "";
-		$right = 0 if not defined $right or $right eq "";
+		$left = 0 if not defined $left or $left eq '';
+		$right = 0 if not defined $right or $right eq '';
 		$result = eval "$left $cmp $right";
 	    }
 	    D10("repval: EVAL left '$left' cmp '$cmp' right '$right' result '$result'");
@@ -6237,7 +6380,7 @@ sub repval( $ $ $ $ $ ){
 	}
 	D10("repval: final value '$v'");
     }
-    $v = "" if not defined $v;
+    $v = '' if not defined $v;
 	no strict;
     $v =  "$v" if( $format eq 's' );
     $v =  $v+0 if( $format eq 'd' );
@@ -6259,9 +6402,9 @@ sub fixopts( $ $ $ ){
     # .number "precision": digits after decimal point for
     #       floating-point, max length for string, minimum length
     #       for integer
-    D10("fixopts:  in '$str'");
     my $s = $str;
     $s =~ s/\\%([ \+\d\.\+\-]*?)([dfs])\{([^\}]*?)\}/repval($dat, $optionset, $1, $2, $3)/egx;
+    D10("   fixopts: optionset '$optionset' inputstr '$str' output str '$s'");
     return $s;
 }
 
