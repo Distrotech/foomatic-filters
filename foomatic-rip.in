@@ -1030,7 +1030,7 @@ while(<PPD>) {
 	} elsif ($argstyle eq "JCL") {
 	    $dat->{'args_byname'}{$argname}{'style'} = 'J';
 	    $dat->{'jcl'} = 1;
-	} elsif ($argstyle eq "Collective") {
+	} elsif ($argstyle eq "Composite") {
 	    $dat->{'args_byname'}{$argname}{'style'} = 'X';
 	}
 	$dat->{'args_byname'}{$argname}{'spot'} = $spot;
@@ -2180,12 +2180,13 @@ File: $file
 		    print $logh "End of page header\n";
 		    $passthru = 1;
 		    $inpageheader = 0;
-		} elsif ((($line =~ m/^\%\%(BeginFeature):\s*\*?([^\*\s=]+)\s+(\S[^\r\n]*)\r?\n?$/) ||
-			  ($line =~ m/^\s*\%\%\s*(FoomaticRIPOptionSetting):\s*([^\*\s=]+)\s*=\s*(\S[^\r\n]*)\r?\n?$/)) &&
+		} elsif ((($line =~ m/^\%\%(BeginFeature):\s*\*?([^\*\s=]+)\s+()(\S[^\r\n]*)\r?\n?$/) ||
+			  ($line =~ m/^\s*\%\%\s*(FoomaticRIPOptionSetting):\s*([^\*\s=]+)\s*=\s*(\@?)([^\@\s][^\r\n]*)\r?\n?$/)) &&
 			 ($nestinglevel == 0) &&
 			 (!$optionreplaced) &&
 			 ((!$passthru) || (!$isdscjob))) {
-		    my ($linetype, $option, $value) = ($1, $2, $3);
+		    my ($linetype, $option, $fromcomposite, $value) = 
+			($1, $2, $3, $4);
 
 		    # Mark that we are in a "Feature" section
 		    if ($linetype eq 'BeginFeature') {
@@ -2200,7 +2201,8 @@ File: $file
 
 		    print $logh "Found: $line";
 		    if ($arg=argbyname($option)) {
-			print $logh "   Option: $option=$value";
+			print $logh "   Option: $option=" .
+			    ($fromcomposite ? "From" : "") . $value;
 			if (($spooler eq 'cups') &&
 			    ($linetype eq 'BeginFeature') &&
 			    (!defined($arg->{'notfirst'})) &&
@@ -2252,13 +2254,18 @@ File: $file
 			$arg->{'notfirst'} = 1;
 			if (!$optionreplaced) {
 			    if ($arg->{'style'} ne 'G') {
+				# "Controlled by '<Composite>'" setting of
+				# a member option of a composite option
+				if ($fromcompsite) {
+				    $value = "From$value";
+				}
 				# Non-PostScript option
 				# Check whether it is valid
 				if (defined(my $newvalue =
 					    checkoptionvalue($dat, $option,
 							     $value, 0))) {
 				    print $logh " --> Setting option\n";
-				    # Valid option, set it.
+				    # Valid choice, set it.
 				    $arg->{$optionset} = $newvalue;
 				    if (($arg->{'type'} eq 'enum') &&
 					(($option eq 'PageSize') ||
@@ -2285,9 +2292,37 @@ File: $file
 				    print $logh " --> Invalid option " .
 					"setting found in job\n";
 				}
+			    } elsif ($fromcomposite) {
+				# PostScript option, but we have to look up
+				# the PostScript code to be inserted from
+				# the setting of a composite option, as this
+				# option is set to "Controlled by 
+				# '<Composite>'".
+				# Set the option
+				if (defined(my $newvalue =
+					    checkoptionvalue
+					    ($dat, $option,
+					     "From$value", 0))) {
+				    print $logh " --> Looking up setting " .
+					"in composite option '$value'\n";
+				    # Valid choice, set it.
+				    $arg->{$optionset} = $newvalue;
+				    # Update composite options
+				    buildcommandline($dat, $optionset);
+				    # Substitute PostScript comment by
+				    # the real code
+				    $line = $arg->{'compositesubst'};
+				} else {
+				    # Invalid option, log it.
+				    print $logh " --> Invalid option " .
+					"setting found in job\n";
+				}
 			    } else {
-				# it is a PostScript style option,
-				# presumably all applied for us and such...
+				# it is a PostScript style option with
+				# the code readily inserted, no option
+				# for the renderer command line/JCL to set,
+				# no lookup of a composite option needed,
+				# so nothing to do here...
 				print $logh 
 				    " --> Option will be set by " .
 				    "PostScript interpreter\n";
@@ -3650,7 +3685,7 @@ sub getdocgeneratorhandle {
 	next if ($name eq "PageRegion");
 
 	# Skip enumerated choice options with only one choice
-	next if (($type eq 'enum') && ($#{$arg->{'vals'}} == 0));
+	next if (($type eq 'enum') && ($#{$arg->{'vals'}} < 1));
 
 	my $commentstr = "";
 	if ($comment) {
@@ -4347,16 +4382,58 @@ sub buildcommandline {
     my @jclappend;
     my $arg;
 
+    # At first search for composite options and determine how they
+    # set their member options
+    for $arg (sort { $a->{'order'} <=> $b->{'order'} } 
+	      @{$dat->{'args'}}) {
+
+	# Here we are only interested in composite options, skip the others
+	next if $arg->{'style'} ne 'X';
+	
+	my $name = $arg->{'name'};
+	my $userval = $arg->{$optionset};
+
+	# Get the current setting
+	my $v = $arg->{'vals_byname'}{$userval};
+	my @settings = split(/\s+/s, $v->{'driverval'});
+	for my $s (@settings) {
+	    my ($key, $value);
+	    if ($s =~ /^([^=]+)=(.+)$/) {
+		$key = $1;
+		$value = $2;
+	    } elsif ($s =~ /^no([^=]+)$/) {
+		$key = $1;
+		$value = 0;
+	    } elsif ($s =~ /^([^=]+)$/) {
+		$key = $1;
+		$value = 1;
+	    }
+	    $a = $dat->{'args_byname'}{$key};
+	    if ($a->{$optionset} eq "From$name") {
+		# We must set this option according to the
+		# composite option
+		$a->{'fromcomposite'} = $value;
+	    } else {
+		$a->{'fromcomposite'} = "";
+	    }
+	}
+    }
+
     for $arg (sort { $a->{'order'} <=> $b->{'order'} } 
 	      @{$dat->{'args'}}) {
 	
+	# Composite options have no direct influence on the command
+	# line, skip them here
+	next if $arg->{'style'} eq 'X';
+
 	my $name = $arg->{'name'};
 	my $spot = $arg->{'spot'};
 	my $cmd = $arg->{'proto'};
 	my $cmdf = $arg->{'protof'};
 	my $type = $arg->{'type'};
 	my $section = $arg->{'section'};
-	my $userval = $arg->{$optionset};
+	my $userval = ($arg->{'fromcomposite'} ?
+		       $arg->{'fromcomposite'} : $arg->{$optionset});
         
 	my $cmdvar = "";
 
@@ -4536,6 +4613,12 @@ sub buildcommandline {
 	    } else {
 		push (@setupprepend, "$open$cmdvar$close") if $cmdvar;
 	    }
+	    # Do we have an option which is set to "Controlled by 
+	    # '<Composite>'"? Then make PostScript code available
+	    # for substitution of "%% FoomaticRIPOptionSetting: ..." 
+	    if ($arg->{'fromcomposite'}) {
+		$arg->{'compositesubst'} = "$cmdvar\n";
+	    }
 	} elsif ($arg->{'style'} eq 'J') {
 	    # JCL argument
 	    $dat->{'jcl'} = 1;
@@ -4621,7 +4704,7 @@ sub buildpdqdriver {
 	    
 	    # Option with only one choice, omit it, foomatic-rip will
 	    # set this choice anyway.
-	    next if ($#{$arg->{'vals'}} == 0);
+	    next if ($#{$arg->{'vals'}} < 1);
 
 	    my $nam = $arg->{'name'};
 

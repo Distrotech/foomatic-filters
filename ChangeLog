@@ -1,3 +1,7 @@
+2002-12-09  Till Kamppeter <till.kamppeter@gmx.net>
+
+	* foomatic-rip.in: Introduced support for composite options.
+
 2002-12-08  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* foomatic-gswrapper.in: If there is no /dev/fd/3, don't use
