@@ -114,7 +114,7 @@ $|=1;
 
 
 
-## Costants used by this filter
+## Constants used by this filter
 
 # Error codes, as some spooles behave different depending on the reason why
 # the RIP failed, we return an error code. As I have only found a table of
