@@ -1,3 +1,8 @@
+2003-10-21  Till Kamppeter <till.kamppeter@gmx.net>
+
+	* configure.in: Added option "--disable-file-converter-check" to
+	  disable checking whether there is a file converter installed.
+
 2003-10-20  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* configure.in: Added /usr/local/libexec to LIBSEARCHPATH for *BSD

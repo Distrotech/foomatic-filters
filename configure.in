@@ -52,12 +52,18 @@ AC_PATH_PROGS(PPR_INTERFACES,ppr/interfaces,/usr/lib/ppr/interfaces,$LIBSEARCHPA
 dnl Check for /usr/lib/ppr/lib
 AC_PATH_PROGS(PPR_LIB,ppr/lib,/usr/lib/ppr/lib,$LIBSEARCHPATH)
 
+AC_ARG_ENABLE(file-converter-check, [  --enable-file-converter-check  check whether a file converter is installed [default=yes]],
+[if eval "test x${enableval} = xno"; then
+  NOCONVERTERCHECK=1
+  AC_MSG_WARN([Absence of a file converter is ignored, package will be built anyway])
+fi])
+
 dnl Check for a2ps, enscript, mpage
 AC_PATH_PROG(A2PS,a2ps,,$BINSEARCHPATH)
 AC_PATH_PROG(ENSCRIPT,enscript,,$BINSEARCHPATH)
 AC_PATH_PROG(MPAGE,mpage,,$BINSEARCHPATH)
 AC_PATH_PROG(TEXTTOPS,texttops,,$CUPS_FILTERS)
-if test "${A2PS}" = "" -a "${ENSCRIPT}" = "" -a "${MPAGE}" = "" -a "${TEXTTOPS}" = "" ; then
+if test "${NOCONVERTERCHECK}" = "" -a "${A2PS}" = "" -a "${ENSCRIPT}" = "" -a "${MPAGE}" = "" -a "${TEXTTOPS}" = "" ; then
 	AC_MSG_ERROR([cannot find a2ps, enscript, mpage, or CUPS' texttops.  You need to have at least one installed]);
 fi
 
