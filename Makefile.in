@@ -191,7 +191,5 @@ testing-clean: clean
 
 .PHONY: all check-config build install install-bin \
 	man inplace testing clean inplace-clean testing-clean distclean \
-	maintainer-clean tests
+	maintainer-clean
 
-tests:
-	cd tests; ${MAKE}
