@@ -1,3 +1,9 @@
+2005-05-11  Till Kamppeter <till.kamppeter@gmx.net>
+
+	* foomatic-rip.in: Added comment before the line to automatically
+	  quote unquoted slashes in the allowed characters list or allowed
+	  regexp.
+
 2004-12-20  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* foomatic-rip.in: Fixed bug of foomatic-rip replacing a JCL

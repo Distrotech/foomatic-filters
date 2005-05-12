@@ -5073,6 +5073,8 @@ sub stringvalid {
     # Allowed characters
     if ($arg->{'allowedchars'}) {
 	my $chars = $arg->{'allowedchars'};
+	# Quote the slashes (if a slash is preceeded by an even number of
+	# backslashes, it is not already quoted)
 	$chars =~ s/(?<!\\)((\\\\)*)\//$2\\\//g;
 	return 0 if $value !~ /^[$chars]*$/;
     }
@@ -5080,6 +5082,8 @@ sub stringvalid {
     # Regular expression
     if ($arg->{'allowedregexp'}) {
 	my $regexp = $arg->{'allowedregexp'};
+	# Quote the slashes (if a slash is preceeded by an even number of
+	# backslashes, it is not already quoted)
 	$regexp =~ s/(?<!\\)((\\\\)*)\//$2\\\//g;
 	return 0 if $value !~ /$regexp/;
     }
