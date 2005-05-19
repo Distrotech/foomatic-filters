@@ -1,3 +1,13 @@
+2005-05-19  Till Kamppeter <till.kamppeter@gmx.net>
+
+	* foomatic-rip.in: Make EPSF files not be an exception when
+	  checking whether the input file is DSC-conforming. They can also
+	  be DSC-conforming (thanks to Kevin ODonovan, kevin dot odonovan
+	  at nist dot gov, for his report); Let the "FontPath" defined in
+	  /etc/cups/cupsd.conf being used when CUPS is the spooler
+	  (thanks to Peter Kekesi, kekpeti at freemail dot hu, for his
+	  report).
+
 2005-05-11  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* foomatic-rip.in: Added comment before the line to automatically

@@ -664,6 +664,18 @@ if ($spooler eq 'ppr') {
 my( $cups_jobid, $cups_user, $cups_jobtitle, $cups_copies, $cups_options,
     $cups_filename );
 if ($spooler eq 'cups') {
+
+    # Use CUPS font path ("FontPath" in /etc/cups/cupsd.conf)
+    if ($ENV{'CUPS_FONTPATH'}) {
+	$ENV{'GS_LIB'} = $ENV{'CUPS_FONTPATH'} .
+	    ($ENV{'GS_LIB'} ? ":$ENV{'GS_LIB'}" : "");
+    } else {
+	if ($ENV{'CUPS_DATADIR'}) {
+	    $ENV{'GS_LIB'} = "$ENV{'CUPS_DATADIR'}/fonts" .
+		($ENV{'GS_LIB'} ? ":$ENV{'GS_LIB'}" : "");
+	}
+    }
+
     # Get all command line parameters
     $cups_jobid = removeshellescapes($rargs[0]);
     $cups_user = removeshellescapes($rargs[1]);
@@ -1661,6 +1673,8 @@ if (($debug) || ($spooler ne 'cups')) {
 }
 print $logh "Job title: $jobtitle\n";
 print $logh "File(s) to be printed: ${added_lf}@filelist${added_lf}\n";
+print $logh "GhostScript extra search path ('GS_LIB'): $ENV{'GS_LIB'}\n"
+    if $ENV{'GS_LIB'};
 
 
 
@@ -2417,8 +2431,7 @@ for $file (@filelist) {
 		    }
 		} else {
 		    # Do we have a DSC-conforming document?
-		    if (($line =~ m/^.?%!PS-Adobe-/) && 
-			($line !~ m/EPSF/)) {
+		    if ($line =~ m/^.?%!PS-Adobe-/) {
 			# Do not stop parsing the document
 			if (!$dontparse) {
 			    $maxlines = 0;
