@@ -1,3 +1,16 @@
+2005-07-18  Till Kamppeter <till.kamppeter@gmx.net>
+
+	* foomatic-rip.in: In quiet mode (non-logging mode) $logh is
+	  closed in the beginning but was never opened (Thanks to
+	  Hans-Dieter Kosch, hdkosch at t-online dot de, for this fix).
+
+	* foomatic-gswrapper.in: Fixed quoting of single quotes (Thanks to
+	  Hans-Dieter Kosch, hdkosch at t-online dot de, for this fix).
+
+	* foomatic-rip.in, foomatic-gswrapper.in: Fixed regexp for reading
+	  the config file (Thanks to Hans-Dieter Kosch, hdkosch at
+	  t-online dot de, for this fix).
+
 2005-05-19  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* foomatic-rip.in: Make EPSF files not be an exception when

@@ -374,7 +374,6 @@ if ($debug) {
     $logh->autoflush(1);
 } elsif (($quiet) && (!$verbose)) {
     # Quiet mode, do not log
-    close $logh;
     open LOG, "> /dev/null";
     $logh = *LOG;
 
@@ -4777,7 +4776,7 @@ sub readConfFile {
     if (open CONF, "< $file") {
 	while (<CONF>)
 	{
-	    $conf{$1}="$2" if (m/^\s*([^\#\s]\S*)\s*:\s*(.*)\s*$/);
+	    $conf{$1}="$2" if (m/^\s*([^\#]\S*)\s*:\s*(.*?)\s*$/);
 	}
 	close CONF;
     }
