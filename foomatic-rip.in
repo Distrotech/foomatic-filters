@@ -4776,7 +4776,7 @@ sub readConfFile {
     if (open CONF, "< $file") {
 	while (<CONF>)
 	{
-	    $conf{$1}="$2" if (m/^\s*([^\#]\S*)\s*:\s*(.*?)\s*$/);
+	    $conf{$1}="$2" if (m/^\s*([^\#\s]\S*)\s*:\s*(.*?)\s*$/);
 	}
 	close CONF;
     }

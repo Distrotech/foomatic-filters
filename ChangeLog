@@ -1,3 +1,9 @@
+2005-07-19  Till Kamppeter <till.kamppeter@gmx.net>
+
+	* foomatic-rip.in, foomatic-gswrapper.in: Fix for the fix on the
+	  regexp for reading the config file (Thanks to Hans-Dieter Kosch,
+	  hdkosch at t-online dot de, for this fix).
+
 2005-07-18  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* foomatic-rip.in: In quiet mode (non-logging mode) $logh is
