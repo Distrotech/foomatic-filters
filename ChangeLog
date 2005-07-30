@@ -1,3 +1,11 @@
+2005-07-29  Till Kamppeter <till.kamppeter@gmx.net>
+
+	* foomatic-rip.in: Added substitution of special XML entities by
+	  job data, as date, time, job ID, user name, ... (in function
+	  "unhtmlify()"). This was suggested by George Liu from Ricoh
+	  (george dot liu at ussj dot ricoh dot com), to support jobs
+	  with submission of login/password to the printer.
+
 2005-07-19  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* foomatic-rip.in, foomatic-gswrapper.in: Fix for the fix on the

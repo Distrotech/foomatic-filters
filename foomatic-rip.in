@@ -204,8 +204,20 @@ my $printer = "";
 # Printing options
 my $optstr = "";
 
+# Job ID
+my $jobid = "";
+
+# User who sent job
+my $jobuser = ((getpwuid($<))[0] || `whoami` || "");
+
+# Host from which job was sent
+my $jobhost = `hostname`;
+
 # Job title
-my $jobtitle = "";
+my $jobtitle = "$jobuser\@$jobhost";
+
+# Number of copies
+my $copies = "1";
 
 # Post pipe (command into which the output of this filter should be piped)
 my $postpipe = "";
@@ -442,14 +454,26 @@ while ($argstr =~ s/\x01--ppd(\x01|=|)([^\x01]+)\x01/\x01/) {
 # the filter's command line (options "-w": text width, "-l": text
 # length, "-i": indent, "-x", "-y": graphics size, "-c": raw printing,
 # "-n": user name, "-h": host name)
+if ($argstr =~ s/\x01-h(\x01|)([^\x01]+)\x01/\x01/) {
+    # We have LPD or GNUlpr
+    if (($spooler ne 'lpd') && ($spooler ne 'gnulpr') && ($spooler ne 'lprng')) {
+	$spooler = 'lpd';
+    }
+    $jobhost = $2;
+}
+if ($argstr =~ s/\x01-n(\x01|)([^\x01]+)\x01/\x01/) {
+    # We have LPD or GNUlpr
+    if (($spooler ne 'lpd') && ($spooler ne 'gnulpr') && ($spooler ne 'lprng')) {
+	$spooler = 'lpd';
+    }
+    $jobuser = $2;
+}
 if (($argstr =~ s/\x01-w(\x01|)\d+\x01/\x01/) ||
     ($argstr =~ s/\x01-l(\x01|)\d+\x01/\x01/) || 
     ($argstr =~ s/\x01-x(\x01|)\d+\x01/\x01/) ||
     ($argstr =~ s/\x01-y(\x01|)\d+\x01/\x01/) || 
     ($argstr =~ s/\x01-i(\x01|)\d+\x01/\x01/) ||
-    ($argstr =~ s/\x01-c\x01/\x01/) ||
-    ($argstr =~ s/\x01-n(\x01|)[^\x01]+\x01/\x01/) ||
-    ($argstr =~ s/\x01-h(\x01|)[^\x01]+\x01/\x01/)) {
+    ($argstr =~ s/\x01-c\x01/\x01/)) {
     # We have LPD or GNUlpr
     if (($spooler ne 'lpd') && ($spooler ne 'gnulpr') && ($spooler ne 'lprng')) {
 	$spooler = 'lpd';
@@ -685,7 +709,10 @@ if ($spooler eq 'cups') {
 
     # Common job parameters
     #$printer = $cups_printer;
+    $jobid = $cups_jobid;
     $jobtitle = $cups_jobtitle;
+    $jobuser = $cups_user;
+    $copies = $cups_copies;
     $optstr .= $cups_options;
 
     # Check for and handle inputfile vs stdin
@@ -4804,13 +4831,38 @@ sub removespecialchars {
 }
 
 sub unhtmlify {
-    # Replace HTML/XML entities by the original characters
     my $str = $_[0];
+
+    # Replace HTML/XML entities by the original characters
     $str =~ s/\&apos;/\'/g;
     $str =~ s/\&quot;/\"/g;
     $str =~ s/\&gt;/\>/g;
     $str =~ s/\&lt;/\</g;
     $str =~ s/\&amp;/\&/g;
+
+    # Replace special entities by job data
+    $str =~ s/\&job;/$jobid/g;
+    $str =~ s/\&user;/$jobuser/g;
+    $str =~ s/\&host;/$jobhost/g;
+    $str =~ s/\&title;/$jobtitle/g;
+    $str =~ s/\&copies;/$copies/g;
+    $str =~ s/\&options;/$optstr/g;
+    
+    my ($sec, $min, $hour, $mday, $mon, $year) = (localtime)[0..5];
+    my $yearstr = sprintf("%04d", $year + 1900);
+    my $monstr = sprintf("%02d", $mon + 1);
+    my $mdaystr = sprintf("%02d", $mday);
+    my $hourstr = sprintf("%02d", $hour);
+    my $minstr = sprintf("%02d", $min);
+    my $secstr = sprintf("%02d", $sec);
+
+    $str =~ s/\&year;/$yearstr/g;
+    $str =~ s/\&month;/$monstr/g;
+    $str =~ s/\&date;/$mdaystr/g;
+    $str =~ s/\&hour;/$hourstr/g;    
+    $str =~ s/\&min;/$minstr/g;    
+    $str =~ s/\&sec;/$secstr/g;    
+    
     return $str;
 }
 
