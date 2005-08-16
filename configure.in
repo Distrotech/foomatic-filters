@@ -43,6 +43,9 @@ AC_PATH_DIR(CUPS,cups,/usr/lib/cups,$LIBSEARCHPATH)
 dnl Check for /usr/lib/cups/filter
 AC_PATH_DIR(CUPS_FILTERS,cups/filter,/usr/lib/cups/filter,$LIBSEARCHPATH)
 
+dnl Check for /usr/lib/cups/backend
+AC_PATH_DIR(CUPS_BACKENDS,cups/backend,/usr/lib/cups/backend,$LIBSEARCHPATH)
+
 dnl Check for /usr/lib/ppr
 AC_PATH_DIR(PPR,ppr,/usr/lib/ppr,$LIBSEARCHPATH)
 
@@ -69,7 +72,7 @@ if test "${NOCONVERTERCHECK}" = "" -a "${A2PS}" = "" -a "${ENSCRIPT}" = "" -a "$
 fi
 
 dnl AC_OUTPUT(Makefile src/Makefile)
-AC_OUTPUT(Makefile makeMan foomatic-gswrapper foomatic-rip)
+AC_OUTPUT(Makefile makeMan foomatic-gswrapper foomatic-rip beh)
 
 dnl Finished
 echo "Finished configuring."

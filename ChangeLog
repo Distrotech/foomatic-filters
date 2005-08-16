@@ -1,3 +1,11 @@
+2005-08-15  Till Kamppeter <till.kamppeter@gmx.net>
+
+	* beh.in, configure.in, Makefile.in: Added the "beh" (Backend
+	  Error Handler) CUPS backend. With this the handling of errors
+	  of the CUPS backends (printer communication errors, like
+	  printer not turned on) can be configured, instead of CUPS
+	  simply disabling the print queue.
+
 2005-07-29  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* foomatic-rip.in: Added substitution of special XML entities by
