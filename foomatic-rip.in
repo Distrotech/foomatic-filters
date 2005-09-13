@@ -209,9 +209,11 @@ my $jobid = "";
 
 # User who sent job
 my $jobuser = ((getpwuid($<))[0] || `whoami` || "");
+chomp $jobuser;
 
 # Host from which job was sent
 my $jobhost = `hostname`;
+chomp $jobhost;
 
 # Job title
 my $jobtitle = "$jobuser\@$jobhost";
@@ -236,6 +238,10 @@ my $jcltointerpreter = "";
 # JCL command to close a print job (Can be modified by a "*JCLEnd:"
 # keyword in the PPD file):
 my $jclend = "\033%-12345X\@PJL RESET\n";
+
+# Prefix for starting every JCL command (Can be modified by
+# "*FoomaticJCLPrefix:" keyword in the PPD file):
+my $jclprefix = "\@PJL ";
 
 # Under which name were we called and in which directory do we reside
 $0 =~ m!^(.*/)([^/]+)$!;
@@ -1044,6 +1050,7 @@ my $currentargument = "";  # We are currently reading this argument
 # @datablob, and correct the default settings according to the ones of
 # the main PPD structure
 my @datablob;
+my $jclprefixset = 0;
 
 # Parse the PPD file
 sub undossify( $ );
@@ -1481,12 +1488,12 @@ while(<PPD>) {
 	} else {
 	    $dat->{'args_byname'}{$argname}{'vals_byname'}{$setting}{'driverval'} = unhtmlify($code);
 	}
-    } elsif (m!^\*JCL(Begin|ToPSInterpreter|End):\s*\"(.*)$!) {
-	# "*JCL(Begin|ToPSInterpreter|End): <code>"
+    } elsif (m!^\*(Foomatic|)JCL(Begin|ToPSInterpreter|End|Prefix):\s*\"(.*)$!) {
+	# "*(Foomatic|)JCL(Begin|ToPSInterpreter|End|Prefix): <code>"
 	# The printer supports PJL/JCL when there is such a line 
 	$dat->{'jcl'} = 1;
-	my $item = $1;
-	my $line = $2;
+	my $item = $2;
+	my $line = $3;
 	# Store the value
 	# Code string can have multiple lines, read all of them
 	my $code = "";
@@ -1506,10 +1513,14 @@ while(<PPD>) {
 	$code .= $1;
 	if ($item eq 'Begin') {
 	    $jclbegin = unhexify($code);
+	    $jclprefix = "" if (!$jclprefixset) && ($jclbegin !~ /PJL/s);
 	} elsif ($item eq 'ToPSInterpreter') {
 	    $jcltointerpreter = unhexify($code);
 	} elsif ($item eq 'End') {
 	    $jclend = unhexify($code);
+	} elsif ($item eq 'Prefix') {
+	    $jclprefix = unhexify($code);
+	    $jclprefixset = 1;
 	}
     } elsif (m!^\*\% COMDATA \#(.*)$!) {
 	# If we have an old Foomatic 2.0.x PPD file, collect its Perl data
@@ -4521,7 +4532,7 @@ sub getdocgeneratorhandle {
 	}
 
         print "Option '$name':\n$commentstr  $typestr argument\n";
-        print "  This options corresponds to a PJL command\n" if ($arg->{'style'} eq 'J');
+        print "  This options corresponds to a JCL command\n" if ($arg->{'style'} eq 'J');
         
         if ($type eq 'bool') {
             print "  Possible choices:\n";
@@ -5887,7 +5898,7 @@ sub buildcommandline {
 	    # JCL argument
 	    $dat->{'jcl'} = 1;
 	    # put JCL commands onto JCL stack...
-	    push (@jclprepend, "\@PJL $cmdvar\n") if $cmdvar;
+	    push (@jclprepend, "$jclprefix$cmdvar\n") if $cmdvar;
 	} elsif ($arg->{'style'} eq 'C') {
 	    # command-line argument
 

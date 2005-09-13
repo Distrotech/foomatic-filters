@@ -1,3 +1,14 @@
+2005-09-12  Till Kamppeter <till.kamppeter@gmx.net>
+
+	* foomatic-rip.in: Better support for non-PJL JCLs. If there are
+	  Foomatic options of execution style JCL, they are only prefixed
+	  with "@PJL " if the PPD does not contain a "*JCLBegin:"
+	  expression not containing "PJL" and if the prefix is not
+	  changed by a "*FoomaticJCLPrefix:" in the PPD file. If there
+	  is a "*JCLBegin:" without "PJL" and no "*FoomaticJCLPrefix:"
+	  the JCL commands do not get any prefix. Fixed also bug of
+	  $jobuser and $jobhost not being chomped.
+
 2005-08-15  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* beh.in, configure.in, Makefile.in: Added the "beh" (Backend
