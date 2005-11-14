@@ -1,3 +1,8 @@
+2005-11-13  Till Kamppeter <till.kamppeter@gmx.net>
+
+	* README, USAGE, beh.in: Updated documentation, to take into
+	  account beh and HPLIP, dropped HPOJ in the documentation.
+
 2005-09-12  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* foomatic-rip.in: Better support for non-PJL JCLs. If there are

@@ -89,7 +89,7 @@
 # be specified, even if one of them is meaningless due to the setting of
 # the others.
 #
-# beh works with every backend
+# beh works with every backend except the "hp" backend of HPLIP.
 #
 # Example URIs:
 #

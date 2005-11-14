@@ -127,6 +127,21 @@ foomatic-gswrapper
   Windows). foomatic-rip auto-detects the presence of
   foomatic-gswrapper.
 
+beh
+
+  Usually, if a CUPS backend exits with an error status other than zero
+  (for example if a printer is not turned on or not reachable on the
+  network), CUPS disables the print queue and one can only print again
+  if a system administrator re-enables the queue manually. Even restarting
+  CUPS (or rebooting) does not re-enable disabled queues.
+
+  This script makes the handling of such backend errors configurable, so
+  that the problem can easily be worked around. The execution of the backend
+  can be periodically repeated and/or the error state of the backend can
+  be kept away from CUPS, so that the queue stays active.
+
+  See instructions in the beginning of the beh script and in the USAGE file.
+
 foomatic-rip.1
 foomatic-gswrapper,1
 
