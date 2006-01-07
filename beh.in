@@ -156,6 +156,11 @@ if (!$printFile) {
     close OUT;
 
     $printFile = $tempFile;
+
+    # Backends should only produce multiple copies if a file name is 
+    # supplied (see CUPS Software Programmers Manual)
+    $copies = 1;
+
 }
 
 my $uri = $ENV{DEVICE_URI};

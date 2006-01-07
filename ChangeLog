@@ -1,5 +1,8 @@
 2006-01-06  Till Kamppeter <till.kamppeter@gmx.net>
 
+	* beh.in: Fixed bug of N^2 copies being printed when N copies
+	  were requested.
+
 	* configure.in, configure.ac: Renamed configure.in to
 	  configure.ac, to make the package working with the current
 	  versions of aclocal and autoconf.
