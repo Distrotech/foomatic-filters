@@ -1,3 +1,9 @@
+2006-01-06  Till Kamppeter <till.kamppeter@gmx.net>
+
+	* configure.in, configure.ac: Renamed configure.in to
+	  configure.ac, to make the package working with the current
+	  versions of aclocal and autoconf.
+
 2005-11-13  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* README, USAGE, beh.in: Updated documentation, to take into
