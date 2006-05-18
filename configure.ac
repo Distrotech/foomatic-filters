@@ -67,14 +67,44 @@ AC_PATH_PROG(ENSCRIPT,enscript)
 AC_PATH_PROG(MPAGE,mpage)
 AC_PATH_PROG(TEXTTOPS,texttops,,$CUPS_FILTERS)
 
+AC_ARG_WITH(file-converter,[  --with-file-converter=[a2ps|enscript|mpage]
+			Default: auto],
+	FILECONVERTER="$withval",
+	FILECONVERTER="")
+AC_MSG_RESULT([file-converter: $FILECONVERTER])
+AC_SUBST(FILECONVERTER)
+
 if test "${NOCONVERTERCHECK}" = "" -a "${A2PS}" = "" -a "${ENSCRIPT}" = "" -a "${MPAGE}" = "" -a "${TEXTTOPS}" = "" ; then
 	AC_MSG_ERROR([cannot find a2ps, enscript, mpage, or CUPS' texttops.  You need to have at least one installed]);
 fi
 
-dnl AC_OUTPUT(Makefile src/Makefile)
-AC_OUTPUT(Makefile makeMan foomatic-gswrapper foomatic-rip beh)
+AC_ARG_WITH(echo,[  --with-echo=(path to GNU compatible echo command)
+			Default: echo],
+	ECHO="$withval",
+	ECHO="echo")
+AC_MSG_RESULT([GNU Compatible Echo: $ECHO])
+AC_SUBST(ECHO)
+
+AC_ARG_WITH(execpath,[  --with-execpath=(path to various filters)
+			Default: ${prefix}/bin:/usr/local/bin:/usr/bin:/bin],
+	EXECPATH="$withval",
+	EXECPATH="${prefix}/bin:/usr/local/bin:/usr/bin:/bin")
+AC_MSG_RESULT([Execpath: $EXECPATH])
+AC_SUBST(EXECPATH)
+
+AC_OUTPUT(Makefile beh \
+	  foomatic-rip foomatic-gswrapper \
+	  foomatic-rip.1 foomatic-gswrapper.1)
 
 dnl Finished
-echo "Finished configuring."
-echo "Type 'make' to build the package"
-echo "then 'make install' to install it."
+cat <<EOF
+Finished configuring.
+Type 'make' to build the package
+Type 'make install' to install the base foomatic bits and links appropriate for
+				CUPS and PPR to use foomatic
+Type 'make install-main' to install the base foomatic bits.
+Type 'make install-{cups|ppr}' to install the base foomatic bits and links
+				appropriate for CUPS or PPR to use foomatic
+Type 'make tests' to run some basic sanity tests (in place)
+EOF
+

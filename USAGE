@@ -55,7 +55,7 @@ Widely used databases were the RHS-Printfilters and the APS
 filters. Their disadvantages were that they only supported one spooler
 (LPD/LPRng) and only a small part of the driver's options (mostly page
 size and resolution). Foomatic supports all options of the drivers and
-all known spoolers (LPD, LPRng, GNUlpr, CUPS, PPR, PDQ, CPS, direct
+all known spoolers (LPD, LPRng, GNUlpr, CUPS, Solaris LP, PPR, PDQ, CPS, direct
 spooler-less printing). In addition, all known free software printer
 drivers are supported. Foomatic also supports printing of various
 non-PostScript file types for spoolers which do not support this by

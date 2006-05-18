@@ -20,7 +20,7 @@ my $configpath = "@sysconfdir@/foomatic";
 # Set GhostScript path
 my $gspath = "gs";
 $gspath = $conf{gspath} if defined(%conf) and defined $conf{gspath};
-my $execpath = "@prefix@/bin:/usr/local/bin:/usr/bin:/bin";
+my $execpath = "@EXECPATH@";
 # Get execution path from config file
 $execpath = $conf{execpath} if defined(%conf) and defined $conf{execpath};
 $ENV{'PATH'} = $execpath;

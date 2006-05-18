@@ -61,6 +61,7 @@ Supported spoolers
 ------------------
 
 CUPS     - Common Unix Printing System (http://www.cups.org/)
+SOLARIS  - Solaris LP (lpsched)
 LPD      - Line Printer Daemon (Does this have a home page anywhere?)
 LPRng    - LPR - New Generation (http://www.lprng.org/)
 GNUlpr   - An enhanced LPD (http://sf.net/projects/lpr, development stopped)
@@ -111,8 +112,8 @@ install-sh
 foomatic-rip
 
   Universal print filter (PostScript -> printer's native language) to be
-  used with all known printer spoolers (CUPS, LPRng, LPD, GNUlpr, PPR,
-  PDQ, CPS, spooler-less printing). It Gets printer/driver capability
+  used with all known printer spoolers (CUPS, Solaris LP, LPRng, LPD, GNUlpr,
+  PPR, PDQ, CPS, spooler-less printing). It Gets printer/driver capability
   information from PPD files. The PPD files can either be generated from
   the Foomatic database or they can be manufacturer-supplied PPD files
   for PostScript printers.

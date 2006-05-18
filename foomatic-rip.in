@@ -44,7 +44,7 @@ my $ripversion='$Revision$';
 # possibly other stuff.	 The default path is often fine on Linux, but
 # may not be on other systems.
 #
-my $execpath = "@prefix@/bin:/usr/local/bin:/usr/bin:/bin";
+my $execpath = "@EXECPATH@";
 
 # CUPS raster drivers are searched here
 my $cupsfilterpath = "@prefix@/lib/cups/filter:/usr/local/lib/cups/filter:/usr/local/libexec/cups/filter:/opt/cups/filter:/usr/lib/cups/filter";
@@ -71,7 +71,7 @@ my $accounting_prolog = "";
 # the first one.
 # You can set this to "a2ps", "enscript" or "mpage" to select one of the 
 # default command strings.
-my $fileconverter = "";
+my $fileconverter = "@FILECONVERTER@";
 
 my($kid0,$kid1,$kid2,$kid3,$kid4);
 my($kidfailed,$kid3finished,$kid4finished);
@@ -83,7 +83,7 @@ my($jobhasjcl);
 # and regular echo work fine; non-GNU platforms may need to install
 # gnu echo and put gecho here or something.
 #
-my $myecho = 'echo';
+my $myecho = '@ECHO@';
 
 # Set debug to 1 to enable the debug logfile for this filter; it will
 # appear as defined by $logfile. It will contain status from this
@@ -181,6 +181,7 @@ my $ESPIPE = 29;	# the errno value when seeking a pipe or socket
 # are currently:
 
 #    cups    - CUPS - Common Unix Printing System
+#    solaris - Solaris LP (possibly some other SysV LP services as well)
 #    lpd     - LPD - Line Printer Daemon
 #    lprng   - LPRng - LPR - New Generation
 #    gnulpr  - GNUlpr, an enhanced LPD (development stopped)
@@ -224,8 +225,15 @@ my $copies = "1";
 # Post pipe (command into which the output of this filter should be piped)
 my $postpipe = "";
 
+# job meta-data file path (for Solaris LP)
+my $attrpath = '';
+
 # Files to be printed
 my @filelist = ();
+
+# Where to send debugging log output.  Initialized to STDERR until the command
+# line arguments are parsed.
+my $logh = *STDERR;
 
 # JCL prefix to put before the JCL options (Can be modified by a
 # "*JCLBegin:" keyword in the PPD file):
@@ -303,15 +311,30 @@ if (defined $conf{textfilter}) {
 
 ## Environment variables;
 
-# "PPD": PPD file name for CUPS or PPR (if we run as PPR RIP)
+# "PPD": PPD file name for CUPS, Solaris, or PPR (if we run as PPR RIP)
 if (defined($ENV{'PPD'})) {
     # Clean the file name from weird characters which could cause
     # unexpected behaviour
     $ppdfile = removespecialchars($ENV{'PPD'});
-    # CUPS and PPR (RIP filter) use the "PPD" environment variable to 
-    # make the PPD file name available (we set CUPS here preliminarily,
-    # in the next step we check for PPR)
+    # CUPS, Solaris LP, and PPR (RIP filter) use the "PPD" environment variable
+    # to make the PPD file name available (we set CUPS here preliminarily,
+    # in the next step we check for Solaris LP and the PPR)
     $spooler = 'cups';
+}
+
+# "SPOOLER_KEY": Solaris LP print service
+if (defined($ENV{'SPOOLER_KEY'})) {
+    $spooler = 'solaris';
+
+    $ppdfile = $ENV{'PPD'};
+    # set the printer name from the PPD file name
+    ($ppdfile =~ m!^.*/([^/]+)\.ppd$!) &&
+        ($printer = $1);
+
+    # Solaris LP may augment the "options" string argument from the command
+    # line with an attributes file ($ATTRPATH)
+    (defined($attrpath = $ENV{'ATTRPATH'})) &&
+        ($optstr = read_attribute_file($attrpath));
 }
 
 # "PPR_VERSION": PPR
@@ -379,9 +402,6 @@ my $quiet = ($argstr =~ s/\x01-q\x01/\x01/);
 my $show_docs = ($argstr =~ s/\x01-d\x01/\x01/);
 my $do_docs;
 my $cupscolorprofile;
-
-# Where to send debugging log output to
-my $logh;
 
 if ($debug) {
     # Grotesquely unsecure; use for debugging only
@@ -728,6 +748,21 @@ if ($spooler eq 'cups') {
 	@filelist = ($cups_filename);
 	print $logh "Getting input from file $cups_filename\n";
     }
+}
+
+# Solaris LP spooler
+if ($spooler eq 'solaris') {
+    # Get all command line parameters
+    # $printer =                		    # argv[0]
+    #						($rargs[0] =~ m!^.*/([^/]+)$!);
+    # $request_id = removeshellescapes($rargs[0]);  # argv[1]
+    # $user_name = removeshellescapes($rargs[1]);   # argv[2]
+    $jobtitle = removeshellescapes($rargs[2]);      # argv[3]
+    # $copies = removeshellescapes($rargs[3]);      # argv[4] # handled by the
+    #							        interface script
+    $optstr .= removeshellescapes($rargs[4]);       # argv[5]
+    ($#rargs > 4) &&            		    # argv[6...]
+        (@filelist = @rargs[5, $#rargs]);
 }
 
 # LPD/LPRng/GNUlpr
@@ -1700,6 +1735,7 @@ print $logh "-----------------${added_lf}\n";
 print $logh "Spooler: $spooler\n";
 print $logh "Printer: $printer\n";
 print $logh "PPD file: $ppdfile\n";
+print $logh "ATTR file: $attrpath\n";
 print $logh "Printer model: $model\n";
 # Print the options string only in debug mode, Mac OS X adds very many
 # options so that CUPS cannot handle the output of the option string
@@ -1793,6 +1829,11 @@ for (@opts) {
 	$optionset = "pages:$1";
     } else {
 	$optionset = 'userval';
+    }
+
+    # Solaris options that have no reason to be
+    if (/^nobanner$/ || /^dest=.+$/ || /^protocol=.+$/) {
+        next;
     }
 
     my $arg;
@@ -6377,6 +6418,75 @@ sub buildpdqdriver {
     
     return @pdqdriver;
 
+}
+
+#
+# Convert lp or ipp based attribute names (and values) to something that matches# PPD file options.
+#
+sub option_to_ppd {
+    my ($ipp_attribute) = @_;
+    my ($key, $value, $result) = ();
+
+    if (/([^=]+)=[\'\"]?(.*}[\'\"]?)/) { # key=value
+        ($key, $value) = ($1, $2);
+    } elsif (/no(.+)/) {                 # BOOLEAN: no{key} (false)
+        ($key, $value) = ($1, 'false');
+    } else {                             # BOOLEAN: {key} (true)
+        ($key, $value) = ($1, 'true');
+    }
+
+    if (($key =~ /^job-/) || ($key =~ /^copies/) ||
+        ($key =~ /^multiple-document-handling/) || ($key =~ /^number-up/) ||
+        ($key =~ /^orientation-requested/) ||
+        ($key =~ /^dest/) || ($key =~ /^protocol/) || ($key =~ /^banner/) ||
+        ($key =~ /^page-ranges/)) {
+        # Ignored:
+        #    job-*, multiple-document-handling are not supported by this
+        #             filter
+        #    dest, protocol, banner, number-up, orientation-requested are
+        #             handled by the LP filtering or interface script
+        #    NOTE - page-ranges should probably be handled here, but
+        #             ignore it until we decide how to handle it.
+    } elsif (/^printer-resolution/) {
+        # value match on "123, 457" or on "123, 457, 8"
+        if (/([\d]+),([\s]*)([\d]+)((,([\s]*)([\d]+))??)/) {
+            $result = '$1x$2$3 '; # (width)x(height)(units)
+        }
+    } elsif (/^print-quality/) {
+        ($value == 3) &&
+            ($result = 'PrintoutMode=Draft');
+        ($value == 4) &&
+            ($result = 'PrintoutMode=Normal');
+        ($value == 5) &&
+            ($result = 'PrintoutMode=High');
+    } else {
+        # NOTE - if key == 'media', we may need to convert the values at some
+        #        point. (see RFC2911, Section 14 for values)
+        $result = '$key=\"$value\"';
+    }
+
+    return ($result);
+}
+
+#
+# Read the attributes file containing the various job meta-data, including
+# requested capabilities
+#
+sub read_attribute_file {
+    my ($file) = @_;
+    my $result = "";
+
+    open (AFP, "<$file") ||
+        (rip_die("Unable to open IPP Attribute file ".$file,
+                 $EXIT_PRNERR_NORETRY_BAD_SETTINGS));
+
+    while(<AFP>) {
+        $result .= option_to_ppd($_);
+    }
+
+    close (AFP);
+
+    return ($result);
 }
 
 

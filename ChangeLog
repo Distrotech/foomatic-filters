@@ -1,3 +1,24 @@
+2006-05-17  Norm Jacobs <Norm.Jacobs@Sun.COM>
+
+	* foomatic-rip-in: Add support for Solaris LP, made default echo,
+	  fileconverter, and execpath setable through configure options.
+
+	* foomatic-gswrapper.in: made default execpath setable through configure
+          options
+
+	* foomatic-rip-1.in: fixed to use @sysconfdir@ for configure
+
+	* foomatic-gswrapper-1.in: fixed to use @sysconfdir@ for configure
+
+	* configure.in: made default execpath, fileconverter and echo setable
+	  through configure options.  Generate man pages through configure
+
+	* makeMan.in: removed, configure now generates the man pages
+
+	* Makefile.in: cleaned up some to work with makes other than gmake
+
+	* README, USAGE: added Solaris LP 
+
 2006-01-06  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* beh.in: Fixed bug of N^2 copies being printed when N copies

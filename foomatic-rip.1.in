@@ -1,129 +1,4 @@
 .\" This -*- nroff -*- source file is part of foomatic.
-.\"
-.
-.\" --------------------------------------------------------------------
-.\" Setup - Macros stolen fro "roff" man page
-.\" --------------------------------------------------------------------
-.
-.mso www.tmac
-.
-.if n \{\
-.  mso tty-char.tmac
-.  ftr CR R
-.  ftr CI I
-.  ftr CB B
-.\}
-.
-.if '\*[.T]'dvi' \{\
-.  ftr CB CW
-.\}
-.
-.
-.\" --------------------------------------------------------------------
-.\" String definitions
-.
-.\" Final `\""' comments are used to make Emacs happy, sic \""
-.
-.\" The `-' sign for options.
-.ie t \{\
-.  ds @- \-\"
-.  ds @-- \-\-\"
-.\}
-.el \{\
-.  ds @- -\"
-.  ds @-- --\"
-.\}
-.
-.ds Comment \.\[rs]\[dq]\"
-.ds Ellipsis \.\|.\|.\&\"
-.
-.
-.\" --------------------------------------------------------------------
-.\" Begin of macro definitions
-.
-.de c
-.\" this is like a comment request when escape mechanism is off
-..
-.
-.eo
-.
-.c ---------------------------------------------------------------------
-.
-.de Text
-.  nop \)\$*
-..
-.
-.de CodeSkip
-.  ie t \
-.    sp 0.2v
-.  el \
-.    sp
-..
-.
-.de Esc
-.  ds @1 \$1\"
-.  shift
-.  Text \f[B]\[rs]\*[@1]\f[]\$*
-.  rm @1
-..
-.
-.de QuotedChar
-.  ds @1 \$1
-.  shift
-.  nop `\f[B]\*[@1]\f[]'\$*
-.  rm @1
-..
-.
-.c --------------------------------------------------------------------
-.
-.c a shell command line
-.de ShellCommand
-.  br
-.  ad l
-.  nh
-.  Text \f[I]sh#\h'1m'\f[]\f[CR]\$*\f[]\&\"
-.  ft R
-.  ft P
-.  hy
-.  ad
-..
-.
-.c --------------------------------------------------------------------
-.
-.c ShortOpt ([c [punct]])
-.c
-.c `-c' somewhere in the text.
-.c The second argument is some trailing punctuation.
-.c
-.de ShortOpt
-.  ds @1 \$1\"
-.  shift
-.  nh
-.  Text \f[CB]\*[@-]\f[]\f[B]\*[@1]\f[]\/\$*
-.  hy
-.  rm @1
-..
-.
-.de TP+
-.  br
-.  ns
-.  TP \$1
-..
-.
-.c --------------------------------------------------------------------
-.
-.c Topic
-.c
-.de Topic
-.  TP 2m
-.  Text \[bu]
-..
-.
-.ec
-.\" End of macro definitions
-.
-.
-
 
 .hy 0
 .TH FOOMATIC-RIP 1 "2002-11-26" "Foomatic Project"
@@ -264,7 +139,7 @@ The file(s) to be printed.
 .P
 \fBfoomatic-rip\fR will print from standard input unless a file to
 print is specified on the command line.
-If your printer PPD file is stored as \fI@@$ENV{'FOO_ETC'}@@/direct/<printer>.ppd\fR
+If your printer PPD file is stored as \fI@sysconfdir@/direct/<printer>.ppd\fR
 or \fI~/.foomatic/direct/<printer>.ppd\fR you can use it by simply specifying "-P \fI<printer>\fR".
 
 Put a line
@@ -327,15 +202,15 @@ http://www.linuxprinting.org
 .SH FILES
 .PD 0
 .TP 0
-@@$ENV{'FOO_ETC'}@@/cups/<printer>.ppd
+@sysconfdir@/cups/<printer>.ppd
 .TP 0
-@@$ENV{'FOO_ETC'}@@/lpd/<printer>.ppd
+@sysconfdir@/lpd/<printer>.ppd
 .TP 0
-@@$ENV{'FOO_ETC'}@@/ppr/<printer>.ppd
+@sysconfdir@/ppr/<printer>.ppd
 .TP 0
-@@$ENV{'FOO_ETC'}@@/pdq/<printer>.ppd
+@sysconfdir@/pdq/<printer>.ppd
 .TP 8
-@@$ENV{'FOO_ETC'}@@/direct/<printer>.ppd
+@sysconfdir@/direct/<printer>.ppd
 
 The PPD files of the currently defined printers
 .PD 0
