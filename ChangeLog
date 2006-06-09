@@ -1,6 +1,12 @@
+2006-06-01  Norm Jacobs <Norm.Jacobs@Sun.COM>
+
+	* filter.conf: example of a preferred shell setting
+
+	* foomatid-rip.in: detect and use a "modern" shell for shell commands
+
 2006-05-17  Norm Jacobs <Norm.Jacobs@Sun.COM>
 
-	* foomatic-rip-in: Add support for Solaris LP, made default echo,
+	* foomatic-rip.in: Add support for Solaris LP, made default echo,
 	  fileconverter, and execpath setable through configure options.
 
 	* foomatic-gswrapper.in: made default execpath setable through configure
@@ -10,7 +16,7 @@
 
 	* foomatic-gswrapper-1.in: fixed to use @sysconfdir@ for configure
 
-	* configure.in: made default execpath, fileconverter and echo setable
+	* configure.ac: made default execpath, fileconverter and echo setable
 	  through configure options.  Generate man pages through configure
 
 	* makeMan.in: removed, configure now generates the man pages

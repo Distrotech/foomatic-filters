@@ -85,6 +85,15 @@ my($jobhasjcl);
 #
 my $myecho = '@ECHO@';
 
+# Which shell to use for executing shell commands.  Some of the PPD files
+# specify a FoomaticRIPCommandLine that makes use of constructs not available
+# from a vanilla Bourne shell.  On systems where /bin/sh is a vanilla Bourne
+# we need to use a more "modern" shell to execute the command.  This will
+# be set via a 'preferred_shell: (shell)' setting in the foomatic.conf file
+# or automatically detected at runtime later on in this program.
+#
+my $modern_shell = '';
+
 # Set debug to 1 to enable the debug logfile for this filter; it will
 # appear as defined by $logfile. It will contain status from this
 # filter, plus the renderer's stderr output. You can also add a line
@@ -307,7 +316,16 @@ if (defined $conf{textfilter}) {
     $fileconverter eq 'mpage' and $fileconverter = $fileconverters[2];
 }
 
-
+# Set the preferred shell for "system()" execution
+(defined $conf{preferred_shell}) &&
+    ($modern_shell = $conf{preferred_shell});
+# if none was preferred, look for a shell that will work
+foreach my $shell ('/bin/sh', '/bin/bash', '/bin/ksh', '/bin/zsh') {
+    if (($modern_shell eq '') && (-x $shell))  {
+        open(FD, "| ".$shell." -c \"((0<1))\" 2>/dev/null");
+        (close(FD) == 1) && ($modern_shell = $shell);
+    }
+}
 
 ## Environment variables;
 
@@ -1734,6 +1752,7 @@ print $logh "${added_lf}Parameter Summary\n";
 print $logh "-----------------${added_lf}\n";
 print $logh "Spooler: $spooler\n";
 print $logh "Printer: $printer\n";
+print $logh "Shell: $modern_shell\n";
 print $logh "PPD file: $ppdfile\n";
 print $logh "ATTR file: $attrpath\n";
 print $logh "Printer model: $model\n";
@@ -2117,7 +2136,7 @@ if ($do_docs) {
 ## renderer also into a file, reset the file here
 
 if ($debug) {
-    system("> ${logfile}.ps");
+    modern_system("> ${logfile}.ps");
 }
 
 
@@ -2154,7 +2173,7 @@ for $file (@filelist) {
 	# Raw queue, simply pass the input into the $postpipe (or to STDOUT
 	# when there is no $postpipe)
 	print $logh "Raw printing, executing \"cat $postpipe\"${added_lf}\n";
-	system("cat $postpipe");
+	modern_system("cat $postpipe");
 	next;
     }
 
@@ -3605,7 +3624,7 @@ sub getrendererhandle {
 	    }
 	    
 	    # Actually run the thing...
-	    system("$commandline");
+	    modern_system("$commandline");
             if ($? != 0) {
 		my $rendererretval = $? >> 8;
 		print $logh "renderer return value: $rendererretval\n";
@@ -4107,7 +4126,7 @@ sub getfileconverterhandle {
 	    }
 
 	    # Actually run the thing...
-	    system("$fileconverter");
+	    modern_system("$fileconverter");
             if ($? != 0) {
 		my $fileconverterretval = $? >> 8;
 		print $logh "file converter return value: " .
@@ -4822,7 +4841,7 @@ sub rip_die {
 	my @messagelines = split("\n", $message);
 	my $firstline = "TRUE";
 	for my $line (@messagelines) {
-	    system("lib/alert $printer $firstline \"$line\"");
+	    modern_system("lib/alert $printer $firstline \"$line\"");
 	    $firstline = "FALSE";
 	}
     } else {
@@ -6489,7 +6508,25 @@ sub read_attribute_file {
     return ($result);
 }
 
+sub modern_system {
+    my (@list) = @_;
 
+    if (($modern_shell =~ /.+/) && ($modern_shell ne '/bin/sh')) {
+        # a "modern" shell other than the default shell was specified
+        my $pid = fork();
+
+        ($pid < 0) && die "failed to fork()";
+
+        if ($pid == 0) {  # child, execute the commands under a modern shell
+            exec($modern_shell, "-c", @list);
+            die "exec($modern_shell, \"-c\", @list);";
+        } else {  # parent, wait for the child
+            waitpid($pid, 0);
+        }
+    } else {  # the system shell is "modern" enough.
+        system(@list);
+    }
+}
 
 # Emacs tabulator/indentation
 
