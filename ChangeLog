@@ -1,3 +1,12 @@
+2006-08-27  Till Kamppeter <till.kamppeter@gmx.net>
+
+	* foomatic-gswrapper.in: Support for built-in redirection of
+	  standard output of PostScript programs ("-sstdout=%stderr") in
+	  newer GhostScript versions. More reliable then using /dev/fd/3
+	  (not always available difficult to check presence) or '|cat >3'
+	  (not seekable and some GhostScript output devices require
+	  seekability of the output file),
+
 2006-07-10  Norm Jacobs <Norm.Jacobs@Sun.COM>
 
 	* *: Removed executable permissions from source files which are
