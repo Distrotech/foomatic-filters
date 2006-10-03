@@ -6116,7 +6116,7 @@ sub buildpdqdriver {
 			     "      # Custom page size settings\n",
 			     "      # We aren't really checking for " .
 			     "legal vals.\n",
-			     "      if [ \"x\${$varn}\" == 'x$val' ]; " .
+			     "      if [ \"x\${$varn}\" = 'x$val' ]; " .
 			     "then\n",
 			     "        $varn=\"\${$varn}.\${PageWidth}" .
 			     "x\${PageHeight}\${PageSizeUnit}\"\n",

@@ -1,3 +1,7 @@
+2006-10-03  Till Kamppeter <till.kamppeter@gmail.com>
+
+	* foomatic-rip.in: Fixed bashism.
+
 2006-08-27  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* foomatic-gswrapper.in: Support for built-in redirection of
@@ -14,7 +18,7 @@
 
 2006-06-15  Norm Jacobs <Norm.Jacobs@Sun.COM>
 
-	* foomatid-rip.in: failing to open IPP attributes file shouldn't be
+	* foomatic-rip.in: failing to open IPP attributes file shouldn't be
 	  fatal
 
 2006-06-01  Norm Jacobs <Norm.Jacobs@Sun.COM>
