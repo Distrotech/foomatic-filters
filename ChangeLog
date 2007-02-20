@@ -7,6 +7,11 @@
 	  same fix also to binary non-PostScript input data (only relevant
 	  for non-CUPS printing systems).
 
+	* README, USAGE, foomatic-rip.in, foomatic-rip.1.in, beh.in,
+	  foomatic-gswrapper.1.in, debian/copyright, debian/control,
+	  debian/README.Debian: Replaced "linuxprinting.org" by
+	  "openprinting.org" or "OpenPrinting".
+
 2006-10-03  Till Kamppeter <till.kamppeter@gmail.com>
 
 	* foomatic-rip.in: Fixed bashism.

@@ -40,12 +40,12 @@
 # Mark this filter world-readable and world-executable. Restart CUPS to
 # make the new backend known to the spooler.
 #
-# See http://www.linuxprinting.org/cups-doc.html and the additional
+# See http://www.openprinting.org/cups-doc.html and the additional
 # instructions below.
 
 # beh - Backend Error Handler
 #
-# Copyright 2005 Till Kamppeter <till.kamppeter@gmx.net>
+# Copyright 2005 Till Kamppeter <till.kamppeter@gmail.com>
 #
 #  This program is free software; you can redistribute it and/or modify it
 #  under the terms of the GNU General Public License as published by the

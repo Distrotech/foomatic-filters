@@ -9,10 +9,9 @@ Filter scripts used by the printer spoolers to convert the incoming
 PostScript data into the printer's native format using a
 printer/driver specific, but spooler-independent PPD file.
 
+Till Kamppeter <till.kamppeter@gmail.com>
 
-Grant Taylor <gtaylor@picante.com>
-Till Kamppeter <till.kamppeter@gmx.net>
-http://www.linuxprinting.org/
+http://www.openprinting.org/
 
 This usage documentation file is written by Till Kamppeter
 
@@ -94,26 +93,23 @@ the scripts when they are installed.
 
 Download sources:
 rlpr: http://freshmeat.net/projects/rlpr/ or
-      http://www.linuxprinting.org/download/printing/
+      http://www.openprinting.org/download/printing/
 netcat: http://freshmeat.net/projects/netcat/
 
 This package does not require any other Foomatic package. it can be
-used with PPD files downloaded from linuxprinting.org, with
+used with PPD files downloaded from the OpenPrinting site, with
 manufacturer-supplied PPDs for PostScript printers, and probably with
 other PPD files.
-
-Note: PPD files for native CUPS drivers, as the ones shipping with
-CUPS or Gimp-Print cannot be used with other spoolers than CUPS.
 
 For non-PostScript printers one also needs GhostScript (5.50 or newer,
 ESP GhostScript 7.05.4 or newer highly recommended) and the
 appropriate printer driver.
 
 For drivers which have to be compiled into GhostScript ("Execution
-style: GhostScript" on the driver pages on linuxprinting.org) check
-with "gs -h" whether the driver is in your GhostScript. If not you
-need to compile the driver into your GhostScript or use a GhostScript
-version which already contains it.
+style: GhostScript" on the driver pages on the OpenPrinting site)
+check with "gs -h" whether the driver is in your GhostScript. If not
+you need to compile the driver into your GhostScript or use a
+GhostScript version which already contains it.
 
 If the driver page says "Execution style: Uniprint", it is much
 easier, check whether the appropriate ".upp" file is in one of the
@@ -215,19 +211,19 @@ If not, see, depending on your spooler:
 
 CUPS:
 
-   http://www.linuxprinting.org/cups-doc.html
+   http://www.openprinting.org/cups-doc.html
 
 LPD, LPRng, GNUlpr:
 
-   http://www.linuxprinting.org/lpd-doc.html
+   http://www.openprinting.org/lpd-doc.html
 
 PPR:
 
-   http://www.linuxprinting.org/ppr-doc.html
+   http://www.openprinting.org/ppr-doc.html
 
 PDQ:
 
-   http://www.linuxprinting.org/pdq-doc.html
+   http://www.openprinting.org/pdq-doc.html
 
 CPS:
 
@@ -235,11 +231,11 @@ CPS:
 
 Direct, spooler-less printing:
 
-   http://www.linuxprinting.org/direct-doc.html
+   http://www.openprinting.org/direct-doc.html
 
 Usage of PPD files (for all spoolers):
 
-   http://www.linuxprinting.org/ppd-doc.html
+   http://www.openprinting.org/ppd-doc.html
 
 
 
