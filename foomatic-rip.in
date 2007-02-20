@@ -3824,8 +3824,9 @@ sub getrendererhandle {
 	    }
 
 	    # The rest of the job data
-            while (<KID4_IN>) {
-                print $fileh $_;
+	    my $buf;
+            while (sysread(KID4_IN, $buf, 1024)) {
+                syswrite($fileh, $buf, length($buf));
             }
 
 	    # A JCL trailer
@@ -4005,7 +4006,7 @@ sub getfileconverterhandle {
     # CUPS can stuff the default settings into the PostScript output
     # of the file converter (so all CUPS settings get also applied when
     # one prints the documentation pages (all other files we get
-    # already converted to PostScript by CUPS.
+    # already converted to PostScript by CUPS).
     if ($spooler eq 'cups') {
 	$fileconverter .=
 	    " | ${programdir}pstops '$rargs[0]' '$rargs[1]' '$rargs[2]' " .
@@ -4195,8 +4196,9 @@ sub getfileconverterhandle {
 	    # filter
 	    print KID2 $alreadyread;
 	    # Then read the rest from standard input
-	    while (<STDIN>) { 
-		print KID2 $_; 
+	    my $buf;
+	    while (sysread(STDIN, $buf, 1024)) { 
+		syswrite(KID2, $buf, length($buf)); 
 	    }
 
             if (!close STDIN && $! != $ESPIPE) {
