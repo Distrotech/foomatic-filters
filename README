@@ -10,11 +10,9 @@ Filter scripts used by the printer spoolers to convert the incoming
 PostScript data into the printer's native format using a
 printer/driver specific, but spooler-independent PPD file.
 
+Till Kamppeter <till.kamppeter@gmail.com>
 
-Grant Taylor <gtaylor@picante.com>
-Till Kamppeter <till.kamppeter@gmx.net>
-
-http://www.linuxprinting.org/
+http://www.openprinting.org/
 
 This README contains mainly info for developers. See the file USAGE if
 you want to know how to use Foomatic.
@@ -26,11 +24,18 @@ Copying
 This package and also the other Foomatic packages are under the
 GPL. See http://www.gnu.org/.
 
-If you spot a data error or any other bug, send mail describing the bug to
-foomatic-devel@linuxprinting.org
 
-General discussion happens in the foomatic-devel forum/list thing at
-www.linuxprinting.org.
+Bugs
+----
+
+If you spot a data error or any other bug, either post on the Foomatic
+developer mailing list
+
+http://lists.freestandards.org/mailman/listinfo/printing-foomatic
+
+or post on the OpenPrinting site support forum
+
+http://forums.openprinting.org/list.php?34
 
 
 Intro
@@ -38,20 +43,17 @@ Intro
 
 This is the stable version of Foomatic. See
 
-http://www.linuxprinting.org/contribute.html#programming
-http://www.linuxprinting.org/pipermail/foomatic-devel/2002q3/thread.html
-http://www.linuxprinting.org/pipermail/foomatic-devel/2002q4/thread.html
-http://www.linuxprinting.org/kpfeifle/LinuxKongress2002/Tutorial/IV.Foomatic-Developer/IV.tutorial-handout-foomatic-development.html
+http://www.freestandards.org/en/OpenPrinting/Database/HowToContribute#programming
 
 to know more about its development.
 
 Your suggestions, bug reports, patches, ... are welcome on
 
-http://www.linuxprinting.org/newsportal/thread.php3?name=linuxprinting.foomatic.devel
+http://forums.openprinting.org/list.php?34
 
 For getting Foomatic PPD files for this version, go to
 
-http://www.linuxprinting.org/
+http://www.openprinting.org/
 
 See the README file of "foomatic-db-engine" for a (more or less)
 complete overview of Foomatic.
@@ -68,7 +70,7 @@ GNUlpr   - An enhanced LPD (http://sf.net/projects/lpr, development stopped)
 PPR      - Page PRinter spooler (http://ppr.sourceforge.net/)
 PDQ      - Print, Don't Queue (http://pdq.sf.net/, development stopped)
 CPS      - Coherent Printing System (http://www.tww.cx/cps.php)
----      - Direct, spooler-less printing (http://www.linuxprinting.org/)
+---      - Direct, spooler-less printing (http://www.openprinting.org/)
 
 
 Programs and important files from this package

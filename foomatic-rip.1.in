@@ -190,13 +190,13 @@ immediately after the data is tranferred to the printer.
 directs your jobs to the LPD printer queue \fBlp\fR on the machine
 named \fBprintserver\fR.
 
-See also http://www.linuxprinting.org/direct-doc.html
+See also http://www.openprinting.org/direct-doc.html
 
 .SH "PRINTING WITH SPOOLER"
 
-See the documentation on the Linux Printing Web site:
+See the documentation on the OpenPrinting Web site:
 .ft CW
-http://www.linuxprinting.org
+http://www.openprinting.org/
 \fR
 
 .SH FILES
@@ -223,11 +223,13 @@ The PPD files of the currently defined printers
 returns 0 unless something unexpected happens.
 
 .SH AUTHOR
-Till Kamppeter <\fItill.kamppeter@gmx.net\fR> with parts of Manfred
+Till Kamppeter <\fItill.kamppeter@gmail.com\fR> with parts of Manfred
 Wassmanns's <\fImanolo@NCC-1701.B.Shuttle.de\fR> man pages for the
 Foomatic 2.0.x filters.
 
 .SH BUGS
 None so far.
 
-Please send bug reports to foomatic-devel@linuxprinting.org.
+Please send bug reports to the Foomatic mailing list:
+
+http://lists.freestandards.org/mailman/listinfo/printing-foomatic

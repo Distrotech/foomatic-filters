@@ -1,3 +1,17 @@
+2007-02-20  Till Kamppeter <till.kamppeter@gmail.com>
+
+	* foomatic-rip.in: Fixed problem of too high memory consumption
+	  when binary output data of GhostScript is read line-wise and
+	  does not contain line feeds (Ubuntu bug #85569 with driver
+	  "eplaser", Red Hat bug #221194 with driver "lx5000"). Applied
+	  same fix also to binary non-PostScript input data (only relevant
+	  for non-CUPS printing systems).
+
+	* README, USAGE, foomatic-rip.in, foomatic-rip.1.in, beh.in,
+	  foomatic-gswrapper.1.in, debian/copyright, debian/control,
+	  debian/README.Debian: Replaced "linuxprinting.org" by
+	  "openprinting.org" or "OpenPrinting".
+
 2006-10-03  Till Kamppeter <till.kamppeter@gmail.com>
 
 	* foomatic-rip.in: Fixed bashism.
@@ -7,7 +21,7 @@
 	* foomatic-gswrapper.in: Support for built-in redirection of
 	  standard output of PostScript programs ("-sstdout=%stderr") in
 	  newer GhostScript versions. More reliable then using /dev/fd/3
-	  (not always available difficult to check presence) or '|cat >3'
+	  (not always available, difficult to check presence) or '|cat >3'
 	  (not seekable and some GhostScript output devices require
 	  seekability of the output file),
 

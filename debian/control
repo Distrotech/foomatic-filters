@@ -12,7 +12,7 @@ Depends: ${perl:Depends}, ${misc:Depends}, ucf (>= 0.30)
 Recommends: cupsys-client | lpr | lprng | pdq | rlpr, gs-esp | gs, cupsys | enscript | a2ps | mpage, foomatic-db-engine
 Conflicts: foomatic-bin (<< 2.9), cupsomatic-ppd (<< 20030507)
 Replaces: foomatic-bin (<< 2.9), cupsomatic-ppd
-Description: linuxprinting.org printer support - filters
+Description: OpenPrinting printer support - filters
  Foomatic is a printer database designed to make it easier to set up
  common printers for use with Debian (and other operating systems).
  It provides the "glue" between a print spooler (like CUPS or lpr) and
@@ -28,4 +28,4 @@ Description: linuxprinting.org printer support - filters
  For use with CUPS, you will need both the cupsys and cupsys-client
  packages installed on your system.
  .
- Home Page: http://www.linuxprinting.org/
+ Home Page: http://www.openprinting.org/

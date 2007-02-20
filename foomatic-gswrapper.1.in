@@ -26,4 +26,6 @@ project using output from the associated binary.
 .SH BUGS
 None so far.
 
-Please send bug reports to foomatic-devel@linuxprinting.org.
+Please send bug reports to the Foomatic mailing list:
+
+http://lists.freestandards.org/mailman/listinfo/printing-foomatic

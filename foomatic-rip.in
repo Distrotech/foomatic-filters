@@ -26,12 +26,12 @@ my $ripversion='$Revision$';
 # spoolers run the print filters as a special user, as "lp", not as
 # "root" or as the user who sent the job).
 
-# See http://www.linuxprinting.org/cups-doc.html
-#     http://www.linuxprinting.org/lpd-doc.html
-#     http://www.linuxprinting.org/ppr-doc.html
-#     http://www.linuxprinting.org/pdq-doc.html
-#     http://www.linuxprinting.org/direct-doc.html
-#     http://www.linuxprinting.org/ppd-doc.html
+# See http://www.openprinting.org/cups-doc.html
+#     http://www.openprinting.org/lpd-doc.html
+#     http://www.openprinting.org/ppr-doc.html
+#     http://www.openprinting.org/pdq-doc.html
+#     http://www.openprinting.org/direct-doc.html
+#     http://www.openprinting.org/ppd-doc.html
 
 # ==========================================================================
 #
@@ -114,8 +114,8 @@ my $logfile = "/tmp/foomatic-rip";
 #
 # foomatic-rip spooler-independent PS->Printer filter (RIP) of Foomatic
 #
-# Copyright 2002 - 2004 Grant Taylor <gtaylor@picante.com>
-#		 & Till Kamppeter <till.kamppeter@gmx.net>
+# Copyright 2002 - 2007 Grant Taylor <gtaylor@picante.com>
+#		 & Till Kamppeter <till.kamppeter@gmail.com>
 #                & Helge Blischke <h.blischke@srz.de>
 #
 #  This program is free software; you can redistribute it and/or modify it
@@ -3824,8 +3824,9 @@ sub getrendererhandle {
 	    }
 
 	    # The rest of the job data
-            while (<KID4_IN>) {
-                print $fileh $_;
+	    my $buf;
+            while (sysread(KID4_IN, $buf, 1024)) {
+                syswrite($fileh, $buf, length($buf));
             }
 
 	    # A JCL trailer
@@ -4005,7 +4006,7 @@ sub getfileconverterhandle {
     # CUPS can stuff the default settings into the PostScript output
     # of the file converter (so all CUPS settings get also applied when
     # one prints the documentation pages (all other files we get
-    # already converted to PostScript by CUPS.
+    # already converted to PostScript by CUPS).
     if ($spooler eq 'cups') {
 	$fileconverter .=
 	    " | ${programdir}pstops '$rargs[0]' '$rargs[1]' '$rargs[2]' " .
@@ -4195,8 +4196,9 @@ sub getfileconverterhandle {
 	    # filter
 	    print KID2 $alreadyread;
 	    # Then read the rest from standard input
-	    while (<STDIN>) { 
-		print KID2 $_; 
+	    my $buf;
+	    while (sysread(STDIN, $buf, 1024)) { 
+		syswrite(KID2, $buf, length($buf)); 
 	    }
 
             if (!close STDIN && $! != $ESPIPE) {
