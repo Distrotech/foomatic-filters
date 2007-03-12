@@ -3825,8 +3825,8 @@ sub getrendererhandle {
 
 	    # The rest of the job data
 	    my $buf;
-            while (sysread(KID4_IN, $buf, 1024)) {
-                syswrite($fileh, $buf, length($buf));
+            while (read(KID4_IN, $buf, 1024)) {
+                print $fileh $buf;
             }
 
 	    # A JCL trailer
@@ -4197,8 +4197,8 @@ sub getfileconverterhandle {
 	    print KID2 $alreadyread;
 	    # Then read the rest from standard input
 	    my $buf;
-	    while (sysread(STDIN, $buf, 1024)) { 
-		syswrite(KID2, $buf, length($buf)); 
+	    while (read(STDIN, $buf, 1024)) { 
+		print KID2 $buf; 
 	    }
 
             if (!close STDIN && $! != $ESPIPE) {
