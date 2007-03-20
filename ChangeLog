@@ -1,10 +1,22 @@
 2007-03-20  Till Kamppeter <till.kamppeter@gmail.com>
 
-	* foomatic-rip.in: Performance improvement: Do not match all forms of
-	  DSC comments against every line. Check whether the line is a DSC
-	  comment at all and pass it quickly through if not (Thanks to 
-	  Andreas Bolsch, Andreas dot Bolsch at alumni dot TU-Berlin dot DE,
-	  for this patch).
+	* foomatic-rip.in: Performance improvement: Do not match all forms
+	  of DSC comments against every line. Check whether the line is a
+	  DSC comment at all and pass it quickly through if not (Thanks to
+	  Andreas Bolsch, Andreas dot Bolsch at alumni dot TU-Berlin dot
+	  DE, for this patch). Will probably fix Ubuntu bug LP#78781
+	  (https://launchpad.net/bugs/78781).
+
+	  Fixed bug of custom page sizes not read from the PostScript code
+	  when the size values are in more than one line (as the
+	  "imagetops" CUPS filter outputs them when adapting a
+	  user-supplied custom page size to the aspect ratio of the image,
+	  to not waste roll paper). This fixes CUPS STR #1722
+	  (http://www.cups.org/str.php?L1722), Ubuntu bug LP#42234
+	  (https://launchpad.net/bugs/42234).
+
+	  Let data structure get written to debug log also if foomatic-rip
+	  exits with an error (only in debug mode).
 
 2007-03-10  Till Kamppeter <till.kamppeter@gmail.com>
 
