@@ -2452,6 +2452,8 @@ for $file (@filelist) {
     my $ooo110 = 0;                 # Flag to work around an application 
                                     # bug.
 
+    my $saved = 0;                  # DSC line not processed yet
+    
     if ($dontparse) {
 	# We do not parse the PostScript to find Foomatic options, we check
 	# only whether we have PostScript.
@@ -2466,7 +2468,8 @@ for $file (@filelist) {
 	                            # determining the last active line 
 	                            # and the one before the last
 
-	if (($printprevpage) || ($line=<STDIN>)) {
+	if (($printprevpage) || ($saved) || ($line=<STDIN>)) {
+            $saved = 0;
 
 	    if ($linect == $nonpslines) {
 		# In the beginning should be the postscript leader,
@@ -2554,6 +2557,7 @@ for $file (@filelist) {
 		    }
 		}
 	    } else {
+                if ($line =~ /^\%\%/) {
 		if ($line =~ m/^\s*\%\%BeginDocument[: ]/) {
 		    # Beginning of an embedded document
 		    # Note that Adobe Acrobat has a bug and so uses
@@ -3083,6 +3087,7 @@ for $file (@filelist) {
 		    # This is an unknown PostScript comment or a blank line,
 		    # no active code
 		    $ignoreline = 1;
+		    }
 		} else {
 		    # This line is active PostScript code
 		    if ($inheader) {
@@ -3151,10 +3156,10 @@ for $file (@filelist) {
 	    # Debug info
 	    if ($lastpassthru != $passthru) {
 		if ($passthru) {
-		    print $logh "Found:\n   $line" . 
+		    print $logh "Found: $line" . 
 			" --> Output goes directly to the renderer now.\n${added_lf}";
 		} else {
-		    print $logh "Found:\n   $line" . 
+		    print $logh "Found: $line" . 
 			" --> Output goes to the FIFO buffer now.${added_lf}\n";
 		}
 	    }
@@ -3221,6 +3226,19 @@ for $file (@filelist) {
 		    # Send line to renderer
 		    if (!$printprevpage) {
 			print $rendererhandle $line;
+			
+			while ($line=<STDIN>)
+			{
+			  if ($line =~ /^\%\%[A-Za-z\s]{3,}/) {
+		            print $logh "Found: $line" . 
+			                " --> Continue DSC parsing now.${added_lf}\n";
+			    $saved = 1;
+			    last;
+			  } else {
+			    print $rendererhandle $line;
+			    $linect++;
+			  }  
+			}
 		    }
 		} else {
 		    # Push the line onto the stack for later spitting up...

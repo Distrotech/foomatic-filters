@@ -1,3 +1,11 @@
+2007-03-20  Till Kamppeter <till.kamppeter@gmail.com>
+
+	* foomatic-rip.in: Performance improvement: Do not match all forms of
+	  DSC comments against every line. Check whether the line is a DSC
+	  comment at all and pass it quickly through if not (Thanks to 
+	  Andreas Bolsch, Andreas dot Bolsch at alumni dot TU-Berlin dot DE,
+	  for this patch).
+
 2007-03-10  Till Kamppeter <till.kamppeter@gmail.com>
 
 	* foomatic-rip.in: Replaced sysread() and syswrite() by read() and
