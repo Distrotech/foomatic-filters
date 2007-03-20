@@ -2332,6 +2332,9 @@ for $file (@filelist) {
     my $twolinesbefore = "";        # The line two lines before the current 
                                     # line (Non-DSC comments are ignored)
 
+    my $linesafterlastbeginfeature = ""; # All code lines after the last
+                                    # "%%BeginFeature:"
+
     my @psheader = ();              # The header of the PostScript file, 
                                     # to be sent after each start of the
                                     # renderer
@@ -2557,539 +2560,561 @@ for $file (@filelist) {
 		    }
 		}
 	    } else {
-                if ($line =~ /^\%\%/) {
-		if ($line =~ m/^\s*\%\%BeginDocument[: ]/) {
-		    # Beginning of an embedded document
-		    # Note that Adobe Acrobat has a bug and so uses
-		    # "%%BeginDocument " instead of "%%BeginDocument:"
-		    $nestinglevel ++;
-		    print $logh "Embedded document, " .
-			"nesting level now: $nestinglevel\n";
-		} elsif (($line =~ m/^\s*\%\%EndDocument/) &&
-			 ($nestinglevel > 0)) {
-		    # End of an embedded document
-		    $nestinglevel --;
-		    print $logh "End of Embedded document, " .
-			"nesting level now: $nestinglevel\n";
-		} elsif (($line =~ m/^\s*\%\%Creator[: ](.*)$/) &&
-			 ($nestinglevel == 0)) {
-		    # Here we set flags to treat particular bugs of the
-		    # PostScript produced by certain applications
-		    my $creator = $1;
-		    if ($creator =~ /^\s*OpenOffice.org\s+1.1.\d+\s*$/) {
-			# OpenOffice.org 1.1.x
-			# The option settings supposed to affect the
-			# whole document are put into the "%%PageSetup"
-			# section of the first page
-			print $logh "Document created with " .
-			    "OpenOffice.org 1.1.x\n";
-			$ooo110 = 1;
-		    }
-		} elsif (($line =~ m/^\%\%BeginProlog/) &&
-			 ($nestinglevel == 0)) {
-		    # Note: Below is another place where a "Prolog"
-		    # section start will be considered. There we assume
-		    # start of the "Prolog" if the job is DSC-Conformimg,
-		    # but an arbitrary comment starting with "%%Begin", but
-		    # not a comment explicitly treated here, is found. This
-		    # is done because many "dvips" (TeX/LaTeX) files miss
-		    # the "%%BeginProlog" comment.
-		    # Beginning of Prolog
-		    print $logh "${added_lf}-----------\nFound: \%\%BeginProlog\n";
-		    $inprolog = 1;
-		    $postscriptsection = 'prolog' if $inheader;
-		    $nondsclines = 0;
-		    # Insert options for "Prolog"
-		    if (!$prologfound) {
-			$line .= makeprologsection($dat, $optionset, 0);
-		    }
-		    $prologfound = 1;
-		} elsif (($line =~ m/^\%\%EndProlog/) &&
-			 ($nestinglevel == 0)) {
-		    # End of Prolog
-		    print $logh "Found: \%\%EndProlog\n";
-		    $inprolog = 0;
-		    $insertoptions = $linect + 1;
-		} elsif (($line =~ m/^\%\%BeginSetup/) &&
-			 ($nestinglevel == 0)) {
-		    # Beginning of Setup
-		    print $logh "${added_lf}-----------\nFound: \%\%BeginSetup\n";
-		    $insetup = 1;
-		    # We need to distinguish with the $inheader variable
-		    # here whether we are in the header or on a page, as
-		    # OpenOffice.org inserts a "%%BeginSetup...%%EndSetup"
-		    # section after the first "%%Page:..." line and assumes
-		    # this section to be valid for all pages.
-		    $postscriptsection = 'setup' if $inheader;
-		    $nondsclines = 0;
-		    if ($inheader) {
-			# If there was no "Prolog" but there are
-			# options for the "Prolog", push a "Prolog"
-			# with these options onto the @psfifo here
+		if ($line =~ /^\%\%/) {
+		    if ($line =~ m/^\s*\%\%BeginDocument[: ]/) {
+			# Beginning of an embedded document
+			# Note that Adobe Acrobat has a bug and so uses
+			# "%%BeginDocument " instead of "%%BeginDocument:"
+			$nestinglevel ++;
+			print $logh "Embedded document, " .
+			    "nesting level now: $nestinglevel\n";
+		    } elsif (($line =~ m/^\s*\%\%EndDocument/) &&
+			     ($nestinglevel > 0)) {
+			# End of an embedded document
+			$nestinglevel --;
+			print $logh "End of Embedded document, " .
+			    "nesting level now: $nestinglevel\n";
+		    } elsif (($line =~ m/^\s*\%\%Creator[: ](.*)$/) &&
+			     ($nestinglevel == 0)) {
+			# Here we set flags to treat particular bugs of the
+			# PostScript produced by certain applications
+			my $creator = $1;
+			if ($creator =~ /^\s*OpenOffice.org\s+1.1.\d+\s*$/) {
+			    # OpenOffice.org 1.1.x
+			    # The option settings supposed to affect the
+			    # whole document are put into the "%%PageSetup"
+			    # section of the first page
+			    print $logh "Document created with " .
+				"OpenOffice.org 1.1.x\n";
+			    $ooo110 = 1;
+			}
+		    } elsif (($line =~ m/^\%\%BeginProlog/) &&
+			     ($nestinglevel == 0)) {
+			# Note: Below is another place where a "Prolog"
+			# section start will be considered. There we assume
+			# start of the "Prolog" if the job is DSC-Conformimg,
+			# but an arbitrary comment starting with "%%Begin", but
+			# not a comment explicitly treated here, is found. This
+			# is done because many "dvips" (TeX/LaTeX) files miss
+			# the "%%BeginProlog" comment.
+			# Beginning of Prolog
+			print $logh "${added_lf}-----------\nFound: \%\%BeginProlog\n";
+			$inprolog = 1;
+			$postscriptsection = 'prolog' if $inheader;
+			$nondsclines = 0;
+			# Insert options for "Prolog"
 			if (!$prologfound) {
-			    # "Prolog" missing, insert it here
-			    $line = makeprologsection($dat, $optionset, 1) .
-				$line;
-			    # Now we have a "Prolog"
-			    $prologfound = 1;
+			    $line .= makeprologsection($dat, $optionset, 0);
 			}
-			# Insert options for "DocumentSetup" or "AnySetup"
-			if ($spooler ne 'cups') {
-				# For non-CUPS spoolers or no spooler at all, we leave
-				# everything as it is.
-				if (!$setupfound) {
-				    $line .= makesetupsection($dat, $optionset, 0);
-				}
-				$setupfound = 1;
-			}
-		    } else {
-			# Found option settings must be stuffed into both
-			# the header and the currrent page now. They will
-			# be written into both the "header" and the
-			# "currentpage" optionsets and the PostScript code
-			# lines of this section will not only go into the
-			# output stream, but also added to the end of the
-			# @psheader, so that they get repeated (to preserve
-			# the embedded PostScript option settings) on a 
-			# restart of the renderer due to command line 
-			# option changes
-			$optionsalsointoheader = 1;
-			print $logh "\"%%BeginSetup\" in page header\n";
-		    }
-		} elsif (($line =~ m/^\%\%EndSetup/) &&
-			 ($nestinglevel == 0)) {
-		    # End of Setup
-		    print $logh "Found: \%\%EndSetup\n";
-		    $insetup = 0;
-		    if ($inheader) {
-		        if ($spooler eq 'cups') {
-			    # In case of CUPS, we must insert the
-			    # accounting stuff just before the
-			    # %%EndSetup comment in order to leave any
-			    # EndPage procedures that have been
-			    # defined by either the pstops filter or
-			    # the PostScript job itself fully
-			    # functional.
-			    if (!$setupfound) {
-				$line = makesetupsection($dat, 
-				                         $optionset, 0) . 
-	                                $line;	 
-			    }
-			    $setupfound = 1;
-		        }
+			$prologfound = 1;
+		    } elsif (($line =~ m/^\%\%EndProlog/) &&
+			     ($nestinglevel == 0)) {
+			# End of Prolog
+			print $logh "Found: \%\%EndProlog\n";
+			$inprolog = 0;
 			$insertoptions = $linect + 1;
-		    } else {
-			# The "%%BeginSetup...%%EndSetup" which
-			# OpenOffice.org has inserted after the first
-			# "%%Page:..." line ends here, so the following
-			# options go only onto the current page again
-			$optionsalsointoheader = 0;
-		    }
-		} elsif (($line =~ m/^\%\%Page:(.*)$/) &&
-			 ($nestinglevel == 0)) {
-		    if ((!$lastpassthru) && (!$inheader)) {
-			# In the last line we were not in passthru mode,
-			# so the last page is not printed. Prepare to do
-			# it now.
-			$printprevpage = 1;
-			# Print the previous page
-			$passthru = 1;
-			print $logh "New page found but previous not " . 
-			    "printed, print it now.\n";
-		    } else {
-			# The previous page is printed, so we can prepare
-			# the current one
-			$printprevpage = 0;
-			print $logh "${added_lf}-----------\nNew page: $1\n";
-			# Count pages
-			$currentpage ++;
-			# We consider the beginning of the page already as
-			# page setup section, as some apps do not use
-			# "%%PageSetup" tags.
-			$postscriptsection = 'pagesetup';
-			# Save PostScript state before beginning the page
-			#$line .= "/foomatic-saved-state save def\n";
-			# Here begins a new page
+		    } elsif (($line =~ m/^\%\%BeginSetup/) &&
+			     ($nestinglevel == 0)) {
+			# Beginning of Setup
+			print $logh "${added_lf}-----------\nFound: \%\%BeginSetup\n";
+			$insetup = 1;
+			# We need to distinguish with the $inheader variable
+			# here whether we are in the header or on a page, as
+			# OpenOffice.org inserts a "%%BeginSetup...%%EndSetup"
+			# section after the first "%%Page:..." line and assumes
+			# this section to be valid for all pages.
+			$postscriptsection = 'setup' if $inheader;
+			$nondsclines = 0;
 			if ($inheader) {
-			    # Here we add some stuff which still belongs
-			    # into the header
-			    my $stillforheader;
-			    # If there was no "Setup" but there are
-			    # options for the "Setup", push a "Setup"
-			    # with these options onto the @psfifo here
-			    if (!$setupfound) {
-				# "Setup" missing, insert it here
-				$stillforheader = 
-				    makesetupsection($dat, $optionset, 1) .
-				    $stillforheader;
-				# Now we have a "Setup"
-				$setupfound = 1;
-			    }
 			    # If there was no "Prolog" but there are
 			    # options for the "Prolog", push a "Prolog"
 			    # with these options onto the @psfifo here
 			    if (!$prologfound) {
 				# "Prolog" missing, insert it here
-				$stillforheader = 
+				$line =
 				    makeprologsection($dat, $optionset, 1) .
-				    $stillforheader;
+				    $line;
 				# Now we have a "Prolog"
 				$prologfound = 1;
 			    }
-			    # Now we push this onto the header
-			    push (@psheader, $stillforheader);
-			    # The first page starts, so the header ends
-			    $inheader = 0;
-			    $nondsclines = 0;
-			    # Option setting should go into the
-			    # page-specific option set now
-			    $optionset = 'currentpage';
+			    # Insert options for "DocumentSetup" or "AnySetup"
+			    if ($spooler ne 'cups') {
+				# For non-CUPS spoolers or no spooler at all, 
+				# we leave everything as it is.
+				if (!$setupfound) {
+				    $line .= 
+					makesetupsection($dat, $optionset, 0);
+				}
+				$setupfound = 1;
+			    }
 			} else {
-			    # Restore PostScript state after completing the
-			    # previous page:
-			    # 
-			    #   foomatic-saved-state restore
-			    #   %%Page: ...
-			    #   /foomatic-saved-state save def
-			    #
-			    # Print this directly, so that if we need to
-			    # restart the renderer for this page due to
-			    # a command line change this is done under the
-			    # old instance of the renderer
-			    #print $rendererhandle
-			    #    "foomatic-saved-state restore\n";
-
-			    # Save the option settings of the previous page
-			    copyoptions($dat, 'currentpage',
-					'previouspage');
-			    deleteoptions($dat, 'currentpage');
+			    # Found option settings must be stuffed into both
+			    # the header and the currrent page now. They will
+			    # be written into both the "header" and the
+			    # "currentpage" optionsets and the PostScript code
+			    # lines of this section will not only go into the
+			    # output stream, but also added to the end of the
+			    # @psheader, so that they get repeated (to preserve
+			    # the embedded PostScript option settings) on a 
+			    # restart of the renderer due to command line 
+			    # option changes
+			    $optionsalsointoheader = 1;
+			    print $logh "\"%%BeginSetup\" in page header\n";
 			}
-			# Initialize the option set
-			copyoptions($dat, 'header', 'currentpage');
-			# Set command line options which apply only
-			# given pages
-			setoptionsforpage($dat, 'currentpage', $currentpage);
-			$pagesetupfound = 0;
-			if ($spooler eq 'cups') {
-			    # Remove the "notfirst" flag from all options
-			    # forseen for the "PageSetup" section, because
-			    # when these are numerical options for CUPS.
-			    # they have to be set to the correct value
-			    # for every page
-			    for my $arg (@{$dat->{'args'}}) {
-				if (($arg->{'section'} eq 'PageSetup') &&
-				    (defined($arg->{'notfirst'}))) {
-				    delete($arg->{'notfirst'});
+		    } elsif (($line =~ m/^\%\%EndSetup/) &&
+			     ($nestinglevel == 0)) {
+			# End of Setup
+			print $logh "Found: \%\%EndSetup\n";
+			$insetup = 0;
+			if ($inheader) {
+			    if ($spooler eq 'cups') {
+				# In case of CUPS, we must insert the
+				# accounting stuff just before the
+				# %%EndSetup comment in order to leave any
+				# EndPage procedures that have been
+				# defined by either the pstops filter or
+				# the PostScript job itself fully
+				# functional.
+				if (!$setupfound) {
+				    $line = makesetupsection($dat, 
+							     $optionset, 0) . 
+								 $line;	 
 				}
+				$setupfound = 1;
 			    }
+			    $insertoptions = $linect + 1;
+			} else {
+			    # The "%%BeginSetup...%%EndSetup" which
+			    # OpenOffice.org has inserted after the first
+			    # "%%Page:..." line ends here, so the following
+			    # options go only onto the current page again
+			    $optionsalsointoheader = 0;
 			}
-			# Insert PostScript option settings
-			# (options for section "PageSetup".
-			if ($isdscjob) {
-			    $line .= 
-				makepagesetupsection($dat, $optionset,
-						     0);
-			    $pagesetupfound = 1;
-			}
-			# Now the page header comes, so buffer the data,
-			# because we must perhaps shut down and restart 
-			# the renderer
-			$passthru = 0;
-			$ignorepageheader = 0;
-			$optionsalsointoheader = 0;
-		    }
-		} elsif (($line =~ m/^\%\%BeginPageSetup/) &&
-			 ($nestinglevel == 0) &&
-			 (!$ignorepageheader))  {
-		    # Start of the page header, up to %%EndPageSetup
-		    # nothing of the page will be drawn, page-specific
-		    # option settngs (as letter-head paper for page 1)
-		    # go here
-		    print $logh "${added_lf}Found: \%\%BeginPageSetup\n";
-		    $passthru = 0;
-		    $inpageheader = 1;		
-		    $postscriptsection = 'pagesetup';
-		    if (($ooo110) && ($currentpage == 1)) {
-			$optionsalsointoheader = 1;
-		    } else {
-			$optionsalsointoheader = 0;
-		    }
-		} elsif (($line =~ m/^\%\%EndPageSetup/) &&
-			 ($nestinglevel == 0) &&
-			 (!$ignorepageheader)) {
-		    # End of the page header, the page is ready to be
-		    # printed
-		    print $logh "Found: \%\%EndPageSetup\n";
-		    print $logh "End of page header\n";
-		    # We cannot for sure say that the page header ends here
-		    # OpenOffice.org puts (due to a bug) a "%%BeginSetup...
-		    # %%EndSetup" section after the first "%%Page:...". It
-		    # is possible that CUPS inserts a "%%BeginPageSetup...
-		    # %%EndPageSetup" before this section, which means that
-		    # the options in the "%%BeginSetup...%%EndSetup" section
-		    # are after the "%%EndPageSetup", so we continue for
-		    # searching options up to the buffer size limit
-		    # $maxlinesforpageoptions.
-		    $passthru = 0;
-		    $inpageheader = 0;
-		    $optionsalsointoheader = 0;
-		} elsif ((($line =~ m/^\%\%(BeginFeature):\s*\*?([^\*\s=]+)\s+()(\S[^\r\n]*)\r?\n?$/) ||
-			  ($line =~ m/^\s*\%\%\s*(FoomaticRIPOptionSetting):\s*([^\*\s=]+)\s*=\s*(\@?)([^\@\s][^\r\n]*)\r?\n?$/)) &&
-			 ($nestinglevel == 0) &&
-			 (!$optionreplaced) &&
-			 ((!$passthru) || (!$isdscjob))) {
-		    my ($linetype, $option, $fromcomposite, $value) = 
-			($1, $2, $3, $4);
-
-		    # Mark that we are in a "Feature" section
-		    if ($linetype eq 'BeginFeature') {
-			$infeature = 1;
-		    }
-		    
-		    # OK, we have an option.  If it's not a
-		    # *ostscript-style option (ie, it's command-line or
-		    # JCL) then we should note that fact, since the
-		    # attribute-to-filter option passing in CUPS is kind of
-		    # funky, especially wrt boolean options.  
-
-		    print $logh "Found: $line";
-		    if (my $arg=argbyname($option)) {
-			print $logh "   Option: $option=" .
-			    ($fromcomposite ? "From" : "") . $value;
-			if (($spooler eq 'cups') &&
-			    ($linetype eq 'BeginFeature') &&
-			    (!defined($arg->{'notfirst'})) &&
-			    ($arg->{$optionset} ne $value) &&
-			    (($inheader) ||
-			     ($arg->{section} eq 'PageSetup'))) {
-			    # We have the first occurence of an
-			    # option setting and the spooler is CUPS,
-			    # so this setting is inserted by "pstops".
-			    # The value from the command line was not
-			    # inserted by "pstops" so it seems to be
-			    # not under the choices in the PPD.
-			    # Possible reasons:
-			    #
-			    # - "pstops" ignores settings of numerical
-			    #   or string options which are not one of 
-			    #   the choices in the PPD file, and inserts
-			    #   the default value instead.
-			    #
-			    # - On the command line an option was applied
-			    #   only to selected pages:
-			    #    "-o <page ranges>:<option>=<values>
-			    #   This is not supported by CUPS, so not
-			    #   taken care of by "pstops".
-			    #
-                            # We must fix this here by replacing the setting
-			    # inserted by "pstops" with the exact setting
-			    # given on the command line.
-			    
-			    # $arg->{$optionset} is already 
-			    # range-checked, so do not check again here
-			    # Insert DSC comment
-			    my $dest = ((($inheader) && ($isdscjob)) ?
-					\@psheader : \@psfifo);
-			    push(@{$dest},
-				 "%%BeginFeature: " .
-				 "*$option $arg->{$optionset}\n");
-			    my $val;
-			    if ($arg->{'style'} eq 'G') {
-				# PostScript option, insert the code
-				if ($arg->{'type'} eq 'bool') {
-				    # Boolean option
-				    if (defined($arg->{$optionset}) && 
-					$arg->{$optionset} == 1) {
-					push(@{$dest}, $arg->{'proto'} . "\n");
-				    } elsif ($arg->{'protof'}) {
-					push(@{$dest}, $arg->{'protof'}. "\n");
-				    }
-				} elsif ((($arg->{'type'} eq 'enum') ||
-				     ($arg->{'type'} eq 'string') ||
-				     ($arg->{'type'} eq 'password')) &&
-				    (defined($val =
-					     $arg->{'vals_byname'}{$arg->{$optionset}}))) {
-				    # Enumerated choice of string or enum 
-				    # option
-				    push(@{$dest}, $val->{'driverval'} . "\n");
-				} elsif ((($arg->{'type'} eq 'string') ||
-				     ($arg->{'type'} eq 'password')) &&
-				    ($arg->{$optionset} eq 'None')) {
-				    # 'None' is mapped to the empty string in
-				    # string options
-				    my $driverval = $arg->{'proto'};
-				    $driverval =~ s/\%s//g;
-				    push(@{$dest}, $driverval . "\n");
-				} else {
-				    # Setting for numerical or string option
-				    # which is not under the enumerated choices
-				    my $sprintfproto = $arg->{'proto'};
-				    $sprintfproto =~ s/\%(?!s)/\%\%/g;
-				    push(@{$dest},
-					 sprintf($sprintfproto,
-						 $arg->{$optionset}) .
-					 "\n");
+		    } elsif (($line =~ m/^\%\%Page:(.*)$/) &&
+			     ($nestinglevel == 0)) {
+			if ((!$lastpassthru) && (!$inheader)) {
+			    # In the last line we were not in passthru mode,
+			    # so the last page is not printed. Prepare to do
+			    # it now.
+			    $printprevpage = 1;
+			    # Print the previous page
+			    $passthru = 1;
+			    print $logh "New page found but previous not " . 
+				"printed, print it now.\n";
+			} else {
+			    # The previous page is printed, so we can prepare
+			    # the current one
+			    $printprevpage = 0;
+			    print $logh "${added_lf}-----------\nNew page: $1\n";
+			    # Count pages
+			    $currentpage ++;
+			    # We consider the beginning of the page already as
+			    # page setup section, as some apps do not use
+			    # "%%PageSetup" tags.
+			    $postscriptsection = 'pagesetup';
+			    # Save PostScript state before beginning the page
+			    #$line .= "/foomatic-saved-state save def\n";
+			    # Here begins a new page
+			    if ($inheader) {
+				# Here we add some stuff which still belongs
+				# into the header
+				my $stillforheader;
+				# If there was no "Setup" but there are
+				# options for the "Setup", push a "Setup"
+				# with these options onto the @psfifo here
+				if (!$setupfound) {
+				    # "Setup" missing, insert it here
+				    $stillforheader = 
+					makesetupsection($dat, $optionset, 1) .
+					$stillforheader;
+				    # Now we have a "Setup"
+				    $setupfound = 1;
 				}
+				# If there was no "Prolog" but there are
+				# options for the "Prolog", push a "Prolog"
+				# with these options onto the @psfifo here
+				if (!$prologfound) {
+				    # "Prolog" missing, insert it here
+				    $stillforheader = 
+					makeprologsection($dat, $optionset,
+							  1) .
+					$stillforheader;
+				    # Now we have a "Prolog"
+				    $prologfound = 1;
+				}
+				# Now we push this onto the header
+				push (@psheader, $stillforheader);
+				# The first page starts, so the header ends
+				$inheader = 0;
+				$nondsclines = 0;
+				# Option setting should go into the
+				# page-specific option set now
+				$optionset = 'currentpage';
 			    } else {
-				# Command line or JCL option
-				push(@{$dest},
-				     "%% FoomaticRIPOptionSetting: " .
-				     "$option=$arg->{$optionset}\n");
+				# Restore PostScript state after completing the
+				# previous page:
+				# 
+				#   foomatic-saved-state restore
+				#   %%Page: ...
+				#   /foomatic-saved-state save def
+				#
+				# Print this directly, so that if we need to
+				# restart the renderer for this page due to
+				# a command line change this is done under the
+				# old instance of the renderer
+				#print $rendererhandle
+				#    "foomatic-saved-state restore\n";
+
+				# Save the option settings of the previous page
+				copyoptions($dat, 'currentpage',
+					    'previouspage');
+				deleteoptions($dat, 'currentpage');
 			    }
-			    print $logh " --> Correcting numerical/string " .
-				"option to $option=$arg->{$optionset}" .
-				" (Command line argument)\n";
-			    # We have replaced this option on the 
-			    # FIFO
-			    $optionreplaced = 1;
-			}
-			# Mark that we have already found this option
-			$arg->{'notfirst'} = 1;
-			if (!$optionreplaced) {
-			    if ($arg->{'style'} ne 'G') {
-				# "Controlled by '<Composite>'" setting of
-				# a member option of a composite option
-				if ($fromcomposite) {
-				    $value = "From$value";
-				}
-				# Non-PostScript option
-				# Check whether it is valid
-				if (defined(my $newvalue =
-					    checkoptionvalue($dat, $option,
-							     $value, 0))) {
-				    print $logh " --> Setting option\n";
-				    # Valid choice, set it.
-				    $arg->{$optionset} = $newvalue;
-				    if ($optionsalsointoheader) {
-					$arg->{'header'} = $newvalue;
+			    # Initialize the option set
+			    copyoptions($dat, 'header', 'currentpage');
+			    # Set command line options which apply only
+			    # given pages
+			    setoptionsforpage($dat, 'currentpage', $currentpage);
+			    $pagesetupfound = 0;
+			    if ($spooler eq 'cups') {
+				# Remove the "notfirst" flag from all options
+				# forseen for the "PageSetup" section, because
+				# when these are numerical options for CUPS.
+				# they have to be set to the correct value
+				# for every page
+				for my $arg (@{$dat->{'args'}}) {
+				    if (($arg->{'section'} eq 'PageSetup') &&
+					(defined($arg->{'notfirst'}))) {
+					delete($arg->{'notfirst'});
 				    }
-				    if (($arg->{'type'} eq 'enum') &&
-					(($option eq 'PageSize') ||
-					 ($option eq 'PageRegion')) &&
-					($newvalue =~ /^Custom/) &&
-					($linetype eq 
-					 'FoomaticRIPOptionSetting')) {
-					# Custom page size
-					$twolinesbefore =~
-					    /^\s*([\d\.]+)\s+([\d\.]+)\s+([\d\.]+)\s+([\d\.]+)\s+([\d\.]+)\s*$/;
-					my ($w, $h) = ($1, $2);
-					if (($w) && ($h) && 
-					    ($w != 0) && ($h != 0)) {
-					    $newvalue = "$newvalue.${w}x$h";
-					    $arg->{$optionset} = $newvalue;
-					    if ($optionsalsointoheader) {
-						$arg->{'header'} =
-						    $newvalue;
+				}
+			    }
+			    # Insert PostScript option settings
+			    # (options for section "PageSetup".
+			    if ($isdscjob) {
+				$line .= 
+				    makepagesetupsection($dat, $optionset,
+							 0);
+				$pagesetupfound = 1;
+			    }
+			    # Now the page header comes, so buffer the data,
+			    # because we must perhaps shut down and restart 
+			    # the renderer
+			    $passthru = 0;
+			    $ignorepageheader = 0;
+			    $optionsalsointoheader = 0;
+			}
+		    } elsif (($line =~ m/^\%\%BeginPageSetup/) &&
+			     ($nestinglevel == 0) &&
+			     (!$ignorepageheader))  {
+			# Start of the page header, up to %%EndPageSetup
+			# nothing of the page will be drawn, page-specific
+			# option settngs (as letter-head paper for page 1)
+			# go here
+			print $logh "${added_lf}Found: \%\%BeginPageSetup\n";
+			$passthru = 0;
+			$inpageheader = 1;		
+			$postscriptsection = 'pagesetup';
+			if (($ooo110) && ($currentpage == 1)) {
+			    $optionsalsointoheader = 1;
+			} else {
+			    $optionsalsointoheader = 0;
+			}
+		    } elsif (($line =~ m/^\%\%EndPageSetup/) &&
+			     ($nestinglevel == 0) &&
+			     (!$ignorepageheader)) {
+			# End of the page header, the page is ready to be
+			# printed
+			print $logh "Found: \%\%EndPageSetup\n";
+			print $logh "End of page header\n";
+			# We cannot for sure say that the page header ends here
+			# OpenOffice.org puts (due to a bug) a "%%BeginSetup...
+			# %%EndSetup" section after the first "%%Page:...". It
+			# is possible that CUPS inserts a "%%BeginPageSetup...
+			# %%EndPageSetup" before this section, which means that
+			# the options in the "%%BeginSetup...%%EndSetup"
+			# section are after the "%%EndPageSetup", so we
+			# continue for searching options up to the buffer size
+			# limit $maxlinesforpageoptions.
+			$passthru = 0;
+			$inpageheader = 0;
+			$optionsalsointoheader = 0;
+		    } elsif ((($line =~ m/^\%\%(BeginFeature):\s*\*?([^\*\s=]+)\s+()(\S[^\r\n]*)\r?\n?$/) ||
+			      ($line =~ m/^\s*\%\%\s*(FoomaticRIPOptionSetting):\s*([^\*\s=]+)\s*=\s*(\@?)([^\@\s][^\r\n]*)\r?\n?$/)) &&
+			     ($nestinglevel == 0) &&
+			     (!$optionreplaced) &&
+			     ((!$passthru) || (!$isdscjob))) {
+			my ($linetype, $option, $fromcomposite, $value) = 
+			    ($1, $2, $3, $4);
+
+			# Mark that we are in a "Feature" section
+			if ($linetype eq 'BeginFeature') {
+			    $infeature = 1;
+			    $linesafterlastbeginfeature = "";
+			}
+
+			# OK, we have an option.  If it's not a
+			# *ostscript-style option (ie, it's command-line or
+			# JCL) then we should note that fact, since the
+			# attribute-to-filter option passing in CUPS is kind of
+			# funky, especially wrt boolean options.  
+
+			print $logh "Found: $line";
+			if (my $arg=argbyname($option)) {
+			    print $logh "   Option: $option=" .
+				($fromcomposite ? "From" : "") . $value;
+			    if (($spooler eq 'cups') &&
+				($linetype eq 'BeginFeature') &&
+				(!defined($arg->{'notfirst'})) &&
+				($arg->{$optionset} ne $value) &&
+				(($inheader) ||
+				 ($arg->{section} eq 'PageSetup'))) {
+
+				# We have the first occurence of an option
+				# setting and the spooler is CUPS, so this
+				# setting is inserted by "pstops" or
+				# "imagetops". The value from the command
+				# line was not inserted by "pstops" or
+				# "imagetops" so it seems to be not under
+				# the choices in the PPD. Possible
+				# reasons:
+				#
+				# - "pstops" and "imagetops" ignore settings 
+				#   of numerical or string options which are
+				#   not one of the choices in the PPD file,
+				#   and inserts the default value instead.
+				#
+				# - On the command line an option was applied
+				#   only to selected pages:
+				#    "-o <page ranges>:<option>=<values>
+				#   This is not supported by CUPS, so not
+				#   taken care of by "pstops".
+				#
+				# We must fix this here by replacing the
+				# setting inserted by "pstops" or "imagetops"
+				# with the exact setting given on the command
+				# line.
+
+				# $arg->{$optionset} is already 
+				# range-checked, so do not check again here
+				# Insert DSC comment
+				my $dest = ((($inheader) && ($isdscjob)) ?
+					    \@psheader : \@psfifo);
+				push(@{$dest},
+				     "%%BeginFeature: " .
+				     "*$option $arg->{$optionset}\n");
+				my $val;
+				if ($arg->{'style'} eq 'G') {
+				    # PostScript option, insert the code
+				    if ($arg->{'type'} eq 'bool') {
+					# Boolean option
+					if (defined($arg->{$optionset}) && 
+					    $arg->{$optionset} == 1) {
+					    push(@{$dest}, $arg->{'proto'} .
+						 "\n");
+					} elsif ($arg->{'protof'}) {
+					    push(@{$dest}, $arg->{'protof'} .
+						 "\n");
+					}
+				    } elsif ((($arg->{'type'} eq 'enum') ||
+					      ($arg->{'type'} eq 'string') ||
+					      ($arg->{'type'} eq
+					       'password')) &&
+					     (defined($val =
+						      $arg->{'vals_byname'}{$arg->{$optionset}}))) {
+					# Enumerated choice of string or enum 
+					# option
+					push(@{$dest}, $val->{'driverval'} . "\n");
+				    } elsif ((($arg->{'type'} eq 'string') ||
+					      ($arg->{'type'} eq 
+					       'password')) &&
+					     ($arg->{$optionset} eq 'None')) {
+					# 'None' is mapped to the empty string 
+					# in string options
+					my $driverval = $arg->{'proto'};
+					$driverval =~ s/\%s//g;
+					push(@{$dest}, $driverval . "\n");
+				    } else {
+					# Setting for numerical or string
+					# option which is not under the
+					# enumerated choices
+					my $sprintfproto = $arg->{'proto'};
+					$sprintfproto =~ s/\%(?!s)/\%\%/g;
+					push(@{$dest},
+					     sprintf($sprintfproto,
+						     $arg->{$optionset}) .
+					     "\n");
+				    }
+				} else {
+				    # Command line or JCL option
+				    push(@{$dest},
+					 "%% FoomaticRIPOptionSetting: " .
+					 "$option=$arg->{$optionset}\n");
+				}
+				print $logh " --> Correcting numerical/string " .
+				    "option to $option=$arg->{$optionset}" .
+				    " (Command line argument)\n";
+				# We have replaced this option on the 
+				# FIFO
+				$optionreplaced = 1;
+			    }
+			    # Mark that we have already found this option
+			    $arg->{'notfirst'} = 1;
+			    if (!$optionreplaced) {
+				if ($arg->{'style'} ne 'G') {
+				    # "Controlled by '<Composite>'" setting of
+				    # a member option of a composite option
+				    if ($fromcomposite) {
+					$value = "From$value";
+				    }
+				    # Non-PostScript option
+				    # Check whether it is valid
+				    if (defined(my $newvalue =
+						checkoptionvalue($dat, $option,
+								 $value, 0))) {
+					print $logh " --> Setting option\n";
+					# Valid choice, set it.
+					$arg->{$optionset} = $newvalue;
+					if ($optionsalsointoheader) {
+					    $arg->{'header'} = $newvalue;
+					}
+					if (($arg->{'type'} eq 'enum') &&
+					    (($option eq 'PageSize') ||
+					     ($option eq 'PageRegion')) &&
+					    ($newvalue =~ /^Custom/) &&
+					    ($linetype eq 
+					     'FoomaticRIPOptionSetting')) {
+					    # Custom page size
+					    $linesafterlastbeginfeature =~ 
+						/^[\s\r\n]*([\d\.]+)[\s\r\n]+([\d\.]+)[\s\r\n]+/s;
+					    my ($w, $h) = ($1, $2);
+					    if (($w) && ($h) && 
+						($w != 0) && ($h != 0)) {
+						$newvalue =
+						    "$newvalue.${w}x$h";
+						$arg->{$optionset} = $newvalue;
+						if ($optionsalsointoheader) {
+						    $arg->{'header'} =
+							$newvalue;
+						}
 					    }
 					}
+					# For a composite option insert the
+					# code from the member options with
+					# current setting "From<composite>"
+					# The code from the member options
+					# is chosen according to the setting 
+					# of the composite option.
+					if (($arg->{'style'} eq 'X') &&
+					    ($linetype eq 
+					     'FoomaticRIPOptionSetting')) {
+					    buildcommandline($dat, $optionset);
+					    $line .=
+						$arg->{$postscriptsection};
+					}
+					# If this argument is PageSize or 
+					# PageRegion, also set the other
+					syncpagesize($dat, $option, $newvalue, 
+						     $optionset);
+					if ($optionsalsointoheader) {
+					    syncpagesize($dat, $option, 
+							 $newvalue, 'header');
+					}
+				    } else {
+					# Invalid option, log it.
+					print $logh " --> Invalid option " .
+					    "setting found in job\n";
 				    }
-				    # For a composite option insert the
-				    # code from the member options with
-				    # current setting "From<composite>"
-				    # The code from the member options
-				    # is chosen according to the setting 
-				    # of the composite option.
-				    if (($arg->{'style'} eq 'X') &&
-					($linetype eq 
-					 'FoomaticRIPOptionSetting')) {
+				} elsif ($fromcomposite) {
+				    # PostScript option, but we have to look up
+				    # the PostScript code to be inserted from
+				    # the setting of a composite option, as
+				    # this option is set to "Controlled by 
+				    # '<Composite>'".
+				    # Set the option
+				    if (defined(my $newvalue =
+						checkoptionvalue
+						($dat, $option,
+						 "From$value", 0))) {
+					print $logh " --> Looking up setting " .
+					    "in composite option '$value'\n";
+					# Valid choice, set it.
+					$arg->{$optionset} = $newvalue;
+					if ($optionsalsointoheader) {
+					    $arg->{'header'} = $newvalue;
+					}
+					# Update composite options
 					buildcommandline($dat, $optionset);
-					$line .= $arg->{$postscriptsection};
-				    }
-				    # If this argument is PageSize or 
-				    # PageRegion, also set the other
-				    syncpagesize($dat, $option, $newvalue, 
-						 $optionset);
-				    if ($optionsalsointoheader) {
-					syncpagesize($dat, $option, 
-						     $newvalue, 'header');
+					# Substitute PostScript comment by
+					# the real code
+					$line = $arg->{'compositesubst'};
+				    } else {
+					# Invalid option, log it.
+					print $logh " --> Invalid option " .
+					    "setting found in job\n";
 				    }
 				} else {
-				    # Invalid option, log it.
-				    print $logh " --> Invalid option " .
-					"setting found in job\n";
+				    # it is a PostScript style option with
+				    # the code readily inserted, no option
+				    # for the renderer command line/JCL to set,
+				    # no lookup of a composite option needed,
+				    # so nothing to do here...
+				    print $logh 
+					" --> Option will be set by " .
+					"PostScript interpreter\n";
 				}
-			    } elsif ($fromcomposite) {
-				# PostScript option, but we have to look up
-				# the PostScript code to be inserted from
-				# the setting of a composite option, as this
-				# option is set to "Controlled by 
-				# '<Composite>'".
-				# Set the option
-				if (defined(my $newvalue =
-					    checkoptionvalue
-					    ($dat, $option,
-					     "From$value", 0))) {
-				    print $logh " --> Looking up setting " .
-					"in composite option '$value'\n";
-				    # Valid choice, set it.
-				    $arg->{$optionset} = $newvalue;
-				    if ($optionsalsointoheader) {
-					$arg->{'header'} = $newvalue;
-				    }
-				    # Update composite options
-				    buildcommandline($dat, $optionset);
-				    # Substitute PostScript comment by
-				    # the real code
-				    $line = $arg->{'compositesubst'};
-				} else {
-				    # Invalid option, log it.
-				    print $logh " --> Invalid option " .
-					"setting found in job\n";
-				}
-			    } else {
-				# it is a PostScript style option with
-				# the code readily inserted, no option
-				# for the renderer command line/JCL to set,
-				# no lookup of a composite option needed,
-				# so nothing to do here...
-				print $logh 
-				    " --> Option will be set by " .
-				    "PostScript interpreter\n";
 			    }
+			} else {
+			    # This option is unknown to us.  WTF?
+			    print $logh "Unknown option $option=$value found " .
+				"in the job\n";
 			}
-		    } else {
-			# This option is unknown to us.  WTF?
-			print $logh "Unknown option $option=$value found " .
-			    "in the job\n";
-		    }
-		} elsif (($line =~ m/^\%\%EndFeature/) &&
-			 ($nestinglevel == 0)) {
-		    # End of Feature
-		    $infeature = 0;
-		    # If the option setting was replaced, it ends here, too,
-		    # end the next option is not necessarily also replaced.
-		    $optionreplaced = 0;
-		} elsif (($line =~ m/^\%\%Begin/) &&
-			 ($isdscjob) &&
-			 (!$prologfound) &&
-			 ($nestinglevel == 0)) {
-		    # In some PostScript files (especially when generated
-		    # by "dvips" of TeX/LaTeX) the "%%BeginProlog" is
-		    # missing, so assume that it was before the current
-		    # line (the first line starting with "%%Begin".
-		    print $logh "Job claims to be DSC-conforming, but " . 
-			"\"%%BeginProlog\" was missing before first " .
-			"line with another \"%%Begin...\" comment " .
-			"(is this a TeX/LaTeX/dvips-generated PostScript " .
-			"file?). Assuming start of \"Prolog\" here.\n";
-		    # Beginning of Prolog
-		    $inprolog = 1;
-		    $nondsclines = 0;
-		    # Insert options for "Prolog" before the current line
-		    if (!$prologfound) {
-			$line =
-			    "%%BeginProlog\n" .
-			    makeprologsection($dat, $optionset, 0) .
-			    $line;
-		    }
-		    $prologfound = 1;
-		} elsif (($line =~ m/^\s*\%/) || ($line =~ m/^\s*$/)) {
-		    # This is an unknown PostScript comment or a blank line,
-		    # no active code
-		    $ignoreline = 1;
+		    } elsif (($line =~ m/^\%\%EndFeature/) &&
+			     ($nestinglevel == 0)) {
+			# End of Feature
+			$infeature = 0;
+			# If the option setting was replaced, it ends here,
+			# too, and the next option is not necessarily also
+			# replaced.
+			$optionreplaced = 0;
+			$linesafterlastbeginfeature = "";
+		    } elsif (($line =~ m/^\%\%Begin/) &&
+			     ($isdscjob) &&
+			     (!$prologfound) &&
+			     ($nestinglevel == 0)) {
+			# In some PostScript files (especially when generated
+			# by "dvips" of TeX/LaTeX) the "%%BeginProlog" is
+			# missing, so assume that it was before the current
+			# line (the first line starting with "%%Begin".
+			print $logh "Job claims to be DSC-conforming, but " . 
+			    "\"%%BeginProlog\" was missing before first " .
+			    "line with another \"%%Begin...\" comment " .
+			    "(is this a TeX/LaTeX/dvips-generated PostScript " .
+			    "file?). Assuming start of \"Prolog\" here.\n";
+			# Beginning of Prolog
+			$inprolog = 1;
+			$nondsclines = 0;
+			# Insert options for "Prolog" before the current line
+			if (!$prologfound) {
+			    $line =
+				"%%BeginProlog\n" .
+				makeprologsection($dat, $optionset, 0) .
+				$line;
+			}
+			$prologfound = 1;
+		    } elsif (($line =~ m/^\s*\%/) || ($line =~ m/^\s*$/)) {
+			# This is an unknown PostScript comment or a blank
+			# line, no active code
+			$ignoreline = 1;
 		    }
 		} else {
 		    # This line is active PostScript code
+		    if ($infeature) {
+			# Collect coe in a "%%BeginFeature: ... %%EndFeature"
+			# section, to get the values for a custom option
+			# setting
+			$linesafterlastbeginfeature .= $line;
+		    }
 		    if ($inheader) {
 			if ((!$inprolog) && (!$insetup)) {
 			    # Outside the "Prolog" and "Setup" section
@@ -4866,6 +4891,12 @@ sub rip_die {
 	}
     } else {
 	print STDERR $message . "\n";
+    }
+    if ($debug) {
+	use Data::Dumper;
+	local $Data::Dumper::Purity=1;
+	local $Data::Dumper::Indent=1;
+	print $logh Dumper($dat);
     }
     exit $exitstat;
 }
