@@ -1181,6 +1181,17 @@ while(<PPD>) {
 	$line =~ m!^([^\"]*)\"!;
 	$cmd .= $1;
 	$dat->{'cmd'} = unhtmlify($cmd);
+    } elsif (m!^\*FoomaticNoPageAccounting:\s*(\S+)\s*$!) {
+	# "*FoomaticRIPNoPageAccounting: <boolean value>"
+	my $value = $1;
+	# Apply the value
+	if ($value =~ /^True$/i) {
+	    # Driver is not compatible with page accounting according to the
+	    # Foomatic database, so turn it off for this driver
+	    $ps_accounting = 0;
+	    $accounting_prolog = '';
+	    print $logh "CUPS page accounting disabled by driver.\n";
+	}
     } elsif (m!^\*cupsFilter:\s*\"(.*)$!) {
 	# "*cupsFilter: <code>"
 	my $line = $1;
