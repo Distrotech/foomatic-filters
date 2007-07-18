@@ -1,3 +1,9 @@
+2007-07-18  Till Kamppeter <till.kamppeter@gmail.com>
+
+	* foomatic-rip.in: Added support for suppressing page accounting
+	  on a per-driver basis. Page accounting is deactivated if a line
+	  "*FoomaticNoPageAccounting: True" is found in the PPD file.
+
 2007-03-20  Till Kamppeter <till.kamppeter@gmail.com>
 
 	* foomatic-rip.in: Performance improvement: Do not match all forms
