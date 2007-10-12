@@ -1132,7 +1132,7 @@ while(<PPD>) {
 	$line =~ m!^([^\"]*)\"!;
 	$cmd .= $1;
 	$model = unhtmlify($cmd);
-    } elsif (m!^\*FoomaticIDs:\s*(\S+)\s+(\S+)\s*$!) {
+    } elsif (m!^\*FoomaticIDs:\s*\"?\s*(\S+?)\s+(\S+?)\s*\"?\s*$!) {
 	# "*FoomaticIDs: <printer ID> <driver ID>"
 	my $id = $1;
 	my $driver = $2;
@@ -1181,7 +1181,7 @@ while(<PPD>) {
 	$line =~ m!^([^\"]*)\"!;
 	$cmd .= $1;
 	$dat->{'cmd'} = unhtmlify($cmd);
-    } elsif (m!^\*FoomaticNoPageAccounting:\s*(\S+)\s*$!) {
+    } elsif (m!^\*FoomaticNoPageAccounting:\s*\"?\s*(\S+?)\s*\"?\s*$!) {
 	# "*FoomaticRIPNoPageAccounting: <boolean value>"
 	my $value = $1;
 	# Apply the value
@@ -1288,8 +1288,8 @@ while(<PPD>) {
 	# Unmark the current argument to do not mis-interpret any keywords
 	# as choices
 	$currentargument = "";
-    } elsif ((m!^\*FoomaticRIPOption ([^/:\s]+):\s*(\S+)\s+(\S+)\s+(\S)\s*$!) ||
-	     (m!^\*FoomaticRIPOption ([^/:\s]+):\s*(\S+)\s+(\S+)\s+(\S)\s+(\S+)\s*$!)){
+    } elsif ((m!^\*FoomaticRIPOption ([^/:\s]+):\s*\"?\s*(\S+?)\s+(\S+)\s+(\S)\s*\"?\s*$!) ||
+	     (m!^\*FoomaticRIPOption ([^/:\s]+):\s*\"?\s*(\S+?)\s+(\S+)\s+(\S)\s+(\S+?)\s*\"?\s*$!)){
 	# "*FoomaticRIPOption <option>: <type> <style> <spot> [<order>]"
 	# <order> only used for 1-choice enum options
 	my $argname = $1;
@@ -1341,7 +1341,7 @@ while(<PPD>) {
 	$line =~ m!^([^\"]*)\"!;
 	$proto .= $1;
 	$dat->{'args_byname'}{$argname}{'proto'} = unhtmlify($proto);
-    } elsif (m!^\*FoomaticRIPOptionRange\s+([^/:\s]+):\s*(\S+)\s+(\S+)\s*$!) {
+    } elsif (m!^\*FoomaticRIPOptionRange\s+([^/:\s]+):\s*\"?\s*(\S+?)\s+(\S+?)\s*\"?\s*$!) {
 	# "*FoomaticRIPOptionRange <option>: <min> <max>"
 	# Used for numerical options only
 	my $argname = $1;
@@ -1352,7 +1352,7 @@ while(<PPD>) {
 	# Store the values
 	$dat->{'args_byname'}{$argname}{'min'} = $min;
 	$dat->{'args_byname'}{$argname}{'max'} = $max;
-    } elsif (m!^\*FoomaticRIPOptionMaxLength\s+([^/:\s]+):\s*(\S+)\s*$!) {
+    } elsif (m!^\*FoomaticRIPOptionMaxLength\s+([^/:\s]+):\s*\"?\s*(\S+?)\s*\"?\s*$!) {
 	# "*FoomaticRIPOptionMaxLength <option>: <length>"
 	# Used for string options only
 	my $argname = $1;
@@ -1432,7 +1432,7 @@ while(<PPD>) {
 	checkarg ($dat, $argname);
 	# Store the value
 	$dat->{'args_byname'}{$argname}{'default'} = $default;
-    } elsif (m!^\*FoomaticRIPDefault([^/:\s]+):\s*([^/:\s]+)\s*$!) {
+    } elsif (m!^\*FoomaticRIPDefault([^/:\s]+):\s*\"?\s*([^/:\s]+?)\s*\"?\s*$!) {
 	# "*FoomaticRIPDefault<option>: <value>"
 	# Used for numerical options only
 	my $argname = $1;
