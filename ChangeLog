@@ -1,3 +1,12 @@
+2007-10-11  Till Kamppeter <till.kamppeter@gmail.com>
+
+	* foomatic-rip.in: Allow the parameters of the "*Foomatic..."
+	  lines which formerly had to be given without quotes also to be
+	  given with double quotes. This is to support generation and
+	  manipulation of Foomatic PPDs with the CUPS DDK. The PPD
+	  generator of the CUPS DDK ("ppdc") can create these lines only
+	  with quoted parameters (See http://www.cups.org/str.php?L2551).
+
 2007-07-18  Till Kamppeter <till.kamppeter@gmail.com>
 
 	* foomatic-rip.in: Added support for suppressing page accounting
