@@ -1,3 +1,27 @@
+2007-11-23  Till Kamppeter <till.kamppeter@gmail.com>
+
+	* foomatic-rip.in: Several fixes for bugs found while developing
+	  the foomatic-rip test suite for the LSB 3.2:
+	   o If an option had the default value "0" (enumerated choice,
+	     numerical, string) in the PPD file, the first choice from
+	     the list was set as default and not "0".
+	   o When assigning a non-integer number to an integer option,
+	     the "%%BeginFeature: ..." line of the option inserted into 
+	     the PostScript data stream still contained the non-integer
+	     value. Only the value in the code piece was converted to
+	     integer.
+	   o If a non-integer "*FoomaticRIPDefault..." was given for an
+	     integer option it was not converted to integer. 
+	   o Boolean options had "0" and "1" as values in the
+	     "%%BeginFeature: ..." lines and not "False" and "True".
+	   o PPD-supplied JCL/PJL options did not get merged with
+	     driver-generated JCL/PJL options when there were spaces
+	     between the JCL command and the "=" (ex: "@PJL SET TRAY = 1").
+	   o Now all of "0", "No", "Off", "False" or "1", "Yes", "On",
+	     "True" are converted to each other if supplied as value to
+	     an enumerated choice option and this value is not in the
+	     list of choices.
+
 2007-10-11  Till Kamppeter <till.kamppeter@gmail.com>
 
 	* foomatic-rip.in: Allow the parameters of the "*Foomatic..."
