@@ -1474,7 +1474,7 @@ while(<PPD>) {
 	    checksetting ($dat, $currentargument, $setting);
 	    # Make sure that this argument has a default setting, even if 
 	    # none is defined in this PPD file
-	    if (!$dat->{'args_byname'}{$currentargument}{'default'}) {
+	    if (!defined ($dat->{'args_byname'}{$currentargument}{'default'})) {
 		$dat->{'args_byname'}{$currentargument}{'default'} = $setting;
 	    }
 	    $dat->{'args_byname'}{$currentargument}{'vals_byname'}{$setting}{'comment'} = $translation;
@@ -1526,7 +1526,7 @@ while(<PPD>) {
 	    checksetting ($dat, $argname, $setting);
 	    # Make sure that this argument has a default setting, even if 
 	    # none is defined in this PPD file
-	    if (!$dat->{'args_byname'}{$argname}{'default'}) {
+	    if (!defined ($dat->{'args_byname'}{$argname}{'default'})) {
 		$dat->{'args_byname'}{$argname}{'default'} = $setting;
 	    }
 	}
@@ -1662,6 +1662,9 @@ if ((!defined(@{$dat->{'args'}})) ||
 		    }
 		    if ($arg->{'fdefault'} > $arg->{'max'}) {
 			$arg->{'fdefault'} = $arg->{'max'};
+		    }
+		    if ($arg->{'type'} eq 'int') {
+			$arg->{'fdefault'} = POSIX::floor($arg->{'fdefault'});
 		    }
 		    my $mindiff = abs($arg->{'max'} - $arg->{'min'});
 		    my $closestvalue;
@@ -2911,14 +2914,15 @@ for $file (@filelist) {
 				# Insert DSC comment
 				my $dest = ((($inheader) && ($isdscjob)) ?
 					    \@psheader : \@psfifo);
-				push(@{$dest},
-				     "%%BeginFeature: " .
-				     "*$option $arg->{$optionset}\n");
 				my $val;
 				if ($arg->{'style'} eq 'G') {
 				    # PostScript option, insert the code
 				    if ($arg->{'type'} eq 'bool') {
 					# Boolean option
+					push(@{$dest},
+					     "%%BeginFeature: *$option " .
+					     ($arg->{$optionset} == 1 ?
+					      "True" : "False") . "\n");
 					if (defined($arg->{$optionset}) && 
 					    $arg->{$optionset} == 1) {
 					    push(@{$dest}, $arg->{'proto'} .
@@ -2935,6 +2939,9 @@ for $file (@filelist) {
 						      $arg->{'vals_byname'}{$arg->{$optionset}}))) {
 					# Enumerated choice of string or enum 
 					# option
+					push(@{$dest},
+					     "%%BeginFeature: " .
+					     "*$option $arg->{$optionset}\n");
 					push(@{$dest}, $val->{'driverval'} . "\n");
 				    } elsif ((($arg->{'type'} eq 'string') ||
 					      ($arg->{'type'} eq 
@@ -2942,6 +2949,9 @@ for $file (@filelist) {
 					     ($arg->{$optionset} eq 'None')) {
 					# 'None' is mapped to the empty string 
 					# in string options
+					push(@{$dest},
+					     "%%BeginFeature: " .
+					     "*$option $arg->{$optionset}\n");
 					my $driverval = $arg->{'proto'};
 					$driverval =~ s/\%s//g;
 					push(@{$dest}, $driverval . "\n");
@@ -2949,6 +2959,9 @@ for $file (@filelist) {
 					# Setting for numerical or string
 					# option which is not under the
 					# enumerated choices
+					push(@{$dest},
+					     "%%BeginFeature: " .
+					     "*$option $arg->{$optionset}\n");
 					my $sprintfproto = $arg->{'proto'};
 					$sprintfproto =~ s/\%(?!s)/\%\%/g;
 					push(@{$dest},
@@ -3827,6 +3840,7 @@ sub getrendererhandle {
 			    # value
 			    $line =~ /^([^=]+)/;
 			    my $cmd = $1;
+			    $cmd =~ s/^\s*(.*?)\s*$/$1/;
 			    my $cmdfound = 0;
 			    for (@jclheader) {
 				# If the command is there, replace it
@@ -5178,7 +5192,11 @@ sub checkoptionvalue {
 	     ($arg->{'type'} eq 'float')) {
 	if (($value <= $arg->{'max'}) &&
 	    ($value >= $arg->{'min'})) {
+	    if ($arg->{'type'} eq 'int') {
+		return POSIX::floor($value);
+	    } else {
 	    return $value;
+	    }
 	} elsif ($forcevalue) {
 	    my $name = $arg->{'name'};
 	    my $newvalue;
@@ -5816,8 +5834,8 @@ sub buildcommandline {
 		    # Custom paper size
 		    $val = valbyname($arg,"Custom");
 		    $found = 1;
-		} elsif ($userval eq '0') {
-		    foreach (qw(No Off False None)) {
+		} elsif ($userval =~ /^(0|No|Off|False)$/i) {
+		    foreach (qw(0 No Off False None)) {
 			if ($val=valbyname($arg,$_)) {
 			    $userval = $_;
 			    $arg->{$optionset} = $userval;
@@ -5825,8 +5843,8 @@ sub buildcommandline {
 			    last;
 			}
 		    }
-		} elsif ($userval eq '1') {
-		    foreach (qw(Yes On True)) {
+		} elsif ($userval =~ /^(1|Yes|On|True)$/i) {
+		    foreach (qw(1 Yes On True)) {
 			if ($val=valbyname($arg,$_)) {
 			    $userval = $_;
 			    $arg->{$optionset} = $userval;
@@ -5939,7 +5957,12 @@ sub buildcommandline {
 	    # Place this Postscript command onto the prepend queue
 	    # for the appropriate section.
 	    if ($cmdvar) {
-		my $open = "[{\n%%BeginFeature: *$name $userval\n";
+		my $open = "[{\n%%BeginFeature: *$name ";
+		if ($type eq 'bool') {
+		    $open .= ($userval == 1 ? "True" : "False") . "\n";
+		} else {
+		    $open .= "$userval\n";
+		}
 		my $close = "\n%%EndFeature\n} stopped cleartomark\n";
 		if ($section eq "Prolog") {
 		    push (@prologprepend, "$open$cmdvar$close");
