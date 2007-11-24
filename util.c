@@ -159,6 +159,29 @@ void strclr(char *str)
     }
 }
 
+char * strnchr(const char *str, int c, size_t n)
+{
+    char *p = (char*)str;
+    
+    while (*p && --n > 0) {
+        if (*p == (char)c)
+            return p;
+        p++;
+    }
+    return p;
+}
+
+void escapechars(char *dest, size_t size, const char *src, const char *esc_chars)
+{
+    const char *psrc = src;
+
+    while (*psrc && --size > 0) {
+        if (strchr(esc_chars, *psrc))
+            *dest++ = '\\';
+        *dest++ = *psrc++;
+    }
+}
+
 const char * strncpy_tochar(char *dest, const char *src, size_t max, const char *stopchars)
 {
     const char *psrc = src;
@@ -277,4 +300,29 @@ void dstrcatf(dstr_t *ds, const char *src, ...)
     }
     
     ds->len += srclen;
+}
+
+size_t fgetdstr(dstr_t *ds, FILE *stream)
+{
+    int c;
+    size_t cnt = 0;
+
+    ds->len = 0;
+    if (ds->alloc == 0) {
+        ds->alloc = 256;
+        ds->data = malloc(ds->alloc);
+    }
+
+    while ((c = fgetc(stream) != EOF)) {
+        if (ds->len +1 == ds->alloc) {
+            ds->alloc *= 2;
+            ds->data = realloc(ds->data, ds->alloc);
+        }
+        ds->data[ds->len++] = (char)c;
+        cnt ++;
+        if (c == '\n')
+            break;
+    }
+    ds->data[ds->len++] = '\0';
+    return cnt;
 }

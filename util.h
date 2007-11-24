@@ -6,6 +6,7 @@
 #define _GNU_SOURCE
 
 #include <string.h>
+#include <stdio.h>
 
 extern const char* shellescapes;
 
@@ -48,6 +49,10 @@ void strrepl_nodups(char *str, const char *chars, char repl);
 /* clears 'str' with \0s */
 void strclr(char *str);
 
+char * strnchr(const char *str, int c, size_t n);
+
+void escapechars(char *dest, size_t size, const char *src, const char *esc_chars);
+
 /* copies characters from 'src' to 'dest', until 'src' contains a character from 'stopchars'
    will not copy more than 'max' chars
    dest will be zero terminated in either case
@@ -74,5 +79,6 @@ void free_dstr(dstr_t *ds);
 void dstrclear(dstr_t *ds);
 void dstrcpyf(dstr_t *ds, const char *src, ...);
 void dstrcatf(dstr_t *ds, const char *src, ...);
+size_t fgetdstr(dstr_t *ds, FILE *stream); /* returns number of characters read */
 
 #endif

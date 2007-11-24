@@ -13,6 +13,7 @@
 #include <assert.h>
 #include <time.h>
 #include <unistd.h>
+#include <sys/wait.h>
 
 
 /* Returns a static string */
@@ -34,16 +35,17 @@ const char *spooler_name(int spooler)
 }
 
 /* Filters to convert non-PostScript files */
-#define NUM_FILE_CONVERTERS 3
 char* fileconverters[] = {
     /* a2ps (converts also other files than text) */
     "a2ps -1 @@--medium=@@PAGESIZE@@ @@--center-title=@@JOBTITLE@@ -o -",
     /* enscript */
     "enscript -G @@-M @@PAGESIZE@@ @@-b \"Page $%|@@JOBTITLE@@ --margins=36:36:36:36 --mark-wrapped-lines=arrow --word-wrap -p-",
     /* mpage */
-    "mpage -o -1 @@-b @@PAGESIZE@@ @@-H -h @@JOBTITLE@@ -m36l36b36t36r -f -P- -"
+    "mpage -o -1 @@-b @@PAGESIZE@@ @@-H -h @@JOBTITLE@@ -m36l36b36t36r -f -P- -",
+    NULL
 };
 
+char cups_fileconverter [512];
 
 /*  This piece of PostScript code (initial idea 2001 by Michael
 	Allerhand (michael.allerhand at ed dot ac dot uk, vastly
@@ -206,10 +208,12 @@ char postpipe[1024] = "";  /* command into which the output of this filter shoul
 int ps_accounting = 1; /* Set to 1 to insert postscript code for page accounting (CUPS only). */
 const char *accounting_prolog = NULL;
 char attrpath[256] = "";
+char modern_shell[256] = "";
 
-/* TODO clean up global vars */
 int spooler = SPOOLER_DIRECT;
 int do_docs = 0;
+int dontparse = 0;
+int jobhasjcl;
 
 /* Variable for PPR's backend interface name (parallel, tcpip, atalk, ...) */
 char backend [64];
@@ -222,6 +226,9 @@ char cmd[1024];
 char cupsfilter[256];
 
 dstr_t *optstr;
+
+char *cwd;
+struct config conf;
 
 
 
@@ -308,6 +315,7 @@ void unhtmlify(char *dest, size_t size, const char *src)
 
 /* Replace hex notation for unprintable characters in PPD files
    by the actual characters ex: "<0A>" --> chr(hex("0A")) */
+/* TODO '>' not checked??? */
 void unhexify(char *dest, size_t size, const char *src)
 {
     char *pdest = dest;
@@ -328,130 +336,6 @@ void unhexify(char *dest, size_t size, const char *src)
     dest[size -1] = '\0';
 }
 
-#if 0
-/* Used for command line options and printing options */
-struct option {
-    char pagerange [64];
-    char key [64];
-    char value [128];
-    struct option *next;
-};
-
-struct option_list {
-    struct option *first, *last;
-};
-
-int option_has_pagerange(const struct option * op)
-{
-    return op->pagerange[0];
-}
-
-struct option_list * create_option_list()
-{
-    struct option_list *list = malloc(sizeof(struct option_list));
-    list->first = NULL;
-    list->last = NULL;
-    return list;
-}
-
-void free_option_list(struct option_list *list)
-{
-    struct option *node = list->first, *tmp;
-    while (node) {
-        tmp = node;
-        node = node->next;
-        free(tmp);
-    }
-    free(list);
-}
-
-void option_list_append(struct option_list *list, struct option *op)
-{
-    if (list->last) {
-        list->last->next = op;
-        list->last = op;
-    }
-    else {
-        list->first = op;
-        list->last = list->first;
-    }
-}
-
-/*
- * Adds options from 'optstr' to 'list'.
-   The options are "foo='bar nut'", "foo", "nofoo", "'bar nut'", or
-   "foo:'bar nut'" (when GPR was used) all with spaces between...
-   In addition they can be preceeded by page ranges, separated with a colon.
- */
-void option_list_append_from_string(struct option_list *list, const char *optstr)
-{
-    const char *pstr = optstr;
-    struct option *op;
-    char characterstring [2] = " ";
-
-    if (!optstr)
-        return;
-
-    while (1)
-    {
-        while (isspace(*pstr)) pstr++;
-        if (*pstr == '\0')
-            break;
-
-        op = malloc(sizeof(struct option));
-        option_list_append(list, op);
-        op->next = NULL;
-
-        /* read the pagerange if we have one */
-        if (prefixcmp(pstr, "even:") == 0 || prefixcmp(pstr, "odd:") == 0 || isdigit(*pstr))
-            pstr = strncpy_tochar(op->pagerange, pstr, 64, ":") +1;
-        else
-            op->pagerange[0] = '\0';
-
-        /* read the key */
-        if (*pstr == '\'' || *pstr == '\"') {
-            characterstring[0] = *pstr;
-            pstr = strncpy_tochar(op->key, pstr +1, 64, characterstring) +1;
-        }
-        else {
-            pstr = strncpy_tochar(op->key, pstr, 64, ":= ");
-        }
-
-        if (*pstr != ':' && *pstr != '=') { /* no value for this option */
-            op->value[0] = '\0';
-            continue;
-        }
-
-        pstr++; /* skip the separator sign */
-
-        if (*pstr == '\"' || *pstr == '\'') {
-            characterstring[0] = *pstr;
-            pstr = strncpy_tochar(op->value, pstr +1, 128, characterstring) +1;
-        }
-        else {
-            pstr = strncpy_tochar(op->value, pstr, 128, " \t,");
-        }
-
-        /* skip whitespace and commas */
-        while (isspace(*pstr) || *pstr == ',') pstr++;
-    }
-}
-
-void print_option_list(struct option_list *list, FILE *stream)
-{
-    struct option *op = list->first;
-    while (op) {
-        if (op->value[0] == '\0')
-            fprintf(stream, "%s\n", op->key);
-        else
-            fprintf(stream, "%s: %s\n", op->key, op->value);
-        op = op->next;
-    }
-}
-
-#endif
-
-
 struct config {
     int debug;                   /* Set debug to 1 to enable the debug logfile for this filter; it will
                                     appear as defined by LOG_FILE. It will contain status from this
@@ -467,7 +351,7 @@ struct config {
 
     char cupsfilterpath[256];    /* CUPS raster drivers are searched here */
 
-    char fileconverter[256];     /* Command for converting non-postscript files (especially text)
+    char fileconverter[512];     /* Command for converting non-postscript files (especially text)
                                     to PostScript. */
 
 };
@@ -502,8 +386,8 @@ void config_set_option(struct config *conf, const char *key, const char *value)
         else if (strcmp(value, "mpage") == 0)
             strcpy(conf->fileconverter, fileconverters[2]);
         else {
-            strncpy(conf->fileconverter, value, 255);
-            conf->fileconverter[255] = '\0';
+            strncpy(conf->fileconverter, value, 512);
+            conf->fileconverter[512] = '\0';
         }
     }
     /* printf("setting %s to %s.\n", key, value); */
@@ -542,7 +426,6 @@ void parse_ppd_file(const char* filename)
     fh = fopen(filename, "r");
     if (!fh) {
         _log("error opening %s\n", filename);
-        /* TODO quit gracefully */
         exit(EXIT_PRNERR_NORETRY_BAD_SETTINGS);
     }
     _log("Parsing PPD file ...\n");
@@ -1920,25 +1803,565 @@ void print_pdq_driver(FILE *pdqfile, int optset)
 	free_dstr(psfilter);
 }
 
+/* returns status - see wait(2) */
+int modern_system(const char *cmd)
+{
+    pid_t pid;
+    int status;
+    
+    if (!isempty(modern_shell) && strcmp(modern_shell, "/bin/sh")) {
+        /* a "modern" shell other than the default shell was specified */
+
+        pid = fork();
+        if (pid < 0) {
+            _log("Failed to fork()\n");
+            exit(errno);
+        }
+
+        if (pid == 0) { /* child, execute commands under a modern shell */
+            execl(modern_shell, "-c", cmd, (char*)NULL);
+            _log("exec(%s, \"-c\", %s) failed", modern_shell, cmd);
+            exit(errno);
+        }
+        else { /* parent, wait for the child */
+            waitpid(pid, &status, 0);
+            return status;
+        }
+    }
+    else /* the system shell is modern enough */
+        return system(cmd);        
+}
+
+/*  This function is only used when the input data is not
+    PostScript. Then it runs a filter which converts non-PostScript
+    files into PostScript. The user can choose which filter he wants
+    to use. The filter command line is provided by 'fileconverter'.*/
+void get_fileconverter_handle(const char *already_read, int *fd, pid_t *pid)
+{
+    int i, status, retval = EXIT_PRINTED;
+    char tmp[1024];
+    char cmd[32];
+    const char *p, *p2, *lastp;
+    option_t *opt;
+    value_t *val;
+    ssize_t count;
+    
+    pid_t kid1, kid2;
+    int pfd_kid_message_conv[2];
+    int pfd_kid1[2];
+    int pfd_kid2[2];
+
+
+
+    _log("Starting converter for non-PostScript files\n");
+
+    /* Determine with which command non-PostScript files are converted */
+    if (isempty(conf.fileconverter)) {
+        if (spooler == SPOOLER_CUPS)
+            strcpy(conf.fileconverter, cups_fileconverter);
+        else {
+            for (i = 0; fileconverters[i]; i++) {
+                strncpy_tochar(cmd, fileconverters[i], 32, " \t");
+
+                if (access(cmd, X_OK) == 0) {
+                    strlcpy(conf.fileconverter, fileconverters[i], 512);
+                    break;
+                }
+                else {
+                    p = getenv("PATH");
+                    while (p) {
+                        strncpy_tochar(tmp, p, 256, ":");
+                        strlcat(tmp, "/", 256);
+                        strlcat(tmp, cmd, 256);
+                        if (access(tmp, X_OK)) {
+                            strlcpy(conf.fileconverter, fileconverters[i], 512);
+                            break;
+                        }
+                        p = strchr(p, ':');
+                        if (p) p++;
+                    }
+                }
+                if (!isempty(conf.fileconverter))
+                    break;
+            }
+        }
+    }
+
+    if (isempty(conf.fileconverter))
+        strcpy(conf.fileconverter, "echo \"Cannot convert file to PostScript!\" 1>&2");
+
+    strlcpy(tmp, conf.fileconverter, 512);
+    strclr(conf.fileconverter);
+    lastp = tmp;
+    while ((p = strstr(lastp, "@@"))) {
+
+        strncat(conf.fileconverter, lastp, p - lastp);
+
+        p += 2;
+        p2 = strstr(p, "@@");
+        if (!p2)
+            break;
+
+        /* Insert the page size into the fileconverter */
+        if (startswith(p2, "@@PAGESIZE@@")) {
+            /* We always use the "header" option here, with a
+               non-PostScript file we have no "currentpage" */
+            if ((opt = find_option("PageSize")) && (val = option_get_value(opt, optionset("header")))) {
+
+                strlcat(conf.fileconverter, p, p2 - p);
+                /* Use wider margins so that the pages come out completely on
+                every printer model (especially HP inkjets) */
+                if (startswith(conf.fileconverter, "a2ps")) {
+                    if (!strcasecmp(val->value, "letter"))
+                        strlcat(conf.fileconverter, "Letterdj", 512);
+                    else if (!strcasecmp(val->value, "a4"))
+                        strlcat(conf.fileconverter, "A4dj", 512);
+                }
+                else
+                    strlcat(conf.fileconverter, val->value, 512);
+            }
+
+            /* advance p to after the @@PAGESIZE@@ */
+            p = p2 + 13;
+        }
+
+        /* Insert job title into the fileconverter */
+        else if (startswith(p2, "@@JOBTITLE@@")) {
+            if (do_docs)
+                snprintf(jobtitle, 128, "Documentation for the %s", printer_model);
+
+            if (strnchr(p, '\"', p2 - p) || !isempty(jobtitle)) {
+                strncat(conf.fileconverter, p, p2 - p);
+                if (!strnchr(p, '\"', p2 - p))
+                    strlcat(conf.fileconverter, "\"", 512);
+                if (!isempty(jobtitle)) 
+                    escapechars(&conf.fileconverter[strlen(conf.fileconverter)], 512, jobtitle, "\"");
+                strlcat(conf.fileconverter, "\"", 512);
+            }
+            /* advance p to after the @@JOBTITLE@@ */
+            p = p2 + 13;
+        }
+        lastp = p;
+    }
+    strlcat(conf.fileconverter, lastp, 512);
+
+    /*  Apply "pstops" when having used a file converter under CUPS, so
+        CUPS can stuff the default settings into the PostScript output
+        of the file converter (so all CUPS settings get also applied when
+        one prints the documentation pages (all other files we get
+        already converted to PostScript by CUPS). */
+    if (spooler == SPOOLER_CUPS) {
+        /* TODO */
+        /* $fileconverter .=
+                " | ${programdir}pstops '$rargs[0]' '$rargs[1]' '$rargs[2]' " .
+                "'$rargs[3]' '$rargs[4]'"; */
+    }
+
+    /* Set up a pipe for the kids to pass their exit stat to the main process */
+    pipe(pfd_kid_message_conv);
+
+    pipe(pfd_kid1);
+    kid1 = fork();
+    if (kid1 < 0) {
+        _log("cannot fork for kid1!\n");
+        exit(EXIT_PRNERR_NORETRY_BAD_SETTINGS);
+    }
+
+    if (kid1) { /* parent */
+        close(pfd_kid1[1]);
+        *fd = pfd_kid1[0];
+        *pid = kid1;
+        return;
+    }
+    else { /* child */
+        /* We go on reading the job data and stuff into the file converter */
+        close(pfd_kid1[0]);
+
+        pipe(pfd_kid2);
+        kid2 = fork();
+        if (kid2 < 0) {
+            _log("cannot fork for kid2!\n");
+            close(pfd_kid1[1]);
+            close(pfd_kid2[0]);
+            close(pfd_kid2[1]);
+            close(pfd_kid_message_conv[0]);
+            snprintf(tmp, 256, "1 %d\n", EXIT_PRNERR_NORETRY_BAD_SETTINGS);
+            write(pfd_kid_message_conv[1], (const void*)tmp, strlen(tmp));
+            exit(EXIT_PRNERR_NORETRY_BAD_SETTINGS);
+        }
+
+        if (kid2) { /* parent, child of primary task; we are |fileconverter| */
+            close(pfd_kid2[1]);
+            _log("file converter PID kid2=%d\n", kid2);
+            if (conf.debug || spooler != SPOOLER_CUPS)
+                _log("file converter command: %s\n", conf.fileconverter);
+
+            if (close(STDIN_FILENO) == -1 && errno != ESPIPE) {
+                close(pfd_kid1[1]);
+                close(pfd_kid2[0]);
+                close(pfd_kid_message_conv[0]);
+                snprintf(tmp, 256, "1 %d\n", EXIT_PRNERR_NORETRY_BAD_SETTINGS);
+                write(pfd_kid_message_conv[1], (const void*)tmp, strlen(tmp));
+                _log("Couldn't close STDIN in kid2\n");
+                exit(EXIT_PRNERR_NORETRY_BAD_SETTINGS);
+            }
+
+            if (dup2(pfd_kid2[0], STDIN_FILENO) == -1) {
+                close(pfd_kid1[1]);
+                close(pfd_kid2[0]);
+                close(pfd_kid_message_conv[0]);
+                snprintf(tmp, 256, "1 %d\n", EXIT_PRNERR_NORETRY_BAD_SETTINGS);
+                write(pfd_kid_message_conv[1], (const void*)tmp, strlen(tmp));
+                _log("Couldn't dup KID2_IN\n");
+                exit(EXIT_PRNERR_NORETRY_BAD_SETTINGS);                
+            }
+
+            if (close(STDOUT_FILENO) == -1) {
+                close(pfd_kid1[1]);
+                close(pfd_kid2[0]);
+                close(pfd_kid_message_conv[0]);
+                snprintf(tmp, 256, "1 %d\n", EXIT_PRNERR_NORETRY_BAD_SETTINGS);
+                write(pfd_kid_message_conv[1], (const void*)tmp, strlen(tmp));
+                _log("Couldn't close STDOUT in kid2\n");
+                exit(EXIT_PRNERR_NORETRY_BAD_SETTINGS);
+            }
+
+            if (dup2(pfd_kid1[1], STDOUT_FILENO) == -1) {
+                close(pfd_kid1[1]);
+                close(pfd_kid2[0]);
+                close(pfd_kid_message_conv[0]);
+                snprintf(tmp, 256, "1 %d\n", EXIT_PRNERR_NORETRY_BAD_SETTINGS);
+                write(pfd_kid_message_conv[1], (const void*)tmp, strlen(tmp));
+                _log("Couldn't dup KID1\n");
+                exit(EXIT_PRNERR_NORETRY_BAD_SETTINGS);
+            }
+
+            if (conf.debug) {
+                if (dup2(fileno(logh), STDERR_FILENO) == -1) {
+                    close(pfd_kid1[1]);
+                    close(pfd_kid2[0]);
+                    close(pfd_kid_message_conv[0]);
+                    snprintf(tmp, 256, "1 %d\n", EXIT_PRNERR_NORETRY_BAD_SETTINGS);
+                    write(pfd_kid_message_conv[1], (const void*)tmp, strlen(tmp));
+                    _log("Couldn't dup logh to stderr\n");
+                    exit(EXIT_PRNERR_NORETRY_BAD_SETTINGS);                    
+                }
+            }
+
+
+            /* Actually run the thing... */
+            status = modern_system(conf.fileconverter);
+            if (!WIFEXITED(status) || (WIFEXITED(status) && WEXITSTATUS(status) != 0)) {
+                _log("file converter return value: %d\n", WEXITSTATUS(status));
+                if (WIFSIGNALED(status))
+                    _log("file converter received signal: %d\n", WTERMSIG(status));
+
+                close(STDIN_FILENO);
+                close(STDOUT_FILENO);
+                close(pfd_kid1[1]);
+                close(pfd_kid2[0]);
+                
+                /* Handle signals*/
+                if (WIFSIGNALED(status)) {
+                    if (WTERMSIG(status) == SIGUSR1)
+                        retval = EXIT_PRNERR;
+                    else if (WTERMSIG(status) == SIGUSR2)
+                        retval = EXIT_PRNERR_NORETRY;
+                    else if (WTERMSIG(status) == SIGTTIN)
+                        retval = EXIT_ENGAGED;
+                }
+
+                if (retval != EXIT_PRINTED) {
+                    snprintf(tmp, 256, "1 %d\n", retval);
+                    write(pfd_kid_message_conv[1], (const void *)tmp, strlen(tmp));
+                    close(pfd_kid_message_conv[0]);
+                    close(pfd_kid_message_conv[1]);
+                    exit(retval);
+                }
+
+                /* Evaluate fileconverter result */
+                if (WEXITSTATUS(status) == 0) {
+                    /* Success, exit with 0 and inform main process */
+                    snprintf(tmp, 256, "1 %d\n", EXIT_PRINTED);
+                    write(pfd_kid_message_conv[1], (const void *)tmp, strlen(tmp));
+                    close(pfd_kid_message_conv[0]);
+                    close(pfd_kid_message_conv[1]);
+                    exit(EXIT_PRINTED);
+                }
+                else {
+                    /* Unknown error */
+                    snprintf(tmp, 256, "1 %d\n", EXIT_PRNERR);
+                    write(pfd_kid_message_conv[1], (const void *)tmp, strlen(tmp));
+                    close(pfd_kid_message_conv[0]);
+                    close(pfd_kid_message_conv[1]);
+                    _log("The file converter command line returned an "
+                            "unrecognized error code %d.\n", WEXITSTATUS(status));
+                    exit(EXIT_PRNERR);
+                }
+            }
+
+            close(STDOUT_FILENO);
+            close(pfd_kid1[1]);
+            close(STDIN_FILENO);
+            close(pfd_kid2[0]);
+
+            /* When arrived here the fileconverter command line was successful
+               So exit with zero exit value here and inform the main process */
+            snprintf(tmp, 256, "1 %d\n", EXIT_PRINTED);
+            write(pfd_kid_message_conv[1], (const void *)tmp, strlen(tmp));
+            close(pfd_kid_message_conv[0]);
+            close(pfd_kid_message_conv[1]);
+            /* Wait for input child */
+            waitpid(kid1, NULL, 0);
+            _log("KID1 finished\n");
+            exit(EXIT_PRINTED);
+        }
+        else {
+            /*  child, first part of the pipe, reading in the data from
+                standard input and stuffing it into the file converter
+                after putting in the already read data (in alreadyread) */
+            close(pfd_kid1[1]);
+            close(pfd_kid2[0]);
+
+            /* At first pass the data which we already read to the filter */
+            write(pfd_kid2[1], (const void *)already_read, strlen(already_read));
+            /* Then read the rest from standard input */
+            while ((count = read(STDIN_FILENO, (void *)tmp, 1024)))
+                write(STDOUT_FILENO, (void *)tmp, count);
+
+            if (close(STDIN_FILENO) == -1 && errno != ESPIPE) {
+                close(pfd_kid2[1]);
+                snprintf(tmp, 256, "2 %d\n", EXIT_PRNERR_NORETRY_BAD_SETTINGS);
+                write(pfd_kid_message_conv[1], (const void *)tmp, strlen(tmp));
+                close(pfd_kid_message_conv[0]);
+                close(pfd_kid_message_conv[1]);
+                _log("error closing STDIN\n");
+                exit(EXIT_PRNERR_NORETRY_BAD_SETTINGS);
+            }
+            close(pfd_kid2[1]);
+            _log("tail process done reading data from STDIN\n");
+
+            /* Successful exit, inform main process */
+            snprintf(tmp, 256, "2 %d\n", EXIT_PRINTED);
+            write(pfd_kid_message_conv[1], (const void *)tmp, strlen(tmp));
+            close(pfd_kid_message_conv[0]);
+            close(pfd_kid_message_conv[1]);
+
+            _log("KID2 finished\n");
+            exit(EXIT_PRINTED);
+        }
+    }
+}
+
+
+/*  Next, examine the PostScript job for traces of command-line and
+    JCL options. PPD-aware applications and spoolers stuff option
+    settings directly into the file, they do not necessarily send
+    PPD options by the command line. Also stuff in PostScript code
+    to apply option settings given by the command line and to set
+    the defaults given in the PPD file.
+
+    Examination strategy: read lines from STDIN until the first
+    %%Page: comment appears and save them as @psheader. This is the
+    page-independent header part of the PostScript file. The
+    PostScript interpreter (renderer) must execute this part once
+    before rendering any assortment of pages. Then pages can be
+    printed in any arbitrary selection or order. All option
+    settings we find here will be collected in the default option
+    set for the RIP command line.
+
+    Now the pages will be read and sent to the renderer, one after
+    the other. Every page is read into memory until the
+    %%EndPageSetup comment appears (or a certain amount of lines was
+    read). So we can get option settings only valid for this
+    page. If we have such settings we set them in the modified
+    command set for this page.
+
+    If the renderer is not running yet (first page) we start it with
+    the command line built from the current modified command set and
+    send the first page to it, in the end we leave the renderer
+    running and keep input and output pipes open, so that it can
+    accept further pages. If the renderer is still running from
+    the previous page and the current modified command set is the
+    same as the one for the previous page, we send the page. If
+    the command set is different, we close the renderer, re-start
+    it with the command line built from the new modified command
+    set, send the header again, and then the page.
+
+    After the last page the trailer (%%Trailer) is sent.
+
+    The output pipe of this program stays open all the time so that
+    the spooler does not assume that the job has finished when the
+    renderer is re-started.
+
+    Non DSC-conforming documents will be read until a certain line
+    number is reached. Command line or JCL options inserted later
+    will be ignored.
+
+    If options are implemented by PostScript code supposed to be
+    stuffed into the job's PostScript data we stuff the code for all
+    these options into our job data, So all default settings made in
+    the PPD file (the user can have edited the PPD file to change
+    them) are taken care of and command line options get also
+    applied. To give priority to settings made by applications we
+    insert the options's code in the beginnings of their respective
+    sections, so that sommething, which is already inserted, gets
+    executed after our code. Missing sections are automatically
+    created. In non-DSC-conforming files we insert the option code
+    in the beginning of the file. This is the same policy as used by
+    the "pstops" filter of CUPS.
+
+    If CUPS is the spooler, the option settings were already
+    inserted by the "pstops" filter, so we don't insert them
+    again. The only thing we do is correcting settings of numerical
+    options when they were set to a value not available as choice in
+    the PPD file, As "pstops" does not support "real" numerical
+    options, it sees these settings as an invalid choice and stays
+    with the default setting. In this case we correct the setting in
+    the first occurence of the option's code, as this one is the one
+    added by CUPS, later occurences come from applications and
+    should not be touched.
+
+    If the input is not PostScript (if there is no "%!" after
+    $maxlinestopsstart lines) a file conversion filter will
+    automatically be applied to the incoming data, so that we will
+    process the resulting PostScript here. This way we have always
+    PostScript data here and so we can apply the printer/driver
+    features described in the PPD file.
+
+    Supported file conversion filters are "a2ps", "enscript",
+    "mpage", and spooler-specific filters. All filters convert
+    plain text to PostScript, "a2ps" also other formats. The
+    conversion filter is always used when one prints the
+    documentation pages, as they are created as plain text,
+    when CUPS is the spooler "pstops" is executed after the
+    filter so that the default option settings from the PPD file
+    and CUPS-specific options as N-up get applied. On regular
+    printouts one gets always PostScript when CUPS or PPR is
+    the spooler, so the filter is only used for regular
+    printouts under LPD, LPRng, GNUlpr or without spooler.
+*/
+
+void print_file()
+{
+    /* Maximum number of lines to be read  when the documenent is not  DSC-conforming.
+       "$maxlines = 0"  means that all will be read  and examined. If it is  discovered
+        that the input file  is DSC-conforming, this will  be set to 0. */
+    int maxlines = 1000;
+
+    /* We set this when encountering "%%Page:" and the previous page is not printed yet.
+       Then it will be printed and the new page will be prepared in the next run of the
+       loop (we don't read a new line and don't increase the $linect then). */
+    int printprevpage = 0;
+
+    /* how many lines have we examined */
+    int linect = 0;
+
+    /* lines before "%!" found yet. */
+    int nonpslines = 0;
+
+    /* DSC line not precessed yet */
+    int saved = 0;
+
+    /* current line */
+    dstr_t *line = create_dstr();
+
+    int ignoreline;
+
+
+
+    jobhasjcl = 0;
+
+    /* We do not parse the PostScript to find Foomatic options, we check
+        only whether we have PostScript. */
+    if (dontparse)
+        maxlines = 1;
+
+    _log("Reading PostScript input ...\n");
+
+#if 0
+    do {
+        ignoreline = 0;
+
+        if (printprevpage || saved || fgetdstr(line, stdin)) {
+            saved = 0;
+            if (linect == nonpslines) {
+                /* In the beginning should be the postscript leader,
+                   sometimes after some JCL commands */
+                if ( (line->data[0] == '%' && line->data[1] == '!') ||
+                      (line->data[1] == '%' && line->data[2] == '!')) /* There can be a Windows control character before "%!" */
+                {
+                    nonpslines++;
+                    if (maxlines == nonpslines)
+                        maxlines ++;
+
+                    /* Reset all variables but conserve the data which we have already read */
+                    jobhasjcl = 1;
+                    linect = 0;
+                    nonpslines = 1; /* Take into account that the line of this run of the loop
+                                       will be put into @psheader, so the first line read by
+                                       the file converter is already the second line */
+                    maxlines = 1001;
+
+                    /* TODO if needed */
+                    /* onelinebefore = ;
+                    twolinesbefore = ; */
+
+                    
+                }
+            }
+        }
+    }
+#endif
+
+    free_dstr(line);
+}
+
+
 int main(int argc, char** argv)
 {
-    struct config conf;
     int i, j;
     int verbose = 0, quiet = 0, showdocs = 0;
     const char* str;
-    char* p;
+    char *p, *filename;
     const char *path;
     FILE *genpdqfile = NULL;
-	FILE *ppdfh = NULL;
-	int rargc;
-	char **rargv = NULL;
-	char tmp[1024], pstoraster[256];
-	int dontparse = 0;
+    FILE *ppdfh = NULL;
+    FILE *fh;
+    int rargc;
+    char **rargv = NULL;
+    char tmp[1024], pstoraster[256];
 	int havefilter, havepstoraster;
     char user_default_path [256];
     dstr_t *filelist = create_dstr();
+    char programdir[256];
 
     optstr = create_dstr();
+
+    strlcpy(programdir, argv[0], 256);
+    p = strrchr(programdir, '/');
+    if (p)
+        *++p = '\0';
+    else
+        programdir[0] = '\0';
+
+    /* spooler specific file converters */
+    snprintf(cups_fileconverter, 512, "%stexttops '%s' '%s' '%s' '%s' '%s' "
+            "page-top=36 page-bottom=36 page-left=36 page-right=36 "
+            "nolandscape cpi=12 lpi=7 columns=1 wrap'",
+            programdir,
+            argc > 0 ? argv[1] : "",
+            argc > 1 ? argv[2] : "",
+            argc > 2 ? argv[3] : "",
+            argc > 3 ? argv[4] : "",
+            argc > 4 ? argv[5] : "");
+
+    i = 1024;
+    cwd = NULL;
+    do {
+        free(cwd);
+        cwd = malloc(i);
+    } while (!getcwd(cwd, i));
 
     /* Path for personal Foomatic configuration */
     strlcpy(user_default_path, getenv("HOME"), 256);
@@ -1946,7 +2369,8 @@ int main(int argc, char** argv)
 
     config_set_default_options(&conf);
     config_read_from_file(&conf, CONFIG_PATH "/filter.conf");
-    setenv("PATH", conf.execpath, 1);
+    if (!isempty(conf.execpath))
+        setenv("PATH", conf.execpath, 1);
 
     /* Command line options for verbosity */
     if (remove_arg("-v", argc, argv))
@@ -2331,15 +2755,115 @@ int main(int argc, char** argv)
         exit(EXIT_PRINTED);
 	}
 
+    /* TODO can this be moved to the other initialisation */
+    if (spooler == SPOOLER_PPR_INT) {
+        snprintf(tmp, 1024, "interfaces/%s", backend);
+        if (access(tmp, X_OK) != 0) {
+            _log("The backend interface %s/interfaces/%s does not exist/"
+                 "is not executable!\n", cwd, backend);
+            exit(EXIT_PRNERR_NORETRY_BAD_SETTINGS);
+        }
+
+        /* foomatic-rip cannot use foomatic-rip as backend */
+        if (!strcmp(backend, "foomatic-rip")) {
+            _log("\"foomatic-rip\" cannot use itself as backend interface!\n");
+            exit(EXIT_PRNERR_NORETRY_BAD_SETTINGS);
+        }
+
+        /* Put the backend interface into the postpipe */
+        /* TODO
+            $postpipe = "| ( interfaces/$backend \"$ppr_printer\" ".
+            "\"$ppr_address\" \"" . join(" ",@backendoptions) .
+            "\" \"$ppr_jobbreak\" \"$ppr_feedback\" " .
+            "\"$ppr_codes\" \"$ppr_jobname\" \"$ppr_routing\" " .
+            "\"$ppr_for\" \"\" )";
+        */
+    }
+    
+    /* no postpipe for CUPS or PDQ, even if one is defined in the PPD file */
+    if (spooler == SPOOLER_CUPS || spooler == SPOOLER_PDQ)
+        postpipe[0] = '\0';
+
+    /* CPS always needs a postpipe, set the default one for local printing if none is set */
+    if (spooler == SPOOLER_CPS && isempty(postpipe))
+        strcpy(postpipe, "| cat - > $LPDDEV");
+
+    if (!isempty(postpipe))
+        _log("Ouput will be redirected to:\n%s\n", postpipe);
+
+    
+    /* Print documentation page when asked for */
+    if (do_docs) {
+        /* Don't print the supplied files, STDIN will be redirected to the
+           documentation page generator */
+        dstrcpyf(filelist, "<STDIN>");
+
+        /* Start the documentation page generator */
+        /* TODO */
+    }
+
+    /* In debug mode save the data supposed to be fed into the
+       renderer also into a file, reset the file here */
+    if (conf.debug)
+        modern_system("> " LOG_FILE ".ps");
+
+    
+    while ((filename = strtok(filelist->data, " "))) {
+        _log("================================================\n"
+             "File: %s\n"
+             "================================================\n", filename);
+
+        /* If we do not print standard input, open the file to print */
+        if (strcmp(filename, "<STDIN>")) {
+            if (access(filename, R_OK) != 0) {
+                _log("File %s missing or not readable, skipping.\n");
+                continue;
+            }
+
+            fh = fopen(filename, "r");
+            if (!fh) {
+                _log("Cannot open %s, skipping.\n", filename);
+                continue;
+            }
+        }
+        else
+            fh = stdin;
+
+        /* Do we have a raw queue? */
+        if (dontparse == 2) {
+            /* Raw queue, simply pass the input into the postpipe (or to STDOUT
+               when there is no postpipe) */
+            _log("Raw printing, executing \"cat %s\"\n");
+            snprintf(tmp, 1024, "cat %s", postpipe);
+            modern_system(tmp);
+            continue;
+        }
+
+        /* First, for arguments with a default, stick the default in as
+           the initial value for the "header" option set, this option set
+           consists of the PPD defaults, the options specified on the
+           command line, and the options set in the header part of the
+           PostScript file (all before the first page begins). */
+        optionset_copy_values(optionset("userval"), optionset("header"));
+
+ 
+        
+        
+
+        if (fh != stdin)
+            fclose(fh);
+    }    
+
+
 	/* Cleanup */
     if (genpdqfile && genpdqfile != stdout)
         fclose(genpdqfile);
-    
 	free(rargv);
 	free_dstr(filelist);
     free_dstr(optstr);
     free_optionlist();
 	if (logh && logh != stderr)
 		fclose(logh);
+    free(cwd);
     return 0;
 }
