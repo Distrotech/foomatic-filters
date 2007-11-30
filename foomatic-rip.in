@@ -1950,9 +1950,10 @@ for (@opts) {
             # Handle the standard duplex option, mostly
             if ($avalue =~ m!^two-sided!i) {
                 if (defined($dat->{'args_byname'}{'Duplex'})) {
-		    # We set "Duplex" to '1' here, the real argument setting
-		    # will be done later
-                    $dat->{'args_byname'}{'Duplex'}{$optionset} = '1';
+		    # Default to long-edge binding here, for the case that
+		    # there is no binding setting
+                    $dat->{'args_byname'}{'Duplex'}{$optionset} = 
+			'DuplexNoTumble';
 		    # Check the binding: "long edge" or "short edge"
 		    if ($avalue =~ m!long-edge!i) {
 			if (defined($dat->{'args_byname'}{'Binding'})) {
@@ -1960,7 +1961,7 @@ for (@opts) {
       $dat->{'args_byname'}{'Binding'}{'vals_byname'}{'LongEdge'}{'value'};
 			} else {
 			    $dat->{'args_byname'}{'Duplex'}{$optionset} = 
-				'LongEdge';
+				'DuplexNoTumble';
 			}
 		    } elsif ($avalue =~ m!short-edge!i) {
 			if (defined($dat->{'args_byname'}{'Binding'})) {
@@ -1968,15 +1969,13 @@ for (@opts) {
       $dat->{'args_byname'}{'Binding'}{'vals_byname'}{'ShortEdge'}{'value'};
 			} else {
 			    $dat->{'args_byname'}{'Duplex'}{$optionset} = 
-				'ShortEdge';
+				'DuplexTumble';
 			}
 		    }
                 }
             } elsif ($avalue =~ m!^one-sided!i) {
                 if (defined($dat->{'args_byname'}{'Duplex'})) {
-		    # We set "Duplex" to '0' here, the real argument setting
-		    # will be done later
-                    $dat->{'args_byname'}{'Duplex'}{$optionset} = '0';
+                    $dat->{'args_byname'}{'Duplex'}{$optionset} = 'None';
                 }
             }
 
@@ -5542,8 +5541,6 @@ sub parsepageranges {
     
     my $currentnumber = 0;
     my $rangestart = 0;
-####### Question: is rangeend ever used?
-    my $rangeend = 0;
     my $currentkeyword = '';
     my $invalidrange = 0;
     my $totalscore = 0;
@@ -5617,8 +5614,7 @@ sub parsepageranges {
 		}
 	    } elsif ($c =~ /[a-z_]/i) {
 		# Letter or underscore
-		if (($rangestart > 0) || ($rangeend > 0) ||
-		    ($currentnumber > 0)) {
+		if (($rangestart > 0) || ($currentnumber > 0)) {
 		    # Keyword not allowed after a page number or a
 		    # page range
 		    $invalidrange = 1;
@@ -5667,10 +5663,10 @@ sub setoptionsforpage {
     # number of the page
     my ($dat, $optionset, $page) = @_;
 
-    my $bestscore = 10000000;
     my $value;
     for my $arg (@{$dat->{'args'}}) {
 	$value = '';
+	my $bestscore = 10000000;
 	for my $key (keys %{$arg}) {
 	    next if $key !~ /^pages:(.*)$/;
 	    my $pageranges = $1;
@@ -5852,7 +5848,7 @@ sub buildcommandline {
 			    last;
 			}
 		    }
-		} elsif ($userval eq 'LongEdge') {
+		} elsif ($userval =~ /^(LongEdge|DuplexNoTumble)$/i) {
 		    # Handle different names for the choices of the
 		    # "Duplex" option
 		    foreach (qw(LongEdge DuplexNoTumble)) {
@@ -5863,7 +5859,7 @@ sub buildcommandline {
 			    last;
 			}
 		    }
-		} elsif ($userval eq 'ShortEdge') {
+		} elsif ($userval =~ /^(ShortEdge|DuplexTumble)$/i) {
 		    foreach (qw(ShortEdge DuplexTumble)) {
 			if ($val=valbyname($arg,$_)) {
 			    $userval = $_;
