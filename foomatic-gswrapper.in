@@ -17,7 +17,7 @@ my $configpath = "@sysconfdir@/foomatic";
 # Read config file if present
 %conf = readConfFile("$configpath/filter.conf");
 
-# Set GhostScript path
+# Set Ghostscript path
 my $gspath = "gs";
 $gspath = $conf{gspath} if defined(%conf) and defined $conf{gspath};
 my $execpath = "@EXECPATH@";
@@ -25,7 +25,7 @@ my $execpath = "@EXECPATH@";
 $execpath = $conf{execpath} if defined(%conf) and defined $conf{execpath};
 $ENV{'PATH'} = $execpath;
 
-# Check whether we have a GhostScript version with redirection of the
+# Check whether we have a Ghostscript version with redirection of the
 # standard output of the PostScript programs via '-sstdout=%stderr'
 my $gswithstdoutredirection = 0;
 if (`$gspath -dQUIET -dPARANOIDSAFER -dNOPAUSE -dBATCH -dNOMEDIAATTRS -sDEVICE=pswrite -sstdout=%stderr -sOutputFile=/dev/null -c '(hello\n) print flush' 2>&1` =~ /hello/) {
@@ -34,7 +34,7 @@ if (`$gspath -dQUIET -dPARANOIDSAFER -dNOPAUSE -dBATCH -dNOMEDIAATTRS -sDEVICE=p
 
 grep (m!\-sOutputFile=\-! 
       && do {
-	  # If GhostScript does not support redirecting the standard output
+	  # If Ghostscript does not support redirecting the standard output
 	  # of the PostScript program to standard error with
 	  # '-sstdout=%stderr', sen the job output data to fd 3; errors 
 	  # will be on 2(stderr) and job ps program interpreter output on 
@@ -44,13 +44,14 @@ grep (m!\-sOutputFile=\-!
 	  # quoted properly below...
       }, @ARGV);
 
-if (!$gswithstdoutredirection) {
-    grep (((m!^\-$!) || (m!^\-_$!))
-	  && do {
-	      # Get the input from fd 0.
-	      $_ = "/dev/fd/0";
-	  }, @ARGV);
-}
+grep (((m!^\-$!) || (m!^\-_$!) || (m!^/dev/fd/0$!))
+      && do {
+	  # Use always buffered input. This works around a Ghostscript
+	  # bug which prevents printing encrypted PDF files with Adobe
+	  # Reader 8.1.1 and Ghostscript built as shared library
+	  # (Ghostscript bug #689577, Ubuntu bug #172264)
+	  $_ = "-_";
+      }, @ARGV);
 
 # Turn *off* -q (quiet!); now that stderr is useful! :)
 my @myargs = grep (! m!^\-q$!, @ARGV);
