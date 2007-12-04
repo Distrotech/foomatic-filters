@@ -1,3 +1,11 @@
+2007-12-04  Till Kamppeter <till.kamppeter@gmail.com>
+
+	* foomatic-gswrapper.in: Let Ghostscript always use buffered
+	  input. This works around a Ghostscript bug which prevents
+	  printing encrypted PDF files with Adobe Reader 8.1.1 and
+	  Ghostscript built as shared library (Ghostscript bug #689577,
+	  Ubuntu bug #172264).
+
 2007-11-30  Till Kamppeter <till.kamppeter@gmail.com>
 
 	* foomatic-rip.in: More bug fixes:
@@ -16,6 +24,7 @@
 	     before treating each option, not only before the first
 	     option. Now jobs with page overrides on more than one
 	     option are executed correctly.
+
 2007-11-23  Till Kamppeter <till.kamppeter@gmail.com>
 
 	* foomatic-rip.in: Several fixes for bugs found while developing
