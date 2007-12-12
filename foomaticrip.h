@@ -24,6 +24,13 @@
 #define LOG_FILE "/tmp/foomatic-rip"
 #endif
 
+/* What 'echo' program to use.  It needs -e and -n.  Linux's builtin
+and regular echo work fine; non-GNU platforms may need to install
+gnu echo and put gecho here or something. */
+#ifndef ECHO
+#define ECHO "echo"
+#endif
+
 /* Constants used by this filter
  *                             
  * Error codes, as some spooles behave different depending on the reason why

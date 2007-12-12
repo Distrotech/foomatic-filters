@@ -8,6 +8,7 @@
 
 
 option_t *optionlist = NULL;
+option_t *optionlist_sorted_by_order = NULL;
 
 int optionset_alloc, optionset_count;
 char **optionsets;
@@ -46,6 +47,12 @@ static void free_option(option_t *opt)
     free(opt->allowedchars);
     free(opt->allowedregexp);
 
+    free_dstr(opt->compositesubst);
+    free_dstr(opt->jclsetup);
+    free_dstr(opt->prolog);
+    free_dstr(opt->setup);
+    free_dstr(opt->pagesetup);
+
     free(opt);
 }
 
@@ -77,7 +84,7 @@ static inline int optionset_exists(int idx)
 
 const char * optionset_name(int idx)
 {
-    if (idx >= optionset_count) {
+    if (idx < 0 || idx >= optionset_count) {
         _log("Optionset with index %d does not exist\n", idx);
         return NULL;
     }
@@ -142,8 +149,8 @@ void optionset_delete_values(int optionset)
                 val = prev_val ? prev_val->next : opt->valuelist;
                 break;
             } else {
+				prev_val = val;
                 val = val->next;
-                prev_val = val;
             }
         }
     }    
@@ -239,6 +246,11 @@ option_t * assure_option(const char *name)
     opt->type = TYPE_NONE;
     opt->maxlength = -1;
 
+    opt->compositesubst = create_dstr();
+    opt->jclsetup = create_dstr();
+    opt->prolog = create_dstr();
+    opt->setup = create_dstr();
+    opt->pagesetup = create_dstr();
     
     /* append opt to optionlist */
     if (optionlist) {
@@ -247,6 +259,15 @@ option_t * assure_option(const char *name)
     }
     else
         optionlist = opt;
+
+    /* prepend opt to optionlist_sorted_by_order (0 is always at the beginning) */
+    if (optionlist_sorted_by_order) {
+        opt->next_by_order = optionlist_sorted_by_order;
+        optionlist_sorted_by_order = opt;
+    }
+    else {
+        optionlist_sorted_by_order = opt;
+    }
 
     _log("Added option %s\n", opt->name);
     return opt;
@@ -299,6 +320,36 @@ setting_t *option_assure_setting(option_t* opt, const char *value)
     return setting;
 }
 
+void option_set_order(option_t *opt, int order)
+{
+    option_t *o, *last;
+
+    /* remove opt from old position */
+    if ((opt = optionlist_sorted_by_order))
+        optionlist_sorted_by_order = opt->next_by_order;
+    else {
+        for (last = optionlist_sorted_by_order;
+             last && last->next_by_order != opt;
+             last = last->next_by_order);
+        last->next_by_order = opt->next_by_order;
+    }
+
+    opt->order = order;
+
+    /* insert into new position */
+    last = optionlist_sorted_by_order;
+    o = optionlist_sorted_by_order->next;
+    while (o) {
+        if (!o->next_by_order || o->next_by_order->order > opt->order) {
+            last->next_by_order = opt;
+            opt->next_by_order = o;
+            break;
+        }
+        last = o;
+        o = o->next_by_order;
+    }
+}
+
 value_t * option_get_value(option_t *opt, int optionset)
 {
     value_t *val;
@@ -310,6 +361,12 @@ value_t * option_get_value(option_t *opt, int optionset)
             return val;
     }
     return NULL;
+}
+
+const char * option_get_value_string(option_t *opt, int optionset)
+{
+    value_t *val = option_get_value(opt, optionset);
+    return val ? val->value : NULL;
 }
 
 void option_set_value(option_t *opt, int optionset, const char *value)
@@ -348,13 +405,13 @@ static int stringvalid(option_t *opt, const char *value)
         return 0;
 
     /* Allowed Characters */
-    if (opt->allowedchars) {
-        /* TODO quote slashes? (see perl version) */
+	/* TODO opt->allowedchars may contain character ranges */
+    /* if (opt->allowedchars) {
         for (p = value; *p; p++) {
             if (!strchr(opt->allowedchars, *p))
                 return 0;
         }
-    }
+    } */
 
     /* Regular expression */
     if (opt->allowedregexp) {
@@ -388,8 +445,8 @@ int option_set_validated_value(option_t *opt, int optionset, const char *value, 
 
     switch (opt->type) {
         case TYPE_BOOL:
-            if (strcasecmp(value, "true") == 0 || strcasecmp(value, "on") == 0 ||
-                    strcasecmp(value, "yes") == 0 || strcasecmp(value, "1") == 0) {
+            if (strcasecmp(value, "false") == 0 || strcasecmp(value, "off") == 0 ||
+                    strcasecmp(value, "no") == 0 || strcasecmp(value, "0") == 0) {
                 option_set_value(opt, optionset, "0");
                 return 1;
             }
@@ -470,7 +527,7 @@ int option_set_validated_value(option_t *opt, int optionset, const char *value, 
 
         case TYPE_STRING:
             if ((setting = option_find_setting(opt, value))) {
-                _log("The %s for %s is a predefined choice\n", value, opt->name);
+                _log("The value %s for %s is a predefined choice\n", value, opt->name);
                 option_set_value(opt, optionset, value);
                 return 1;
             }
@@ -505,6 +562,8 @@ int option_set_validated_value(option_t *opt, int optionset, const char *value, 
                 }
 
                 /* No matching choice? Keep the original string */
+				option_set_value(opt, optionset, value);
+				return 1;
             }
 
             else if (forcevalue) {

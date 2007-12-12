@@ -22,7 +22,7 @@ int prefixcasecmp(const char *str, const char *prefix)
 
 int startswith(const char *str, const char *prefix)
 {
-    return strncmp(str, prefix, strlen(prefix)) == 0;
+    return str ? (strncmp(str, prefix, strlen(prefix)) == 0) : 0;
 }
 
 int endswith(const char *str, const char *postfix)
@@ -36,6 +36,13 @@ int endswith(const char *str, const char *postfix)
 
     pstr = &str[slen - plen];
     return strcmp(str, postfix) == 0;
+}
+
+const char * ignore_whitespace(const char *str)
+{
+    while (*str && isspace(*str))
+        str++;
+    return str;
 }
 
 void strlower(char *dest, size_t destlen, const char *src)
@@ -85,6 +92,11 @@ size_t strlcpy(char *dest, const char *src, size_t size)
 {
     char *pdest = dest;
     const char *psrc = src;
+
+    if (!src) {
+        dest[0] = '\0';
+        return 0;
+    }
     
     if (size) {
         while (--size && (*pdest++ = *psrc++) != '\0');
@@ -230,6 +242,48 @@ void make_absolute_path(char *path, int len)
     }
 }
 
+int is_true_string(const char *str)
+{
+    return !strcmp(str, "1") || !strcasecmp(str, "Yes") ||
+        !strcasecmp(str, "On") || !strcasecmp(str, "True");
+}
+
+int is_false_string(const char *str)
+{
+    return !strcmp(str, "0") || !strcasecmp(str, "No") ||
+        !strcasecmp(str, "Off") || !strcasecmp(str, "False") ||
+        !strcasecmp(str, "None");
+}
+
+int digit(char c)
+{
+    if (c >= '0' && c <= '9')
+        return (int)c - (int)'0';
+    return -1;
+}
+
+int line_count(const char *str)
+{
+    int cnt = 0;
+    while (*str) {
+        if (*str == '\n')
+            cnt++;
+        str++;
+    }
+    return cnt;
+}
+
+int line_start(const char *str, int line_number)
+{
+    const char *p = str;
+    while (*p && line_number > 0) {
+        if (*p == '\n')
+            line_number--;
+        p++;
+    }
+    return p - str;
+}
+
 /* 
  * Dynamic strings
  */
@@ -255,6 +309,44 @@ void dstrclear(dstr_t *ds)
     ds->data[0] = '\0';
 }
 
+void dstrassure(dstr_t *ds, size_t alloc)
+{
+	if (ds->alloc < alloc) {
+		ds->alloc = alloc;
+		ds->data = realloc(ds->data, ds->alloc);
+	}
+}
+
+void dstrcpy(dstr_t *ds, const char *src)
+{
+    size_t srclen = strlen(src);
+
+    if (srclen >= ds->alloc) {
+        do {
+            ds->alloc *= 2;
+        } while (srclen >= ds->alloc);
+        ds->data = realloc(ds->data, ds->alloc);
+    }
+
+    strcpy(ds->data, src);
+    ds->len = srclen;
+}
+
+void dstrncpy(dstr_t *ds, const char *src, size_t n)
+{
+    if (n +1 >= ds->alloc) {
+        do {
+            ds->alloc *= 2;
+        } while (n +1 >= ds->alloc);
+        ds->data = realloc(ds->data, ds->alloc);
+    }
+
+    strncpy(ds->data, src, n);
+    ds->len = n;
+    if (ds->data[ds->len] != '\0')
+        ds->data[ds->len++] = '\0';
+}
+
 void dstrcpyf(dstr_t *ds, const char *src, ...)
 {
     va_list ap;
@@ -268,6 +360,7 @@ void dstrcpyf(dstr_t *ds, const char *src, ...)
         do {
             ds->alloc *= 2;
         } while (srclen >= ds->alloc);
+        ds->data = realloc(ds->data, ds->alloc);
 
         va_start(ap, src);
         vsnprintf(ds->data, ds->alloc, src, ap);
@@ -313,7 +406,7 @@ size_t fgetdstr(dstr_t *ds, FILE *stream)
         ds->data = malloc(ds->alloc);
     }
 
-    while ((c = fgetc(stream) != EOF)) {
+    while ((c = fgetc(stream)) != EOF) {
         if (ds->len +1 == ds->alloc) {
             ds->alloc *= 2;
             ds->data = realloc(ds->data, ds->alloc);
@@ -325,4 +418,100 @@ size_t fgetdstr(dstr_t *ds, FILE *stream)
     }
     ds->data[ds->len++] = '\0';
     return cnt;
+}
+
+void dstrreplace(dstr_t *ds, const char *find, const char *repl)
+{
+    char *p, *next;
+    dstr_t *copy = create_dstr();
+    size_t findlen = strlen(find);
+
+    dstrcpy(copy, ds->data);
+    dstrclear(ds);
+
+    p = copy->data;
+    while ((next = strstr(p, find))) {
+        *next = '\0';
+        next += findlen;
+    
+        dstrcatf(ds, "%s", p);
+        dstrcatf(ds, "%s", repl);
+		
+		p = next;
+    }
+
+    dstrcatf(ds, "%s", p);
+    free_dstr(copy);
+}
+
+void dstrprepend(dstr_t *ds, const char *str)
+{
+    dstr_t *copy = create_dstr();
+    dstrcpy(copy, ds->data);
+    dstrcpy(ds, str);
+    dstrcatf(ds, "%s", copy->data);
+    free_dstr(copy);
+}
+
+void dstrinsert(dstr_t *ds, int idx, const char *str)
+{
+    dstr_t *copy = create_dstr();
+    size_t len = strlen(str);
+    dstrcpy(copy, ds->data);
+
+    if (idx >= ds->len)
+        idx = ds->len;
+    else if (idx < 0)
+        idx = 0;
+
+    if (ds->len + len >= ds->alloc) {
+        do {
+            ds->alloc *= 2;
+        } while (ds->len + len >= ds->alloc);
+        free(ds->data);
+        ds->data = malloc(ds->alloc);
+    }
+
+    strncpy(ds->data, copy->data, idx);
+    strcat(ds->data, str);
+    strcat(ds->data, &copy->data[idx]);
+    ds->len += len;
+    free_dstr(copy);
+}
+
+void dstrremove(dstr_t *ds, int idx, size_t count)
+{
+    char *p1, *p2;
+    
+    if (idx + count >= ds->len)
+        return;
+
+    p1 = &ds->data[idx];
+    p2 = &ds->data[idx + count];
+
+    while (*p2) {
+        *p1 = *p2;
+        p1++;
+        p2++;
+    }
+    *p1 = '\0';
+}
+
+void dstrcatline(dstr_t *ds, const char *str)
+{
+    const char *s = str;
+
+    if (!*s)
+        return;
+
+    do {
+        while (ds->len >= ds->alloc) {
+            ds->alloc *= 2;
+            ds->data = realloc(ds->data, ds->alloc);
+        }
+        ds->data[ds->len++] = *s == '\r' ? '\n' : *s;
+        s++;
+    } while (*s && *s != '\r' && *s != '\n');
+
+    ds->data[ds->len++] = '\0';
 }
