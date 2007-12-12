@@ -1,3 +1,30 @@
+2007-12-04  Till Kamppeter <till.kamppeter@gmail.com>
+
+	* foomatic-gswrapper.in: Let Ghostscript always use buffered
+	  input. This works around a Ghostscript bug which prevents
+	  printing encrypted PDF files with Adobe Reader 8.1.1 and
+	  Ghostscript built as shared library (Ghostscript bug #689577,
+	  Ubuntu bug #172264).
+
+2007-11-30  Till Kamppeter <till.kamppeter@gmail.com>
+
+	* foomatic-rip.in: More bug fixes:
+	   o If the CUPS-style duples option
+	     "-o sides={one|two}-sided[-{long|short}-edge]" was supplied,
+	     the "Duplex" option could be set to "0", "LongEdge", or
+	     "ShortEdge", which do not exist in the "Duplex" options in
+	     PPD files (Thanks to Ricoh Japan for reporting this bug). 
+	   o Now all of "LongEdge", "DuplexNoTumble", or "ShortEdge", 
+	     "DuplexTumble", are converted to each other if supplied as 
+	     value to an enumerated choice option (usually "Duplex") and
+	     this value is not in the list of choices.
+	   o Removed the unused variable "$rangeend" from the
+	     parsepageranges() function.
+	   o Reset the best score for finding the narrowest page range
+	     before treating each option, not only before the first
+	     option. Now jobs with page overrides on more than one
+	     option are executed correctly.
+
 2007-11-23  Till Kamppeter <till.kamppeter@gmail.com>
 
 	* foomatic-rip.in: Several fixes for bugs found while developing
