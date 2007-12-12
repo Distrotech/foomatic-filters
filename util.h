@@ -8,6 +8,7 @@
 #include <string.h>
 #include <stdio.h>
 
+
 extern const char* shellescapes;
 
 int isempty(const char *string);
@@ -16,6 +17,8 @@ int prefixcasecmp(const char *str, const char *prefix);
 
 int startswith(const char *str, const char *prefix);
 int endswith(const char *str, const char *postfix);
+
+const char * ignore_whitespace(const char *str);
 
 void strlower(char *dest, size_t destlen, const char *src);
 
@@ -66,6 +69,16 @@ void file_basename(char *dest, const char *path, size_t dest_size);
 /* if 'path' is relative, prepend cwd */
 void make_absolute_path(char *path, int len);
 
+int is_true_string(const char *str); /* "1", "Yes", "On", "True" */
+int is_false_string(const char *str); /* "0", "No", "Off", "False", "None" */
+
+int digit(char c); /* returns 0-9 if c is a digit, otherwise -1 */
+
+int line_count(const char *str);
+
+/* returns the index of the beginning of the line_number'th line in str */
+int line_start(const char *str, int line_number);
+
 
 /* Dynamic string */
 typedef struct {
@@ -77,8 +90,16 @@ typedef struct {
 dstr_t * create_dstr();
 void free_dstr(dstr_t *ds);
 void dstrclear(dstr_t *ds);
+void dstrassure(dstr_t *ds, size_t alloc);
+void dstrcpy(dstr_t *ds, const char *src);
+void dstrncpy(dstr_t *ds, const char *src, size_t n);
 void dstrcpyf(dstr_t *ds, const char *src, ...);
 void dstrcatf(dstr_t *ds, const char *src, ...);
 size_t fgetdstr(dstr_t *ds, FILE *stream); /* returns number of characters read */
+void dstrreplace(dstr_t *ds, const char *find, const char *repl);
+void dstrprepend(dstr_t *ds, const char *str);
+void dstrinsert(dstr_t *ds, int idx, const char *str);
+void dstrremove(dstr_t *ds, int idx, size_t count);
+void dstrcatline(dstr_t *ds, const char *str); /* appends the first line from str to ds (incl. \n) */
 
 #endif
