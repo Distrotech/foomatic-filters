@@ -2,9 +2,7 @@
 #ifndef foomatic_h
 #define foomatic_h
 
-
-/* TODO will this be replaced? By who? */
-#define RIP_VERSION "$Revision$"
+#define RIP_VERSION "4.0"
 
 /* Location of the configuration file "filter.conf" this file can be
  * used to change the settings of foomatic-rip without editing

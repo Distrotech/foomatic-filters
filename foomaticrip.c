@@ -207,7 +207,7 @@ char jobuser[128] = "";
 char jobhost[128] = "";
 char jobtitle[128] = "";
 char copies[128] = "1";
-char postpipe[1024] = "";  /* command into which the output of this filter should be piped */
+dstr_t *postpipe;  /* command into which the output of this filter should be piped */
 int ps_accounting = 1; /* Set to 1 to insert postscript code for page accounting (CUPS only). */
 const char *accounting_prolog = NULL;
 char attrpath[256] = "";
@@ -222,6 +222,10 @@ int jobhasjcl;
 
 /* Variable for PPR's backend interface name (parallel, tcpip, atalk, ...) */
 char backend [64];
+
+/* Array to collect unknown options so that they can get passed to the
+backend interface of PPR. For other spoolers we ignore them. */
+dstr_t *backendoptions = NULL;
 
 /* These variables were in 'dat' before */
 char colorprofile [128];
@@ -244,25 +248,36 @@ dstr_t *optstr;
 char *cwd;
 struct config conf;
 
+typedef struct {
+    char year[5]; 
+    char mon[3]; 
+    char day[3]; 
+    char hour[3];
+    char min[3];
+    char sec[3];
+} timestrings_t;
 
+time_t curtime;
+timestrings_t curtime_strings;
+
+
+void fill_timestrings(timestrings_t *ts, time_t time)
+{
+    struct tm *t = localtime(&time);
+
+    sprintf(ts->year, "%04d", t->tm_year + 1900);
+    sprintf(ts->mon, "%02d", t->tm_mon + 1);
+    sprintf(ts->day, "%02d", t->tm_mday);
+    sprintf(ts->hour, "%02d", t->tm_hour);
+    sprintf(ts->min, "%02d", t->tm_min);
+    sprintf(ts->sec, "%02d", t->tm_sec);
+}
 
 void unhtmlify(char *dest, size_t size, const char *src)
 {
     char *pdest = dest;
     const char *psrc = src;
     const char *repl;
-    time_t t = time(NULL);
-    struct tm *time = localtime(&t);
-    char yearstr[5], monstr[3], mdaystr[3], hourstr[3], minstr[3], secstr[3];
-    
-    /* TODO this should be global and only set once */
-    sprintf(yearstr, "%04d", time->tm_year + 1900);
-    sprintf(monstr, "%02d", time->tm_mon + 1);
-    sprintf(mdaystr, "%02d", time->tm_mday);
-    sprintf(hourstr, "%02d", time->tm_hour);
-    sprintf(minstr, "%02d", time->tm_min);
-    sprintf(secstr, "%02d", time->tm_sec);
-    
 
     while (*psrc && pdest - dest < size) {
     
@@ -296,17 +311,17 @@ void unhtmlify(char *dest, size_t size, const char *src)
             else if (!prefixcmp(psrc, "options;"))
                 repl = optstr->data;
             else if (!prefixcmp(psrc, "year;"))
-                repl = yearstr;
+                repl = curtime_strings.year;
             else if (!prefixcmp(psrc, "month;"))
-                repl = monstr;
+                repl = curtime_strings.mon;
             else if (!prefixcmp(psrc, "date;"))
-                repl = mdaystr;
+                repl = curtime_strings.day;
             else if (!prefixcmp(psrc, "hour;"))
-                repl = hourstr;
+                repl = curtime_strings.hour;
             else if (!prefixcmp(psrc, "min;"))
-                repl = minstr;
+                repl = curtime_strings.min;
             else if (!prefixcmp(psrc, "sec;"))
-                repl = secstr;
+                repl = curtime_strings.sec;
     
             if (repl) {
                 strncpy(pdest, repl, size - (pdest - dest));
@@ -314,7 +329,7 @@ void unhtmlify(char *dest, size_t size, const char *src)
                 psrc = strchr(psrc, ';') +1;
             }
             else {
-				psrc = strchr(psrc, ';') +1;
+                psrc = strchr(psrc, ';') +1;
             }
         }
         else {
@@ -323,12 +338,11 @@ void unhtmlify(char *dest, size_t size, const char *src)
             psrc++;
         }
     }
-    dest[size -1] = '\0';
+    *pdest = '\0';
 }
 
 /* Replace hex notation for unprintable characters in PPD files
    by the actual characters ex: "<0A>" --> chr(hex("0A")) */
-/* TODO '>' not checked??? */
 void unhexify(char *dest, size_t size, const char *src)
 {
     char *pdest = dest;
@@ -337,8 +351,9 @@ void unhexify(char *dest, size_t size, const char *src)
 
     while (*psrc && pdest - dest < size) {
         if (*psrc == '<') {
-            n = strtol(psrc, &psrc, 16);
+            n = strtol(psrc +1, &psrc, 16);
             *pdest = (char)n;
+            psrc++; // skip '>'
         }
         else {
             *pdest = *psrc;
@@ -391,9 +406,9 @@ void config_set_option(struct config *conf, const char *key, const char *value)
         strncpy(conf->cupsfilterpath, value, 255);
         conf->execpath[255] = '\0';
     }
-	else if (strcmp(key, "preferred_shell") == 0) {
-		strlcpy(modern_shell, value, 256);
-	}
+    else if (strcmp(key, "preferred_shell") == 0) {
+        strlcpy(modern_shell, value, 256);
+    }
     else if (strcmp(key, "textfilter") == 0) {
         if (strcmp(value, "a2ps") == 0)
             strcpy(conf->fileconverter, fileconverters[0]);
@@ -469,13 +484,14 @@ void parse_ppd_file(const char* filename)
         idx = value_idx;
         while (1) {
             idx += strcspn(&line[idx], "\r\n");
-            line[idx] = '\n';
-            /* idx++; */ /* leave newline */
 
             if (line[idx -1] == '&' && line[idx -2] == '&')
                 idx -= 2;
             else if (line[value_idx] != '\"' || strchr(&line[value_idx +1], '\"'))
                 break;
+            else
+                /* leave the newline if lineend was not "&&" and we are in quotes */
+                line[idx++] = '\n';
 
             if (buf_size - idx < 256) { /* PPD line length is 256 */
                 buf_size += 256;
@@ -509,7 +525,8 @@ void parse_ppd_file(const char* filename)
             strlcpy(driver, p, 128);
         }
         else if (strcmp(key, "FoomaticRIPPostPipe") == 0) {
-            unhtmlify(postpipe, 1024, value);
+            dstrassure(postpipe, 1024);
+            unhtmlify(postpipe->data, postpipe->alloc, value);
         }
         else if (strcmp(key, "FoomaticRIPCommandLine") == 0) {
             unhtmlify(cmd, 1024, value);
@@ -609,10 +626,12 @@ void parse_ppd_file(const char* filename)
             else if (strcmp(p, "Composite") == 0)
                 opt->style = 'X';
 
-            p = strtok(NULL, " \t");
+            p = strtok(NULL, " \t"); /* spot */
             opt->spot = *p;
 
-            /* TODO order - which format? */
+            p = strtok(NULL, " \t"); /* order */
+            if (p)
+                opt->order = atoi(p);
         }
         else if (prefixcmp(key, "FoomaticRIPOptionPrototype") == 0) {
             /* "*FoomaticRIPOptionPrototype <option>: <code>"
@@ -731,8 +750,14 @@ void parse_ppd_file(const char* filename)
             }
 
             if (prefixcmp(value, "%% FoomaticRIPOptionSetting") != 0) {
-                strncpy(setting->driverval, value, 255);
-                setting->driverval[255] = '\0';
+                if (opt->type == TYPE_BOOL) {
+                    if (!strcasecmp(setting->value, "true"))
+                        strlcpy(opt->proto, value, 128);
+                    else
+                        strlcpy(opt->protof, value, 128);
+                }
+                else
+                    strlcpy(setting->driverval, value, 256);
             }
         }
         else if (prefixcmp(key, "FoomaticRIPOptionSetting") == 0) {
@@ -850,9 +875,9 @@ char * extract_next_option(char *str, char **pagerange, char **key, char **value
         *value = p;
         while (*p && *p != ' ' && *p != ',') p++;
         if (*p == '\0')
-			return NULL;
-		*p = '\0';
-		p++;
+            return NULL;
+        *p = '\0';
+        p++;
     }
 
     return *p ? p : NULL;
@@ -871,10 +896,10 @@ void process_cmdline_options()
 
     p = extract_next_option(optstr->data, &pagerange, &key, &value);
     while (key) {
-		if (value)
-        	_log("Pondering option '%s=%s'\n", key, value);
-		else
-			_log("Pondering option '%s'\n", key);
+        if (value)
+            _log("Pondering option '%s=%s'\n", key, value);
+        else
+            _log("Pondering option '%s'\n", key);
 
         /* "docs" option to print help page */
         if (!strcasecmp(key, "docs")) {
@@ -904,114 +929,116 @@ void process_cmdline_options()
         if (!strcmp(key, "nobanner") || !strcmp(key, "dest") || !strcmp(key, "protocol"))
             continue;
 
-		if (value) {
-			/* At first look for the "backend" option to determine the PPR backend to use */
-			if (spooler == SPOOLER_PPR_INT && !strcasecmp(key, "backend")) {
-				/* backend interface name */
-				strlcpy(backend, value, 64);
-			}
-			else if (strcasecmp(key, "media") == 0) {
-				/*  Standard arguments?
-					media=x,y,z
-					sides=one|two-sided-long|short-edge
-	
-					Rummage around in the media= option for known media, source,
-					etc types.
-					We ought to do something sensible to make the common manual
-					boolean option work when specified as a media= tray thing.
-	
-					Note that this fails miserably when the option value is in
-					fact a number; they all look alike.  It's unclear how many
-					drivers do that.  We may have to standardize the verbose
-					names to make them work as selections, too. */
-	
-				p = strtok(value, ",");
-				do {
-					if ((opt = find_option("PageSize"))) {
-						if ((setting = option_find_setting(opt, p))) {
-							option_set_value(opt, optset, setting->value);
-	
-							/* Keep "PageRegion" in sync */
-							opt = find_option("PageRegion");
-							if (opt && (setting = option_find_setting(opt, p)))
-								option_set_value(opt, optset, setting->value);
-						}
-						else if (startswith(p, "Custom")) {
-							option_set_value(opt, optset, p);
-							
-							/* Keep "PageRegion" in sync */
-							if ((opt = find_option("PageRegion")));
-								option_set_value(opt, optset, p);
-						}
-					}
-					else if ((opt = find_option("MediaType")) && (setting = option_find_setting(opt, p)))
-						option_set_value(opt, optset, setting->value);
-					else if ((opt = find_option("InputSlot")) && (setting = option_find_setting(opt, p)))
-						option_set_value(opt, optset, setting->value);
-					else if (!strcasecmp(p, "manualfeed")) {
-						/* Special case for our typical boolean manual 
-						feeder option if we didn't match an InputSlot above */
-						if ((opt = find_option("ManualFeed")))
-							option_set_value(opt, optset, "1");
-					}
-					else
-						_log("Unknown \"media\" component: \"%s\".\n", p);
-					
-				} while ((p = strtok(NULL, ",")));
-			}
-			else if (!strcasecmp(key, "sides")) {
-				/* Handle the standard duplex option, mostly */
-				if (!prefixcasecmp(value, "two-sided")) {
-					if ((opt = find_option("Duplex"))) {
-						/* We set "Duplex" to '1' here, the real argument setting will be done later */
-						option_set_value(opt, optset, "1");
-	
-						/* Check the binding: "long edge" or "short edge" */
-						if (strcasestr(value, "long-edge")) {
-							if ((opt2 = find_option("Binding")) && (setting = option_find_setting(opt2, "LongEdge")))
-								option_set_value(opt2, optset, setting->value);
-							else
-								option_set_value(opt2, optset, "LongEdge");
-						}
-						else if (strcasestr(value, "short-edge")) {
-							if ((opt2 = find_option("Binding")) && (setting = option_find_setting(opt2, "ShortEdge")))
-								option_set_value(opt2, optset, setting->value);
-							else
-								option_set_value(opt2, optset, "ShortEdge");
-						}
-					}
-				}
-				else if (!prefixcasecmp(value, "one-sided")) {
-					if ((opt = find_option("Duplex")))
-						/* We set "Duplex" to '0' here, the real argument setting will be done later */
-						option_set_value(opt, optset, "0");
-				}
-	
-				/*
-					We should handle the other half of this option - the
-					BindEdge bit.  Also, are there well-known ipp/cups
-					options for Collate and StapleLocation?  These may be
-					here...
-				*/
-			}
-			else {
-				/* Various non-standard printer-specific options */
-				if ((opt = find_option(key))) {
-					/* use the choice if it is valid, otherwise ignore it */
-					if (option_set_validated_value(opt, optset, value, 0))
-						sync_pagesize(opt, p, optset);
-					else
-						_log("Invalid choice %s=%s.\n", opt->name, value);
-				}
-				else if (spooler == SPOOLER_PPR_INT) {
-					/* Unknown option, pass it to PPR's backend interface */
-					/* TODO */
-				}
-				else
-					_log("Unknown option %s=%s.\n", key, value);
-			}
-		}
-		/* Custom paper size */
+        if (value) {
+            /* At first look for the "backend" option to determine the PPR backend to use */
+            if (spooler == SPOOLER_PPR_INT && !strcasecmp(key, "backend")) {
+                /* backend interface name */
+                strlcpy(backend, value, 64);
+            }
+            else if (strcasecmp(key, "media") == 0) {
+                /*  Standard arguments?
+                    media=x,y,z
+                    sides=one|two-sided-long|short-edge
+    
+                    Rummage around in the media= option for known media, source,
+                    etc types.
+                    We ought to do something sensible to make the common manual
+                    boolean option work when specified as a media= tray thing.
+    
+                    Note that this fails miserably when the option value is in
+                    fact a number; they all look alike.  It's unclear how many
+                    drivers do that.  We may have to standardize the verbose
+                    names to make them work as selections, too. */
+    
+                p = strtok(value, ",");
+                do {
+                    if ((opt = find_option("PageSize"))) {
+                        if ((setting = option_find_setting(opt, p))) {
+                            option_set_value(opt, optset, setting->value);
+    
+                            /* Keep "PageRegion" in sync */
+                            opt = find_option("PageRegion");
+                            if (opt && (setting = option_find_setting(opt, p)))
+                                option_set_value(opt, optset, setting->value);
+                        }
+                        else if (startswith(p, "Custom")) {
+                            option_set_value(opt, optset, p);
+    
+                            /* Keep "PageRegion" in sync */
+                            if ((opt = find_option("PageRegion")));
+                                option_set_value(opt, optset, p);
+                        }
+                    }
+                    else if ((opt = find_option("MediaType")) && (setting = option_find_setting(opt, p)))
+                        option_set_value(opt, optset, setting->value);
+                    else if ((opt = find_option("InputSlot")) && (setting = option_find_setting(opt, p)))
+                        option_set_value(opt, optset, setting->value);
+                    else if (!strcasecmp(p, "manualfeed")) {
+                        /* Special case for our typical boolean manual
+                        feeder option if we didn't match an InputSlot above */
+                        if ((opt = find_option("ManualFeed")))
+                            option_set_value(opt, optset, "1");
+                    }
+                    else
+                        _log("Unknown \"media\" component: \"%s\".\n", p);
+    
+                } while ((p = strtok(NULL, ",")));
+            }
+            else if (!strcasecmp(key, "sides")) {
+                /* Handle the standard duplex option, mostly */
+                if (!prefixcasecmp(value, "two-sided")) {
+                    if ((opt = find_option("Duplex"))) {
+                        /* We set "Duplex" to '1' here, the real argument setting will be done later */
+                        option_set_value(opt, optset, "1");
+    
+                        /* Check the binding: "long edge" or "short edge" */
+                        if (strcasestr(value, "long-edge")) {
+                            if ((opt2 = find_option("Binding")) && (setting = option_find_setting(opt2, "LongEdge")))
+                                option_set_value(opt2, optset, setting->value);
+                            else
+                                option_set_value(opt2, optset, "LongEdge");
+                        }
+                        else if (strcasestr(value, "short-edge")) {
+                            if ((opt2 = find_option("Binding")) && (setting = option_find_setting(opt2, "ShortEdge")))
+                                option_set_value(opt2, optset, setting->value);
+                            else
+                                option_set_value(opt2, optset, "ShortEdge");
+                        }
+                    }
+                }
+                else if (!prefixcasecmp(value, "one-sided")) {
+                    if ((opt = find_option("Duplex")))
+                        /* We set "Duplex" to '0' here, the real argument setting will be done later */
+                        option_set_value(opt, optset, "0");
+                }
+    
+                /*
+                    We should handle the other half of this option - the
+                    BindEdge bit.  Also, are there well-known ipp/cups
+                    options for Collate and StapleLocation?  These may be
+                    here...
+                */
+            }
+            else {
+                /* Various non-standard printer-specific options */
+                if ((opt = find_option(key))) {
+                    /* use the choice if it is valid, otherwise ignore it */
+                    if (option_set_validated_value(opt, optset, value, 0))
+                        sync_pagesize(opt, p, optset);
+                    else
+                        _log("Invalid choice %s=%s.\n", opt->name, value);
+                }
+                else if (spooler == SPOOLER_PPR_INT) {
+                    /* Unknown option, pass it to PPR's backend interface */
+                    if (!backendoptions)
+                        backendoptions = create_dstr();
+                    dstrcatf(backendoptions, "%s=%s ", key, value);
+                }
+                else
+                    _log("Unknown option %s=%s.\n", key, value);
+            }
+        }
+        /* Custom paper size */
         else if (sscanf(key, "%dx%d%2c", &width, &height, unit) == 3 &&
             width != 0 && height != 0 &&
             (opt = find_option("PageSize")) &&
@@ -1036,7 +1063,7 @@ void process_cmdline_options()
 
         /* get next option */
         p = extract_next_option(p, &pagerange, &key, &value);
-	} 
+    }
 }
 
 /* Checks whether an argument named 'name' exists and returns its index or 0 if it doesn't exist */
@@ -1178,7 +1205,7 @@ FILE * check_pdq_file(int argc, char **argv)
                 "  filter_exec {\n"
                 "    ln -s $INPUT $OUTPUT\n"
                 "  }\n"
-                "}", (unsigned int)time(NULL));
+                "}", (unsigned int)curtime);
         if (handle != stdout) {
             fclose(handle);
             handle = NULL;
@@ -1237,7 +1264,7 @@ void init_ppr(int rargc, char **rargv)
         /* Common job parameters */
         strcpy(printer, ppr_printer);
         strcpy(jobtitle, ppr_jobname);
-        if (isempty(jobtitle) && ppr_filetoprint)
+        if (isempty(jobtitle) && !isempty(ppr_filetoprint))
             strcpy(jobtitle, ppr_filetoprint);
         dstrcatf(optstr, " %s %s", ppr_options, ppr_routing);
 
@@ -1810,7 +1837,7 @@ void print_pdq_driver(FILE *pdqfile, int optset)
         "%s" /* psfilter */
         "  }\n"
         "}\n",
-        tmp->data, /* cleaned printer_model */ (unsigned int)time(NULL), ppdfile, printer_model,
+        tmp->data, /* cleaned printer_model */ (unsigned int)curtime, ppdfile, printer_model,
         driveropts->data, setcustompagesize->data, psfilter->data);
     
     
@@ -1853,16 +1880,16 @@ int modern_system(const char *cmd)
 /* escapes all format strings, except %s */
 void escape_format_strings(char *dest, size_t size, char *src)
 {
-	while (*src && --size > 0) {
-		if (*src == '%' && *(src +1) != 's') {
-			*dest++ = '%';
-			*dest++ = '%';
-		}
-		else
-			*dest++ = *src;
-		src++;
-	}
-	*dest = '\0';
+    while (*src && --size > 0) {
+        if (*src == '%' && *(src +1) != 's') {
+            *dest++ = '%';
+            *dest++ = '%';
+        }
+        else
+            *dest++ = *src;
+        src++;
+    }
+    *dest = '\0';
 }
 
 /* build a renderer command line, based on the given option set */
@@ -1873,14 +1900,19 @@ void build_commandline(int optset)
     setting_t *setting;
     char driverval [256];
     char userval [128];
-	char tmp [256];
+    char tmp [256];
     char *s, *p, *key, *value;
     dstr_t *cmdvar = create_dstr();
     dstr_t *open = create_dstr();
     dstr_t *close = create_dstr();
     float width, height;
     char unit[3];
-	char letters[] = "%A %B %C %D %E %F %G %H %I %J %K %L %M %W %X %Y %Z";
+    char letters[] = "%A %B %C %D %E %F %G %H %I %J %K %L %M %W %X %Y %Z";
+
+    dstrclear(prologprepend);
+    dstrclear(setupprepend);
+    dstrclear(pagesetupprepend);
+    dstrclear(cupspagesetupprepend);
     
     dstrcpy(currentcmd, cmd);
 
@@ -1951,7 +1983,7 @@ void build_commandline(int optset)
         if (opt->style == 'X')
             continue;
 
-		dstrclear(cmdvar);
+        dstrclear(cmdvar);
 
         /* If we have both "PageSize" and "PageRegion" options, we kept
         them all the time in sync, so we don't need to insert the settings
@@ -1972,7 +2004,7 @@ void build_commandline(int optset)
                 if (!isempty(userval) && !strcmp(userval, "1"))
                     dstrcpyf(cmdvar, "%s", opt->proto);
                 else if (!isempty(opt->protof)) {
-                    userval[0] = '\0';
+                    strlcpy(userval, "0", 128);
                     dstrcpy(cmdvar, opt->protof);
                 }
                 break;
@@ -1983,9 +2015,9 @@ void build_commandline(int optset)
                 the command line or postscript queue */
                 if (!isempty(userval)) {
                     /* We have already range checked, correct only
-					floating point inaccuracies here */  /* TODO check if this is really necessary */
+                    floating point inaccuracies here */  /* TODO check if this is really necessary */
 
-					escape_format_strings(tmp, 256, opt->proto);
+                    escape_format_strings(tmp, 256, opt->proto);
                     dstrcpyf(cmdvar, tmp, userval);
                 }
                 break;
@@ -2055,7 +2087,7 @@ void build_commandline(int optset)
 
 
                     if (setting) {
-						escape_format_strings(tmp, 256, opt->proto);
+                        escape_format_strings(tmp, 256, opt->proto);
                         dstrcpyf(cmdvar, tmp,
                                  isempty(setting->driverval) ?
                                          setting->value : setting->driverval);
@@ -2110,15 +2142,15 @@ void build_commandline(int optset)
                 if (!isempty(userval)) {
                     if ((setting = option_find_setting(opt, userval))) {
                         strcpy(userval, setting->value);
-						/* TODO perl code inserts driverval when it is defined, even when it is empty
-						        is it ever NOT defined? */
+                        /* TODO perl code inserts driverval when it is defined, even when it is empty
+                                is it ever NOT defined? */
                         /* dstrcpy(cmdvar, isempty(setting->driverval) ? setting->value : setting->driverval); */
-						
-						/* HACK always insert setting->driverval to have same behavior as the perl version */
-						dstrcpy(cmdvar, setting->driverval);
+    
+                        /* HACK always insert setting->driverval to have same behavior as the perl version */
+                        dstrcpy(cmdvar, setting->driverval);
                     }
                     else {
-						escape_format_strings(tmp, 256, opt->proto);
+                        escape_format_strings(tmp, 256, opt->proto);
                         dstrcpyf(cmdvar, tmp, userval);
                     }
                 }
@@ -2137,15 +2169,15 @@ void build_commandline(int optset)
             /* Place this Postscript command onto the prepend queue
             for the appropriate section. */
             if (cmdvar->len) {
-                dstrcpyf(open, "[{\n%%BeginFeature: *%s ", opt->name);
+                dstrcpyf(open, "[{\n%%%%BeginFeature: *%s ", opt->name);
                 if (opt->type == TYPE_BOOL)
                     dstrcatf(open, userval[0] == '1' ? "True\n" : "False\n");
                 else
                     dstrcatf(open, "%s\n", userval);
-                dstrcpyf(close, "\n%%EndFeature\n} stopped cleartomark\n");
+                dstrcpyf(close, "\n%%%%EndFeature\n} stopped cleartomark\n");
                 
                 if (!strcmp(opt->section, "Prolog")) {
-					dstrcatf(prologprepend, "%s%s%s", open->data, cmdvar->data, close->data);
+                    dstrcatf(prologprepend, "%s%s%s", open->data, cmdvar->data, close->data);
                     o = opt;
                     while (o->controlledby) {
                         /* Collect option PostScript code to be inserted when
@@ -2157,10 +2189,10 @@ void build_commandline(int optset)
                 }
                 else if (!strcmp(opt->section, "AnySetup")) {
                     if (optset != optionset("currentpage"))
-						dstrcatf(setupprepend, "%s%s%s", open->data, cmdvar->data, close->data);
+                        dstrcatf(setupprepend, "%s%s%s", open->data, cmdvar->data, close->data);
                     else if (strcmp(option_get_value_string(opt, optionset("header")), userval)) {
-						dstrcatf(pagesetupprepend, "%s%s%s", open->data, cmdvar->data, close->data);
-						dstrcatf(cupspagesetupprepend, "%s%s%s", open->data, cmdvar->data, close->data);
+                        dstrcatf(pagesetupprepend, "%s%s%s", open->data, cmdvar->data, close->data);
+                        dstrcatf(cupspagesetupprepend, "%s%s%s", open->data, cmdvar->data, close->data);
                     }
                     o = opt;
                     while (o->controlledby) {
@@ -2173,7 +2205,7 @@ void build_commandline(int optset)
                     }
                 }
                 else if (!strcmp(opt->section, "DocumentSetup")) {
-					dstrcatf(setupprepend, "%s%s%s", open->data, cmdvar->data, close->data);
+                    dstrcatf(setupprepend, "%s%s%s", open->data, cmdvar->data, close->data);
                     o = opt;
                     while (o->controlledby) {
                         /* Collect option PostScript code to be inserted when
@@ -2184,7 +2216,7 @@ void build_commandline(int optset)
                     }
                 }
                 else if (!strcmp(opt->section, "PageSetup")) {
-					dstrcatf(pagesetupprepend, "%s%s%s", open->data, cmdvar->data, close->data);
+                    dstrcatf(pagesetupprepend, "%s%s%s", open->data, cmdvar->data, close->data);
                     o = opt;
                     while (o->controlledby) {
                         /* Collect option PostScript code to be inserted when
@@ -2285,7 +2317,7 @@ void build_commandline(int optset)
         dstrcatf(jclprepend, "%s", jcltointerpreter);
 
         /* Arrange for JCL RESET command at the end of job */
-        dstrcatf(jclappend, jclend);
+        dstrcatf(jclappend, "%s", jclend);
     }
     else {
         dstrclear(jclprepend);
@@ -2399,7 +2431,7 @@ void get_renderer_handle(const dstr_t *prepend, int *fd, pid_t *pid)
     _log("Starting renderer\n");
 
     /* Catch signals */
-	retval = EXIT_PRINTED;
+    retval = EXIT_PRINTED;
     signal(SIGUSR1, set_exit_prnerr);
     signal(SIGUSR2, set_exit_prnerr_noretry);
     signal(SIGTTIN, set_exit_engaged);
@@ -2414,7 +2446,7 @@ void get_renderer_handle(const dstr_t *prepend, int *fd, pid_t *pid)
     dstrcpy(commandline, currentcmd->data);
 
     pipe(pfd_kid3);
-	
+    
     kid3 = fork();
     if (kid3 < 0) {
         close(pfd_kid3[0]);
@@ -2440,7 +2472,7 @@ void get_renderer_handle(const dstr_t *prepend, int *fd, pid_t *pid)
             close(pfd_kid4[1]);
             _log("cannot fork for kid4!\n");
             snprintf(tmp, 256, "3 %d\n", EXIT_PRNERR_NORETRY_BAD_SETTINGS);
-            write(pfd_kid_message[0], tmp, strlen(tmp));
+            write(pfd_kid_message[1], tmp, strlen(tmp));
             close(pfd_kid_message[0]);
             close(pfd_kid_message[1]);
             exit(EXIT_PRNERR_NORETRY_BAD_SETTINGS);
@@ -2467,7 +2499,7 @@ void get_renderer_handle(const dstr_t *prepend, int *fd, pid_t *pid)
                 close(pfd_kid3[0]);
                 close(pfd_kid4[1]);
                 snprintf(tmp, 256, "3 %d\n", EXIT_PRNERR_NORETRY_BAD_SETTINGS);
-                write(pfd_kid_message[0], tmp, strlen(tmp));
+                write(pfd_kid_message[1], tmp, strlen(tmp));
                 close(pfd_kid_message[0]);
                 close(pfd_kid_message[1]);
                 _log("Couldn't dup KID3_IN\n");
@@ -2477,17 +2509,17 @@ void get_renderer_handle(const dstr_t *prepend, int *fd, pid_t *pid)
                 close(pfd_kid3[0]);
                 close(pfd_kid4[1]);
                 snprintf(tmp, 256, "3 %d\n", EXIT_PRNERR_NORETRY_BAD_SETTINGS);
-                write(pfd_kid_message[0], tmp, strlen(tmp));
+                write(pfd_kid_message[1], tmp, strlen(tmp));
                 close(pfd_kid_message[0]);
                 close(pfd_kid_message[1]);
                 _log("Couldn't close STDOUT in %d\n", kid4);
                 exit(EXIT_PRNERR_NORETRY_BAD_SETTINGS);
             }
-            if (dup2(pfd_kid4[1], STDIN_FILENO) == -1) {
+            if (dup2(pfd_kid4[1], STDOUT_FILENO) == -1) {
                 close(pfd_kid3[0]);
                 close(pfd_kid4[1]);
                 snprintf(tmp, 256, "3 %d\n", EXIT_PRNERR_NORETRY_BAD_SETTINGS);
-                write(pfd_kid_message[0], tmp, strlen(tmp));
+                write(pfd_kid_message[1], tmp, strlen(tmp));
                 close(pfd_kid_message[0]);
                 close(pfd_kid_message[1]);
                 _log("Couldn't dup KID4\n");
@@ -2498,7 +2530,7 @@ void get_renderer_handle(const dstr_t *prepend, int *fd, pid_t *pid)
                     close(pfd_kid3[0]);
                     close(pfd_kid4[1]);
                     snprintf(tmp, 256, "3 %d\n", EXIT_PRNERR_NORETRY_BAD_SETTINGS);
-                    write(pfd_kid_message[0], tmp, strlen(tmp));
+                    write(pfd_kid_message[1], tmp, strlen(tmp));
                     close(pfd_kid_message[0]);
                     close(pfd_kid_message[1]);
                     _log("Couldn't dup logh to STDERR\n");
@@ -2533,7 +2565,7 @@ void get_renderer_handle(const dstr_t *prepend, int *fd, pid_t *pid)
             renderer also into a file */
             if (conf.debug) {
                 dstrprepend(commandline, "tee -a " LOG_FILE ".ps | ( ");
-                dstrcatf(commandline, ")");
+                dstrcat(commandline, ")");
             }
 
             /* Actually run the thing */
@@ -2622,12 +2654,13 @@ void get_renderer_handle(const dstr_t *prepend, int *fd, pid_t *pid)
                 }
             }
             close(STDOUT_FILENO);
-            close(pfd_kid4[0]);
+            close(pfd_kid4[1]);
             close(STDIN_FILENO);
-            close(pfd_kid3[1]);
+            close(pfd_kid3[0]);
             /* When arrived here the renderer command line was successful
             So exit with zero exit value here and inform the main process */
             snprintf(tmp, 256, "3 %d\n", EXIT_PRINTED);
+			write(pfd_kid_message[1], tmp, strlen(tmp));
             close(pfd_kid_message[0]);
             close(pfd_kid_message[1]);
             /* wait for postpipe/output child */
@@ -2642,13 +2675,14 @@ void get_renderer_handle(const dstr_t *prepend, int *fd, pid_t *pid)
 
             /* Do we have a $postpipe, if yes, launch the command(s) and
             point our output into it/them */
-            if (!isempty(postpipe)) {
-                if ((fileh = open(postpipe, O_WRONLY)) == -1) {
+            if (postpipe->len) {
+                if ((fileh = open(postpipe->data, O_WRONLY)) == -1) {
                     close(pfd_kid4[0]);
                     snprintf(tmp, 256, "4 %d\n", EXIT_PRNERR_NORETRY_BAD_SETTINGS);
+					write(pfd_kid_message[1], tmp, strlen(tmp));
                     close(pfd_kid_message[0]);
                     close(pfd_kid_message[1]);
-                    _log("cannot execute postpipe %s\n", postpipe);
+                    _log("cannot execute postpipe %s\n", postpipe->data);
                     exit(EXIT_PRNERR_NORETRY_BAD_SETTINGS);
                 }
             }
@@ -3327,19 +3361,19 @@ void append_prolog_section(dstr_t *str, int optset, int comments)
     /* Start comment */
     if (comments) {
         _log("\"Prolog\" section is missing, inserting it.\n");
-        dstrcatf(str, "%%%%BeginProlog\n");
+        dstrcat(str, "%%BeginProlog\n");
     }
 
     /* Generate the option code (not necessary when CUPS is spooler) */
     if (spooler != SPOOLER_CUPS) {
         _log("Inserting option code into \"Prolog\" section.\n");
         build_commandline(optset);
-        dstrcatf(str, "%s", prologprepend->data);
+        dstrcat(str, prologprepend->data);
     }
 
     /* End comment */
     if (comments)
-        dstrcatf(str, "%%%%EndProlog\n");
+        dstrcat(str, "%%EndProlog\n");
 }
 
 void append_setup_section(dstr_t *str, int optset, int comments)
@@ -3347,24 +3381,24 @@ void append_setup_section(dstr_t *str, int optset, int comments)
     /* Start comment */
     if (comments) {
         _log("\"Setup\" section is missing, inserting it.\n");
-        dstrcatf(str, "%%%%BeginSetup\n");
+        dstrcat(str, "%%BeginSetup\n");
     }
 
     /* PostScript code to generate accounting messages for CUPS */
     if (spooler == SPOOLER_CUPS) {
         _log("Inserting PostScript code for CUPS' page accounting\n");
-        dstrcatf(str, "%s", accounting_prolog);
+        dstrcat(str, accounting_prolog);
     }
     /* Generate the option code (not necessary when CUPS is spooler) */
     else {
         _log("Inserting option code into \"Setup\" section.\n");
         build_commandline(optset);
-        dstrcatf(str, "%s", setupprepend->data);
+        dstrcat(str, setupprepend->data);
     }
 
     /* End comment */
     if (comments)
-        dstrcatf(str, "%%%%EndSetup\n");
+        dstrcat(str, "%%EndSetup\n");
 }
 
 void append_page_setup_section(dstr_t *str, int optset, int comments)
@@ -3372,20 +3406,20 @@ void append_page_setup_section(dstr_t *str, int optset, int comments)
     /* Start comment */
     if (comments) {
         _log("\"PageSetup\" section is missing, inserting it.\n");
-        dstrcatf(str, "%%%%BeginPageSetup\n");
+        dstrcat(str, "%%BeginPageSetup\n");
     }
 
     /* Generate the option code (not necessary when CUPS is spooler) */
     _log("Inserting option code into \"PageSetup\" section.\n");
     build_commandline(optset);
     if (spooler == SPOOLER_CUPS)
-        dstrcatf(str, "%s", cupspagesetupprepend->data);
+        dstrcat(str, cupspagesetupprepend->data);
     else
-        dstrcatf(str, "%s", pagesetupprepend->data);
+        dstrcat(str, pagesetupprepend->data);
 
     /* End comment */
     if (comments)
-        dstrcatf(str, "%%EndPageSetup\n");
+        dstrcat(str, "%%EndPageSetup\n");
 }
 
 /* little helper function for print_file */
@@ -3515,6 +3549,14 @@ void print_file()
                                "$maxlines = 0"  means that all will be read and
                                examined. If it is  discovered that the input
                                file  is DSC-conforming, this will  be set to 0. */
+
+    int maxlinestopsstart = 200;    /* That many lines are allowed until the
+                                      "%!" indicating PS comes. These
+                                      additional lines in the
+                                      beginning are usually JCL
+                                      commands. The lines will be
+                                      ignored by our parsing but
+                                      passed through. */
 
     int printprevpage = 0;  /* We set this when encountering "%%Page:" and the
                                previous page is not printed yet. Then it will
@@ -3665,44 +3707,51 @@ void print_file()
                     nonpslines++;
                     if (maxlines == nonpslines)
                         maxlines ++;
-
-                    /* Reset all variables but conserve the data which we have already read */
                     jobhasjcl = 1;
-                    linect = 0;
-                    nonpslines = 1; /* Take into account that the line of this run of the loop
-                                       will be put into @psheader, so the first line read by
-                                       the file converter is already the second line */
-                    maxlines = 1001;
 
-                    dstrclear(onelinebefore);
-                    dstrclear(twolinesbefore);
+                    if (nonpslines > maxlinestopsstart) {
+                        /* This is not a PostScript job, we must convert it */
+                        _log("Job does not start with \"%%!\", is it Postscript?\n"
+                             "Starting file converter\n");
 
-                    dstrcpyf(tmp, "%s%s%s", psheader, psfifo, line);
-                    dstrclear(psheader);
-                    dstrclear(psfifo);
-                    dstrclear(line);
+                        /* Reset all variables but conserve the data which we have already read */
+                        jobhasjcl = 0;
+                        linect = 0;
+                        nonpslines = 1; /* Take into account that the line of this run of the loop
+                                        will be put into @psheader, so the first line read by
+                                        the file converter is already the second line */
+                        maxlines = 1001;
 
-                    /* Start the file conversion filter */
-                    if (!fileconverter_pid) {
-                        get_fileconverter_handle(tmp->data, &fileconverter_handle, &fileconverter_pid);
-                        if (retval != EXIT_PRINTED) {
-                            _log("Error opening file converter\n");
-                            exit(retval);
+                        dstrclear(onelinebefore);
+                        dstrclear(twolinesbefore);
+
+                        dstrcpyf(tmp, "%s%s%s", psheader, psfifo, line);
+                        dstrclear(psheader);
+                        dstrclear(psfifo);
+                        dstrclear(line);
+
+                        /* Start the file conversion filter */
+                        if (!fileconverter_pid) {
+                            get_fileconverter_handle(tmp->data, &fileconverter_handle, &fileconverter_pid);
+                            if (retval != EXIT_PRINTED) {
+                                _log("Error opening file converter\n");
+                                exit(retval);
+                            }
                         }
-                    }
-                    else {
-                        _log("File conversion filter probably crashed\n");
-                        exit(EXIT_JOBERR);
-                    }
+                        else {
+                            _log("File conversion filter probably crashed\n");
+                            exit(EXIT_JOBERR);
+                        }
 
-                    /* Read the further data from the file converter and not from STDIN */
-                    if (close(STDIN_FILENO) == -1 && errno != ESPIPE) {
-                        _log("Couldn't close STDIN\n");
-                        exit(EXIT_PRNERR_NORETRY_BAD_SETTINGS);
-                    }
-                    if (dup2(STDIN_FILENO, fileconverter_handle) == -1) {
-                        _log("Couldn't dup fileconverter_handle\n");
-                        exit(EXIT_PRNERR_NORETRY_BAD_SETTINGS);
+                        /* Read the further data from the file converter and not from STDIN */
+                        if (close(STDIN_FILENO) == -1 && errno != ESPIPE) {
+                            _log("Couldn't close STDIN\n");
+                            exit(EXIT_PRNERR_NORETRY_BAD_SETTINGS);
+                        }
+                        if (dup2(STDIN_FILENO, fileconverter_handle) == -1) {
+                            _log("Couldn't dup fileconverter_handle\n");
+                            exit(EXIT_PRNERR_NORETRY_BAD_SETTINGS);
+                        }
                     }
                 }
                 else {
@@ -3717,7 +3766,7 @@ void print_file()
                             insertoptions = linect + 1;
                             /* We have written into psfifo before, now we continue in
                                psheader and move over the data which is already in psfifo */
-                            dstrcatf(psheader, "%s", psfifo->data);
+                            dstrcat(psheader, psfifo->data);
                             dstrclear(psfifo);
                         }
                         _log("--> This document is DSC-conforming!\n");
@@ -3771,7 +3820,7 @@ void print_file()
                         many "dvips" (TeX/LaTeX) files miss the "%%BeginProlog"
                         comment.
                         Beginning of Prolog */
-                        _log("-----------\nFound: \%\%BeginProlog\n");
+                        _log("-----------\nFound: %%%%BeginProlog\n");
                         inprolog = 1;
                         if (inheader)
                             postscriptsection = PS_SECTION_PROLOG;
@@ -3784,13 +3833,13 @@ void print_file()
                     }
                     else if (nestinglevel == 0 && startswith(line->data, "%%EndProlog")) {
                         /* End of Prolog */
-                        _log("Found: \%\%EndProlog\n");
+                        _log("Found: %%%%EndProlog\n");
                         inprolog = 0;
                         insertoptions = linect +1;
                     }
                     else if (nestinglevel == 0 && startswith(line->data, "%%BeginSetup")) {
                         /* Beginning of Setup */
-                        _log("-----------\nFound: \%\%BeginSetup\n");
+                        _log("-----------\nFound: %%%%BeginSetup\n");
                         insetup = 1;
                         nondsclines = 0;
                         /* We need to distinguish with the $inheader variable
@@ -3829,12 +3878,12 @@ void print_file()
                             restart of the renderer due to command line
                             option changes */
                             optionsalsointoheader = 1;
-                            _log("\"\%\%BeginSetup\" in page header\n");
+                            _log("\"%%%%BeginSetup\" in page header\n");
                         }
                     }
                     else if (nestinglevel == 0 && startswith(line->data, "%%EndSetup")) {
                         /* End of Setup */
-                        _log("Found: \%\%EndSetup\n");
+                        _log("Found: %%%%EndSetup\n");
                         insetup = 0;
                         if (inheader) {
                             if (spooler == SPOOLER_CUPS) {
@@ -3863,7 +3912,6 @@ void print_file()
                         }
                     }
                     else if (nestinglevel == 0 && startswith(line->data, "%%Page:")) {
-                        p = strstr(line->data, "%%Page") + 6;
                         if (!lastpassthru && !inheader) {
                             /* In the last line we were not in passthru mode,
                             so the last page is not printed. Prepare to do
@@ -3875,7 +3923,7 @@ void print_file()
                         else {
                             /* the previous page is printed, so we can prepare
                             the current one */
-                            _log("-----------\nNew page: %s", p);
+                            _log("-----------\nNew page: %s", line->data);
                             printprevpage = 0;
                             currentpage++;
                             /* We consider the beginning of the page already as
@@ -3908,7 +3956,7 @@ void print_file()
                                     setupfound = 1;
                                 }
                                 /* Now we push this into the header */
-                                dstrcatf(psheader, "%s", tmp->data);
+                                dstrcat(psheader, tmp->data);
 
                                 /* The first page starts, so header ends */
                                 inheader = 0;
@@ -3983,7 +4031,7 @@ void print_file()
                     else if (nestinglevel == 0 && !ignorepageheader &&
                             startswith(line->data, "%%BeginPageSetup")) {
                         /* End of the page header, the page is ready to be printed */
-                        _log("Found: %%EndPageSetup\n");
+                        _log("Found: %%%%EndPageSetup\n");
                         _log("End of page header\n");
                         /* We cannot for sure say that the page header ends here
                         OpenOffice.org puts (due to a bug) a "%%BeginSetup...
@@ -4110,8 +4158,8 @@ void print_file()
                                         enumerated choices */
                                         val = option_get_value(o, optset);
                                         dstrcatf(pdest, "%%%%BeginFeature: *%s %s", o->name, val ? val->value : "");
-										dstrassure(tmp, 256);
-										escape_format_strings(tmp->data, tmp->len, o->proto);
+                                        dstrassure(tmp, 256);
+                                        escape_format_strings(tmp->data, tmp->len, o->proto);
                                         dstrcpyf(tmp, tmp->data, val->value);
                                         dstrcatf(pdest, "%s\n", tmp->data);
                                     }
@@ -4174,13 +4222,13 @@ void print_file()
                                         if (o->style == 'X' && linetype == LT_FOOMATIC_RIP_OPTION_SETTING) {
                                             build_commandline(optset);
                                             if (postscriptsection == PS_SECTION_JCLSETUP)
-                                                dstrcatf(line, "%s", o->jclsetup->data);
+                                                dstrcat(line, o->jclsetup->data);
                                             else if (postscriptsection == PS_SECTION_PROLOG)
-                                                dstrcatf(line, "%s", o->prolog->data);
+                                                dstrcat(line, o->prolog->data);
                                             else if (postscriptsection == PS_SECTION_SETUP)
-                                                dstrcatf(line, "%s", o->setup->data);
+                                                dstrcat(line, o->setup->data);
                                             else if (postscriptsection == PS_SECTION_PAGESETUP)
-                                                dstrcatf(line, "%s", o->pagesetup->data);
+                                                dstrcat(line, o->pagesetup->data);
                                         }
 
                                         /* If this argument is PageSize or PageRegion, also set the other */
@@ -4264,7 +4312,7 @@ void print_file()
                         /* Collect coe in a "%%BeginFeature: ... %%EndFeature"
                         section, to get the values for a custom option
                         setting */
-                        dstrcatf(linesafterlastbeginfeature, "%s", line->data);
+                        dstrcat(linesafterlastbeginfeature, line->data);
 
                     if (inheader) {
                         if (!inprolog && !insetup) {
@@ -4337,13 +4385,13 @@ void print_file()
             an option setting, we have to copy the line also to the
             @psheader. */
             if (optionsalsointoheader && (infeature || startswith(line->data, "%%EndFeature")))
-                dstrcatf(psheader, line->data);
+                dstrcat(psheader, line->data);
 
             /* Store or send the current line */
             if (inheader && isdscjob) {
                 /* We are still in the PostScript header, collect all lines
                 in @psheader */
-                dstrcatf(psheader, line->data);
+                dstrcat(psheader, line->data);
             }
             else {
                 if (passthru && isdscjob) {
@@ -4366,7 +4414,7 @@ void print_file()
                     if (!rendererpid) {
                         /* No renderer running, start it */
                         dstrcpy(tmp, psheader->data);
-                        dstrcatf(tmp, "%s", psfifo->data);
+                        dstrcat(tmp, psfifo->data);
                         get_renderer_handle(tmp, &rendererhandle, &rendererpid);
                         if (retval != EXIT_PRINTED) {
                             _log("Error opening renderer\n");
@@ -4403,7 +4451,7 @@ void print_file()
                 }
                 else {
                     /* Push the line onto the stack to split up later */
-                    dstrcatf(psfifo, "%s", line->data);
+                    dstrcat(psfifo, line->data);
                 }
             }
 
@@ -4434,7 +4482,7 @@ void print_file()
                 dstrclear(line);
                 
                 dstrcpy(tmp, psheader->data);
-                dstrcatf(tmp, "%s", psfifo);
+                dstrcat(tmp, psfifo->data);
                 dstrclear(psfifo);
                 dstrclear(psheader);
 
@@ -4523,13 +4571,19 @@ void print_file()
 
         if (!rendererpid) {
             dstrcpy(tmp, psheader->data);
-            dstrcatf(tmp, "%s", psfifo);
+            dstrcat(tmp, psfifo->data);
             get_renderer_handle(tmp, &rendererhandle, &rendererpid);
             if (retval != EXIT_PRINTED) {
                 _log("Error opening renderer\n");
                 exit(retval);
             }
             /* We have sent psfifo now */
+            dstrclear(psfifo);
+        }
+
+        if (psfifo->len) {
+            /* Send psfifo to the renderer */
+            write(rendererhandle, psfifo->data, psfifo->len);
             dstrclear(psfifo);
         }
 
@@ -4602,8 +4656,14 @@ int main(int argc, char** argv)
     cupspagesetupprepend = create_dstr();
     jclprepend = create_dstr();
     jclappend = create_dstr();
+    postpipe = create_dstr();
 
-	init_optionlist();
+    init_optionlist();
+
+
+    /* set the time once to keep output consistent */
+    curtime = time(NULL);
+    fill_timestrings(&curtime_strings, curtime);
 
 
     strlcpy(programdir, argv[0], 256);
@@ -4630,10 +4690,10 @@ int main(int argc, char** argv)
         free(cwd);
         cwd = malloc(i);
     } while (!getcwd(cwd, i));
-	
-	gethostname(jobhost, 128);
-	getlogin_r(jobuser, 128); /* TODO returns with error "no such process" */
-	snprintf(jobtitle, 128, "%s@%s", jobuser, jobhost);
+    
+    gethostname(jobhost, 128);
+    getlogin_r(jobuser, 128); /* TODO returns with error "no such process" */
+    snprintf(jobtitle, 128, "%s@%s", jobuser, jobhost);
 
 
     /* Path for personal Foomatic configuration */
@@ -4794,7 +4854,7 @@ int main(int argc, char** argv)
 
     /* Options for spooler-less printing, CPS, or PDQ */
     while ((str = get_option_value("-o", argc, argv))) {
-		strncpy_omit(tmp, str, 1024, omit_shellescapes);
+        strncpy_omit(tmp, str, 1024, omit_shellescapes);
         dstrcatf(optstr, "%s ", tmp);
         remove_option("-o", argc, argv);
         /* If we don't print as PPR RIP or as CPS filter, we print
@@ -5030,7 +5090,6 @@ int main(int argc, char** argv)
         exit(EXIT_PRINTED);
     }
 
-    /* TODO can this be moved to the other initialisation */
     if (spooler == SPOOLER_PPR_INT) {
         snprintf(tmp, 1024, "interfaces/%s", backend);
         if (access(tmp, X_OK) != 0) {
@@ -5054,16 +5113,16 @@ int main(int argc, char** argv)
             "\"$ppr_for\" \"\" )";
         */
     }
-    
+
     /* no postpipe for CUPS or PDQ, even if one is defined in the PPD file */
     if (spooler == SPOOLER_CUPS || spooler == SPOOLER_PDQ)
-        postpipe[0] = '\0';
+        dstrclear(postpipe);
 
     /* CPS always needs a postpipe, set the default one for local printing if none is set */
-    if (spooler == SPOOLER_CPS && isempty(postpipe))
-        strcpy(postpipe, "| cat - > $LPDDEV");
+    if (spooler == SPOOLER_CPS && !postpipe->len)
+        dstrcpy(postpipe, "| cat - > $LPDDEV");
 
-    if (!isempty(postpipe))
+    if (postpipe->len)
         _log("Ouput will be redirected to:\n%s\n", postpipe);
 
     
@@ -5083,7 +5142,7 @@ int main(int argc, char** argv)
         modern_system("> " LOG_FILE ".ps");
 
 
-	filename = strtok_r(filelist->data, " ", &p);
+    filename = strtok_r(filelist->data, " ", &p);
     do {
         _log("================================================\n"
              "File: %s\n"
@@ -5108,7 +5167,7 @@ int main(int argc, char** argv)
             /* Raw queue, simply pass the input into the postpipe (or to STDOUT
                when there is no postpipe) */
             _log("Raw printing, executing \"cat %s\"\n");
-            snprintf(tmp, 1024, "cat %s", postpipe);
+            snprintf(tmp, 1024, "cat %s", postpipe->data);
             modern_system(tmp);
             continue;
         }
@@ -5121,8 +5180,8 @@ int main(int argc, char** argv)
         optionset_copy_values(optionset("userval"), optionset("header"));
 
         print_file();
-	}
-	while ((filename = strtok_r(NULL, " ", &p)));
+    }
+    while ((filename = strtok_r(NULL, " ", &p)));
 
     /* Close documentation page generator */
     /* if (docgenerator_pid) {
@@ -5160,6 +5219,9 @@ int main(int argc, char** argv)
     free_dstr(cupspagesetupprepend);
     free_dstr(jclprepend);
     free_dstr(jclappend);
+    if (backendoptions)
+        free_dstr(backendoptions);
+    free_dstr(postpipe);
 
     return retval;
 }

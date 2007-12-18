@@ -370,6 +370,22 @@ void dstrcpyf(dstr_t *ds, const char *src, ...)
     ds->len = srclen;
 }
 
+void dstrcat(dstr_t *ds, const char *src)
+{
+    size_t srclen = strlen(src);
+    size_t newlen = ds->len + srclen;
+
+    if (newlen >= ds->alloc) {
+        do {
+            ds->alloc *= 2;
+        } while (newlen >= ds->alloc);
+        ds->data = realloc(ds->data, ds->alloc);
+    }
+
+    memcpy(&ds->data[ds->len], src, srclen +1);
+    ds->len = newlen;
+}
+
 void dstrcatf(dstr_t *ds, const char *src, ...)
 {
     va_list ap;
@@ -388,7 +404,7 @@ void dstrcatf(dstr_t *ds, const char *src, ...)
         ds->data = realloc(ds->data, ds->alloc);
         
         va_start(ap, src);
-        vsnprintf(&ds->data[ds->len], restlen, src, ap);
+        srclen = vsnprintf(&ds->data[ds->len], restlen, src, ap);
         va_end(ap);
     }
     
@@ -416,7 +432,7 @@ size_t fgetdstr(dstr_t *ds, FILE *stream)
         if (c == '\n')
             break;
     }
-    ds->data[ds->len++] = '\0';
+    ds->data[ds->len] = '\0';
     return cnt;
 }
 

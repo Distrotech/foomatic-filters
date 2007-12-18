@@ -322,31 +322,29 @@ setting_t *option_assure_setting(option_t* opt, const char *value)
 
 void option_set_order(option_t *opt, int order)
 {
-    option_t *o, *last;
+    option_t *prev;
 
     /* remove opt from old position */
-    if ((opt = optionlist_sorted_by_order))
+    if (opt == optionlist_sorted_by_order)
         optionlist_sorted_by_order = opt->next_by_order;
     else {
-        for (last = optionlist_sorted_by_order;
-             last && last->next_by_order != opt;
-             last = last->next_by_order);
-        last->next_by_order = opt->next_by_order;
+        for (prev = optionlist_sorted_by_order;
+             prev && prev->next_by_order != opt;
+             prev = prev->next_by_order);
+        prev->next_by_order = opt->next_by_order;
     }
 
     opt->order = order;
 
     /* insert into new position */
-    last = optionlist_sorted_by_order;
-    o = optionlist_sorted_by_order->next;
-    while (o) {
-        if (!o->next_by_order || o->next_by_order->order > opt->order) {
-            last->next_by_order = opt;
-            opt->next_by_order = o;
-            break;
-        }
-        last = o;
-        o = o->next_by_order;
+    if (!optionlist_sorted_by_order)
+        optionlist_sorted_by_order = opt;
+    else {
+        for (prev = optionlist_sorted_by_order;
+            prev->next_by_order && prev->next_by_order->order < opt->order;
+            prev = prev->next_by_order);
+        opt->next_by_order = prev->next_by_order;
+        prev->next_by_order = opt;
     }
 }
 
@@ -397,7 +395,6 @@ void option_set_value(option_t *opt, int optionset, const char *value)
    characters and match the given regexp */
 static int stringvalid(option_t *opt, const char *value)
 {
-    const char *p;
     regex_t rx;
 
     /* Maximum length */
