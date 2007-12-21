@@ -346,22 +346,29 @@ void unhtmlify(char *dest, size_t size, const char *src)
 void unhexify(char *dest, size_t size, const char *src)
 {
     char *pdest = dest;
-    char *psrc = (char*)src;
     long int n;
+    char cstr[3];
+    
+    cstr[2] = '\0';
 
-    while (*psrc && pdest - dest < size) {
-        if (*psrc == '<') {
-            n = strtol(psrc +1, &psrc, 16);
-            *pdest = (char)n;
-            psrc++; // skip '>'
+    while (*src && pdest - dest < size -1) {
+        if (*src == '<') {
+            src++;
+            do {
+                cstr[0] = *src++;
+                cstr[1] = *src++;
+                if (!isdigit(cstr[0]) || !isdigit(cstr[1])) {
+                    printf("Error replacing hex notation in %s!\n", src);
+                    break;
+                }
+                *pdest++ = (char)strtol(cstr, NULL, 16);
+            } while (*src != '>');
+            src++;
         }
-        else {
-            *pdest = *psrc;
-            psrc++;
-        }
-        pdest++;
+        else 
+            *pdest++ = *src++;
     }
-    dest[size -1] = '\0';
+    *pdest = '\0';
 }
 
 struct config {
