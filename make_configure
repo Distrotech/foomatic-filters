@@ -1,3 +1,4 @@
 aclocal
 autoconf
+automake -ac
 perl -p -i -e "s=\#include <xmlversion.h>=\#include <libxml/xmlversion.h>=g" configure

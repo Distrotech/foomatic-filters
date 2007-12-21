@@ -1,21 +1,52 @@
-dnl Process this file with autoconf to produce a configure script.
-AC_INIT(foomatic-rip.in)
+#                                               -*- Autoconf -*-
+# Process this file with autoconf to produce a configure script.
 
-dnl If the user didn't specify the $sysconfdir on the command line, let it
-dnl be /etc, not /usr/local/etc or /usr/etc
-dnl if [[ x$sysconfdir = 'x${prefix}/etc' ]]; then
-dnl   sysconfdir=/etc
-dnl fi
+AC_PREREQ(2.61)
+AC_INIT(foomatic-rip, 4.0)
+AM_INIT_AUTOMAKE
+AC_CONFIG_SRCDIR([options.c])
 
-dnl Checks for programs.
+# If the user didn't specify the $sysconfdir on the command line, let it
+# be /etc, not /usr/local/etc or /usr/etc
+if [[ x$sysconfdir = 'x${prefix}/etc' ]]; then
+  sysconfdir=/etc
+fi
+
+# Checks for programs.
+AC_PROG_CC
 AC_PROG_INSTALL
 AC_PROG_LN_S
 AC_PROG_MAKE_SET
 
+# Checks for libraries.
+AC_CHECK_LIB(m, roundf)
+
+# Checks for header files.
+AC_HEADER_STDC
+AC_HEADER_SYS_WAIT
+AC_CHECK_HEADERS([fcntl.h memory.h stddef.h stdlib.h string.h strings.h unistd.h])
+
+# Checks for typedefs, structures, and compiler characteristics.
+AC_C_CONST
+AC_C_INLINE
+AC_TYPE_PID_T
+AC_TYPE_SIZE_T
+AC_TYPE_SSIZE_T
+AC_STRUCT_TM
+
+# Checks for library functions.
+AC_FUNC_FORK
+AC_FUNC_MALLOC
+AC_FUNC_REALLOC
+AC_TYPE_SIGNAL
+AC_FUNC_STRTOD
+AC_FUNC_VPRINTF
+AC_CHECK_FUNCS([dup2 getcwd gethostname regcomp setenv strcasecmp strchr strcspn strdup strncasecmp strndup strrchr strstr strtol])
+
+
 ETCSEARCHPATH=${prefix}/etc:/usr/etc:/usr/local/etc
 LIBSEARCHPATH=${prefix}/lib:/usr/lib:/usr/local/lib:${prefix}/libexec:/usr/libexec:/usr/local/libexec
 
-dnl Get the operating system and version number...
 uname=`uname`
 uversion=`uname -r | sed -e '1,$s/[[^0-9]]//g'`
 if test x$uname = xIRIX64; then
@@ -27,32 +58,25 @@ if test x$uname = xIRIX; then
   LIBSEARCHPATH="/usr/freeware/lib32:/usr/freeware/lib:$LIBSEARCHPATH"
 fi
 
-dnl Check for Perl
-AC_PATH_PROG(PERL,perl)
-
-if test -z "$PERL"; then
-	AC_MSG_ERROR([Perl 5 is required to build and run]);
-fi
-
-dnl Check for /etc/printcap
+# Check for /etc/printcap
 AC_PATH_DIR(PRINTCAP,printcap,/etc/printcap,$ETCSEARCHPATH)
 
-dnl Check for /usr/lib/cups
+# Check for /usr/lib/cups
 AC_PATH_DIR(CUPS,cups,/usr/lib/cups,$LIBSEARCHPATH)
 
-dnl Check for /usr/lib/cups/filter
+# Check for /usr/lib/cups/filter
 AC_PATH_DIR(CUPS_FILTERS,cups/filter,/usr/lib/cups/filter,$LIBSEARCHPATH)
 
-dnl Check for /usr/lib/cups/backend
+# Check for /usr/lib/cups/backend
 AC_PATH_DIR(CUPS_BACKENDS,cups/backend,/usr/lib/cups/backend,$LIBSEARCHPATH)
 
-dnl Check for /usr/lib/ppr
+# Check for /usr/lib/ppr
 AC_PATH_DIR(PPR,ppr,/usr/lib/ppr,$LIBSEARCHPATH)
 
-dnl Check for /usr/lib/ppr/interfaces
+# Check for /usr/lib/ppr/interfaces
 AC_PATH_DIR(PPR_INTERFACES,ppr/interfaces,/usr/lib/ppr/interfaces,$LIBSEARCHPATH)
 
-dnl Check for /usr/lib/ppr/lib
+# Check for /usr/lib/ppr/lib
 AC_PATH_DIR(PPR_LIB,ppr/lib,/usr/lib/ppr/lib,$LIBSEARCHPATH)
 
 AC_ARG_ENABLE(file-converter-check, [  --enable-file-converter-check  check whether a file converter is installed [default=yes]],
@@ -61,7 +85,7 @@ AC_ARG_ENABLE(file-converter-check, [  --enable-file-converter-check  check whet
   AC_MSG_WARN([Absence of a file converter is ignored, package will be built anyway])
 fi])
 
-dnl Check for a2ps, enscript, mpage
+# Check for a2ps, enscript, mpage
 AC_PATH_PROG(A2PS,a2ps)
 AC_PATH_PROG(ENSCRIPT,enscript)
 AC_PATH_PROG(MPAGE,mpage)
@@ -92,11 +116,11 @@ AC_ARG_WITH(execpath,[  --with-execpath=(path to various filters)
 AC_MSG_RESULT([Execpath: $EXECPATH])
 AC_SUBST(EXECPATH)
 
-AC_OUTPUT(Makefile beh \
-	  foomatic-rip foomatic-gswrapper \
-	  foomatic-rip.1 foomatic-gswrapper.1)
+AC_CONFIG_FILES([Makefile beh foomatic-gswrapper foomatic-rip.1
+	foomatic-gswrapper.1])
+AC_OUTPUT
 
-dnl Finished
+# Finished
 cat <<EOF
 Finished configuring.
 Type 'make' to build the package

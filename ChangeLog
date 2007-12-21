@@ -1,3 +1,6 @@
+2007-12-21 Lars Uebernickel <larsuebernickel@gmx.de>
+	* *: Converted foomatic-rip to C and updated the build system.
+
 2007-12-04  Till Kamppeter <till.kamppeter@gmail.com>
 
 	* foomatic-gswrapper.in: Let Ghostscript always use buffered
