@@ -1916,6 +1916,8 @@ void build_commandline(int optset)
     float width, height;
     char unit[3];
     char letters[] = "%A %B %C %D %E %F %G %H %I %J %K %L %M %W %X %Y %Z";
+    
+    dstr_t *local_jclprepend = create_dstr();
 
     dstrclear(prologprepend);
     dstrclear(setupprepend);
@@ -2238,7 +2240,7 @@ void build_commandline(int optset)
                     /* PCL/JCL argument */
                     s = malloc(cmdvar->len +1);
                     unhexify(s, cmdvar->len +1, cmdvar->data);
-                    dstrcatf(jclprepend, "%s", s);
+                    dstrcatf(local_jclprepend, "%s", s);
                     free(s);
                     o = opt;
                     while (o->controlledby) {
@@ -2274,7 +2276,7 @@ void build_commandline(int optset)
             jcl = 1;
             /* Put jcl commands onto JCL stack */
             if (cmdvar->len)
-                dstrcatf(jclprepend, "%s%s\n", jclprefix, cmdvar->data);
+                dstrcatf(local_jclprepend, "%s%s\n", jclprefix, cmdvar->data);
         }
         else if (opt->style == 'C') {
             /* command-line argument */
@@ -2317,24 +2319,23 @@ void build_commandline(int optset)
 
     /* J type finishing */
     /* Compute the proper stuff to say around the job */
-    if (jcl && jobhasjcl) {
+    if (jcl && !jobhasjcl) {
         /* Stick the beginning job cruft on the front of the jcl stuff */
-        dstrprepend(jclprepend, jclbegin);
+        dstrprepend(local_jclprepend, jclbegin);
 
         /* command to switch to the interpreter */
-        dstrcatf(jclprepend, "%s", jcltointerpreter);
+        dstrcatf(local_jclprepend, "%s", jcltointerpreter);
 
         /* Arrange for JCL RESET command at the end of job */
-        dstrcatf(jclappend, "%s", jclend);
-    }
-    else {
-        dstrclear(jclprepend);
-        dstrclear(jclappend);
+        dstrcpy(jclappend, jclend);
+        
+        dstrcpy(jclprepend, local_jclprepend->data);
     }
 
     free_dstr(cmdvar);
     free_dstr(open);
     free_dstr(close);
+    free_dstr(local_jclprepend);
 }
 
 
@@ -2668,7 +2669,7 @@ void get_renderer_handle(const dstr_t *prepend, int *fd, pid_t *pid)
             /* When arrived here the renderer command line was successful
             So exit with zero exit value here and inform the main process */
             snprintf(tmp, 256, "3 %d\n", EXIT_PRINTED);
-			write(pfd_kid_message[1], tmp, strlen(tmp));
+            write(pfd_kid_message[1], tmp, strlen(tmp));
             close(pfd_kid_message[0]);
             close(pfd_kid_message[1]);
             /* wait for postpipe/output child */
@@ -2687,7 +2688,7 @@ void get_renderer_handle(const dstr_t *prepend, int *fd, pid_t *pid)
                 if ((fileh = open(postpipe->data, O_WRONLY)) == -1) {
                     close(pfd_kid4[0]);
                     snprintf(tmp, 256, "4 %d\n", EXIT_PRNERR_NORETRY_BAD_SETTINGS);
-					write(pfd_kid_message[1], tmp, strlen(tmp));
+                    write(pfd_kid_message[1], tmp, strlen(tmp));
                     close(pfd_kid_message[0]);
                     close(pfd_kid_message[1]);
                     _log("cannot execute postpipe %s\n", postpipe->data);
