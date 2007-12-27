@@ -346,27 +346,28 @@ void unhtmlify(char *dest, size_t size, const char *src)
 void unhexify(char *dest, size_t size, const char *src)
 {
     char *pdest = dest;
+    const char *psrc = src;
     long int n;
     char cstr[3];
     
     cstr[2] = '\0';
 
-    while (*src && pdest - dest < size -1) {
-        if (*src == '<') {
-            src++;
+    while (*psrc && pdest - dest < size -1) {
+        if (*psrc == '<') {
+            psrc++;
             do {
-                cstr[0] = *src++;
-                cstr[1] = *src++;
-                if (!isdigit(cstr[0]) || !isdigit(cstr[1])) {
+                cstr[0] = *psrc++;
+                cstr[1] = *psrc++;
+                if (!isxdigit(cstr[0]) || !isxdigit(cstr[1])) {
                     printf("Error replacing hex notation in %s!\n", src);
                     break;
                 }
                 *pdest++ = (char)strtol(cstr, NULL, 16);
-            } while (*src != '>');
-            src++;
+            } while (*psrc != '>');
+            psrc++;
         }
         else 
-            *pdest++ = *src++;
+            *pdest++ = *psrc++;
     }
     *pdest = '\0';
 }
