@@ -17,6 +17,7 @@
 #include <math.h>
 #include <signal.h>
 #include <fcntl.h>
+#include <pwd.h>
 
 
 /* Returns a static string */
@@ -4656,6 +4657,7 @@ int main(int argc, char** argv)
     char user_default_path [256];
     dstr_t *filelist = create_dstr();
     char programdir[256];
+    struct passwd *passwd;
 
     optstr = create_dstr();
     currentcmd = create_dstr();
@@ -4701,9 +4703,10 @@ int main(int argc, char** argv)
     } while (!getcwd(cwd, i));
     
     gethostname(jobhost, 128);
-    getlogin_r(jobuser, 128); /* TODO returns with error "no such process" */
+    passwd = getpwuid(getuid());
+    if (passwd)
+        strlcpy(jobuser, passwd->pw_name, 128);    
     snprintf(jobtitle, 128, "%s@%s", jobuser, jobhost);
-
 
     /* Path for personal Foomatic configuration */
     strlcpy(user_default_path, getenv("HOME"), 256);
