@@ -79,6 +79,10 @@ int line_count(const char *str);
 /* returns the index of the beginning of the line_number'th line in str */
 int line_start(const char *str, int line_number);
 
+/* Replace hex notation for unprintable characters in PPD files
+   by the actual characters ex: "<0A>" --> chr(hex("0A")) */
+void unhexify(char *dest, size_t size, const char *src);
+
 
 /* Dynamic string */
 typedef struct {
@@ -102,5 +106,46 @@ void dstrprepend(dstr_t *ds, const char *str);
 void dstrinsert(dstr_t *ds, int idx, const char *str);
 void dstrremove(dstr_t *ds, int idx, size_t count);
 void dstrcatline(dstr_t *ds, const char *str); /* appends the first line from str to ds (incl. \n) */
+
+
+
+/* Doubly linked list of void pointers */
+typedef struct listitem_s {
+    void *data;
+    struct listitem_s *prev, *next;
+} listitem_t;
+
+typedef struct {
+    listitem_t *first, *last;
+} list_t;
+
+list_t * list_create();
+list_t * list_create_from_array(int count, void ** data); /* array values are NOT copied */
+void list_free(list_t *list);
+
+size_t list_item_count(list_t *list);
+
+list_t * list_copy(list_t *list);
+
+void list_prepend(list_t *list, void *data);
+void list_append(list_t *list, void *data);
+void list_remove(list_t *list, listitem_t *item);
+
+listitem_t * list_get(list_t *list, int idx);
+
+
+/* Argument values may be seperated from their keys in the following ways:
+    - with whitespace (i.e. it is in the next list entry)
+    - with a '='
+    - not at all
+*/
+listitem_t * arglist_find(list_t *list, const char *name);
+listitem_t * arglist_find_prefix(list_t *list, const char *name);
+
+char * arglist_get_value(list_t *list, const char *name);
+char * arglist_get(list_t *list, int idx);
+
+int arglist_remove(list_t *list, const char *name);
+int arglist_remove_flag(list_t *list, const char *name);
 
 #endif

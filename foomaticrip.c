@@ -17,6 +17,7 @@
 #include <math.h>
 #include <signal.h>
 #include <fcntl.h>
+#include <pwd.h>
 
 
 /* Returns a static string */
@@ -179,8 +180,6 @@ void _log(const char* msg, ...)
     va_end(ap);
 }
 
-/* TODO move JCL options into a struct */
-
 /* JCL prefix to put before the JCL options
  (Can be modified by a "*JCLBegin:" keyword in the ppd file): */
 char jclbegin[256] = "\033%-12345X@PJL\n";
@@ -337,36 +336,6 @@ void unhtmlify(char *dest, size_t size, const char *src)
             pdest++;
             psrc++;
         }
-    }
-    *pdest = '\0';
-}
-
-/* Replace hex notation for unprintable characters in PPD files
-   by the actual characters ex: "<0A>" --> chr(hex("0A")) */
-void unhexify(char *dest, size_t size, const char *src)
-{
-    char *pdest = dest;
-    long int n;
-    char cstr[3];
-    
-    cstr[2] = '\0';
-
-    while (*src && pdest - dest < size -1) {
-        if (*src == '<') {
-            src++;
-            do {
-                cstr[0] = *src++;
-                cstr[1] = *src++;
-                if (!isdigit(cstr[0]) || !isdigit(cstr[1])) {
-                    printf("Error replacing hex notation in %s!\n", src);
-                    break;
-                }
-                *pdest++ = (char)strtol(cstr, NULL, 16);
-            } while (*src != '>');
-            src++;
-        }
-        else 
-            *pdest++ = *src++;
     }
     *pdest = '\0';
 }
@@ -1073,105 +1042,33 @@ void process_cmdline_options()
     }
 }
 
-/* Checks whether an argument named 'name' exists and returns its index or 0 if it doesn't exist */
-int find_arg(const char *name, int argc, char **argv)
-{    
-    while (--argc) {
-        if (!strcmp(name, argv[argc]))
-            return argc;
-    }
-    return 0;
-}
-
-int find_arg_prefix(const char *name, int argc, char **argv)
-{    
-    while (--argc) {
-        if (!prefixcmp(argv[argc], name))
-            return argc;
-    }
-    return 0;
-}
-
-int remove_arg(const char *name, int argc, char **argv)
-{
-    while (--argc) {
-        if (!strcmp(name, argv[argc])) {
-            argv[argc][0] = '\0';
-            return 1;
-        }
-    }
-    return 0;
-}
-
-/* Searches for an option in args and returns its value
-   The value may be seperated from the key:
-      - with whitespace (i.e. it is in the next argv entry)
-      - with a '='
-      - not at all
-*/
-const char * get_option_value(const char *name, int argc, char **argv)
-{
-    int i = argc;
-    const char *p;
-    while (--i) {
-        if (isempty(argv[i]))
-            continue;
-        if (i + 1 < argc && !strcmp(name, argv[i]))
-            return argv[i +1];
-        else if (!prefixcmp(name, argv[i])) {
-            p = &argv[i][strlen(name)];
-            return *p == '=' ? p +1 : p;
-        }
-    }
-    return NULL;
-}
-
-int remove_option(const char *name, int argc, char **argv)
-{
-    int i = argc;
-    while (--i) {
-        if (argv[i][0] == '\0')
-            continue;
-        if (i + 1 < argc && !strcmp(name, argv[i])) {
-            argv[i][0] = '\0';
-            argv[i +1][0] = '\0';
-            return 1;
-        }
-        else if (!prefixcmp(name, argv[i])) {
-            argv[i][0] = '\0';
-            return 1;
-        }
-    }
-    return 0;
-}
-
 /* checks whether a pdq driver declaration file should be build
    and returns an opened file handle if so */
-FILE * check_pdq_file(int argc, char **argv)
+FILE * check_pdq_file(list_t *arglist)
 {
     /* "--appendpdq=<file>" appends the data to the <file>,
        "--genpdq=<file>" creates/overwrites <file> for the data, and
        "--genpdq" writes to standard output */
 
-    int i;
+    listitem_t *i;
     char filename[256];
     FILE *handle;
     char *p;
     int raw, append;
     
-    if ((i = find_arg_prefix("--genpdq", argc, argv))) {
+    if ((i = arglist_find_prefix(arglist, "--genpdq"))) {
         raw = 0;
         append = 0;
     }
-    else if ((i = find_arg_prefix("--genrawpdq", argc, argv))) {
+    else if ((i = arglist_find_prefix(arglist, "--genrawpdq"))) {
         raw = 1;
         append = 0;
     }
-    else if ((i = find_arg_prefix("--appendpdq", argc, argv))) {
+    else if ((i = arglist_find_prefix(arglist, "--appendpdq"))) {
         raw = 0;
         append = 1;
     }
-    else if ((i = find_arg_prefix("--appendrawpdq", argc, argv))) {
+    else if ((i = arglist_find_prefix(arglist, "--appendrawpdq"))) {
         raw = 1;
         append = 1;
     }
@@ -1179,7 +1076,7 @@ FILE * check_pdq_file(int argc, char **argv)
     if (!i)
         return NULL;
 
-    p = strchr(argv[i], '=');
+    p = strchr((char*)i->data, '=');
     if (p) {
         strncpy_omit(filename, p +1, 256, omit_shellescapes);
         handle = fopen(filename, append ? "a" : "w");
@@ -1194,7 +1091,7 @@ FILE * check_pdq_file(int argc, char **argv)
         return NULL;
     
     /* remove option from args */
-    argv[i][0] = '\0';
+    list_remove(arglist, i);
 
     /* Do we have a pdq driver declaration for a raw printer */
     if (raw) {
@@ -1223,8 +1120,9 @@ FILE * check_pdq_file(int argc, char **argv)
     return handle;
 }
 
-void init_ppr(int rargc, char **rargv)
+void init_ppr(list_t *arglist)
 {
+    size_t arg_count = list_item_count(arglist);
     char ppr_printer [256];
     char ppr_address [128];
     char ppr_options [1024];
@@ -1250,22 +1148,23 @@ void init_ppr(int rargc, char **rargv)
        (PPR>=1.32), 11 (PPR >= 1.50) command line parameters.
        We also check whether the current working directory is a
        PPR directory. */
-    if ((rargc == 11 || rargc == 10 || rargc == 8) && atoi(rargv[3]) < 100 && atoi(rargv[5]) < 100)
+    if ((arg_count == 11 || arg_count == 10 || arg_count == 8) && 
+        atoi(arglist_get(arglist, 3)) < 100 && atoi(arglist_get(arglist, 5)) < 100)
     {
         /* get all command line parameters */
-        strncpy_omit(ppr_printer, rargv[0], 256, omit_shellescapes);
-        strlcpy(ppr_address, rargv[1], 128);
-        strncpy_omit(ppr_options, rargv[2], 1024, omit_shellescapes);
-        strlcpy(ppr_jobbreak, rargv[3], 128);
-        strlcpy(ppr_feedback, rargv[4], 128);
-        strlcpy(ppr_codes, rargv[5], 128);
-        strncpy_omit(ppr_jobname, rargv[6], 128, omit_shellescapes);
-        strncpy_omit(ppr_routing, rargv[7], 128, omit_shellescapes);
-        if (rargc >= 8) {
-            strlcpy(ppr_for, rargv[8], 128);
-            strlcpy(ppr_filetype, rargv[9], 128);
-            if (rargc >= 10)
-                strncpy_omit(ppr_filetoprint, rargv[10], 128, omit_shellescapes);
+        strncpy_omit(ppr_printer, arglist_get(arglist, 0), 256, omit_shellescapes);
+        strlcpy(ppr_address, arglist_get(arglist, 1), 128);
+        strncpy_omit(ppr_options, arglist_get(arglist, 2), 1024, omit_shellescapes);
+        strlcpy(ppr_jobbreak, arglist_get(arglist, 3), 128);
+        strlcpy(ppr_feedback, arglist_get(arglist, 4), 128);
+        strlcpy(ppr_codes, arglist_get(arglist, 5), 128);
+        strncpy_omit(ppr_jobname, arglist_get(arglist, 6), 128, omit_shellescapes);
+        strncpy_omit(ppr_routing, arglist_get(arglist, 7), 128, omit_shellescapes);
+        if (arg_count >= 8) {
+            strlcpy(ppr_for, arglist_get(arglist, 8), 128);
+            strlcpy(ppr_filetype, arglist_get(arglist, 9), 128);
+            if (arg_count >= 10)
+                strncpy_omit(ppr_filetoprint, arglist_get(arglist, 10), 128, omit_shellescapes);
         }
 
         /* Common job parameters */
@@ -1302,7 +1201,7 @@ void init_ppr(int rargc, char **rargv)
     }
 }
 
-void init_cups(int rargc, char **rargv, dstr_t *filelist)
+void init_cups(list_t *arglist, dstr_t *filelist)
 {
     char path [1024] = "";
     char cups_jobid [128];
@@ -1324,11 +1223,11 @@ void init_cups(int rargc, char **rargv, dstr_t *filelist)
     }
     
     /* Get all command line parameters */
-    strncpy_omit(cups_jobid, rargv[0], 128, omit_shellescapes);
-    strncpy_omit(cups_user, rargv[1], 128, omit_shellescapes);
-    strncpy_omit(cups_jobtitle, rargv[2], 128, omit_shellescapes);
-    strncpy_omit(cups_copies, rargv[3], 128, omit_shellescapes);
-    strncpy_omit(cups_options, rargv[4], 512, omit_shellescapes);
+    strncpy_omit(cups_jobid, arglist_get(arglist, 0), 128, omit_shellescapes);
+    strncpy_omit(cups_user, arglist_get(arglist, 1), 128, omit_shellescapes);
+    strncpy_omit(cups_jobtitle, arglist_get(arglist, 2), 128, omit_shellescapes);
+    strncpy_omit(cups_copies, arglist_get(arglist, 3), 128, omit_shellescapes);
+    strncpy_omit(cups_options, arglist_get(arglist, 4), 512, omit_shellescapes);
     
     /* Common job parameters */
     /* TODO why is this copied into the cups_* vars in the first place? */
@@ -1339,8 +1238,8 @@ void init_cups(int rargc, char **rargv, dstr_t *filelist)
     dstrcatf(optstr, " %s", cups_options);
 
     /* Check for and handle inputfile vs stdin */
-    if (rargc > 4) {
-        strncpy_omit(cups_filename, rargv[5], 256, omit_shellescapes);
+    if (list_item_count(arglist) > 4) {
+        strncpy_omit(cups_filename, arglist_get(arglist, 5), 256, omit_shellescapes);
         if (cups_filename[0] != '-') {
             /* We get input from a file */
             dstrcatf(filelist, "%s ", cups_filename);
@@ -1356,24 +1255,23 @@ void init_cups(int rargc, char **rargv, dstr_t *filelist)
     file_basename(printer, ppdfile, 256);
 }
 
-void init_solaris(int rargc, char **rargv, dstr_t *filelist)
+void init_solaris(list_t *arglist, dstr_t *filelist)
 {
     char *str;
-    int len, i;
-    
-    assert(rargc >= 5);
-    
+    int len;
+    listitem_t *i;
+       
     /* Get all command line parameters */
-    strncpy_omit(jobtitle, rargv[2], 128, omit_shellescapes);
+    strncpy_omit(jobtitle, arglist_get(arglist, 2), 128, omit_shellescapes);
     
-    len = strlen(rargv[4]);
+    len = strlen(arglist_get(arglist, 4));
     str = malloc(len +1);
-    strncpy_omit(str, rargv[4], len, omit_shellescapes);
+    strncpy_omit(str, arglist_get(arglist, 4), len, omit_shellescapes);
     dstrcatf(optstr, " %s", str);
     free(str);
     
-    for (i = 5; i < rargc; i++)
-        dstrcatf(filelist, "%s ", rargv[i]);
+    for (i = arglist->first; i; i = i->next)
+        dstrcatf(filelist, "%s ", (char*)i->data);
 }
 
 /* search 'configfile' for 'key', copy value into dest, return success */
@@ -1492,14 +1390,14 @@ int find_ppdfile(const char *user_default_path)
     return 0;
 }
 
-void init_direct_cps_pdq(int rargc, char **rargv, dstr_t *filelist, const char *user_default_path)
+void init_direct_cps_pdq(list_t *arglist, dstr_t *filelist, const char *user_default_path)
 {
     char tmp [1024];
-    int i;
+    listitem_t *i;
     
     /* Which files do we want to print? */
-    for (i = 0; i < rargc; i++) {
-        strncpy_omit(tmp, rargv[i], 1024, omit_shellescapes);
+    for (i = arglist->first; i; i = i->next) {
+        strncpy_omit(tmp, (char*)i->data, 1024, omit_shellescapes);
         dstrcatf(filelist, "%s ", tmp);
     }
     
@@ -1915,6 +1813,8 @@ void build_commandline(int optset)
     float width, height;
     char unit[3];
     char letters[] = "%A %B %C %D %E %F %G %H %I %J %K %L %M %W %X %Y %Z";
+    
+    dstr_t *local_jclprepend = create_dstr();
 
     dstrclear(prologprepend);
     dstrclear(setupprepend);
@@ -2237,7 +2137,7 @@ void build_commandline(int optset)
                     /* PCL/JCL argument */
                     s = malloc(cmdvar->len +1);
                     unhexify(s, cmdvar->len +1, cmdvar->data);
-                    dstrcatf(jclprepend, "%s", s);
+                    dstrcatf(local_jclprepend, "%s", s);
                     free(s);
                     o = opt;
                     while (o->controlledby) {
@@ -2273,7 +2173,7 @@ void build_commandline(int optset)
             jcl = 1;
             /* Put jcl commands onto JCL stack */
             if (cmdvar->len)
-                dstrcatf(jclprepend, "%s%s\n", jclprefix, cmdvar->data);
+                dstrcatf(local_jclprepend, "%s%s\n", jclprefix, cmdvar->data);
         }
         else if (opt->style == 'C') {
             /* command-line argument */
@@ -2316,24 +2216,23 @@ void build_commandline(int optset)
 
     /* J type finishing */
     /* Compute the proper stuff to say around the job */
-    if (jcl && jobhasjcl) {
+    if (jcl && !jobhasjcl) {
         /* Stick the beginning job cruft on the front of the jcl stuff */
-        dstrprepend(jclprepend, jclbegin);
+        dstrprepend(local_jclprepend, jclbegin);
 
         /* command to switch to the interpreter */
-        dstrcatf(jclprepend, "%s", jcltointerpreter);
+        dstrcatf(local_jclprepend, "%s", jcltointerpreter);
 
         /* Arrange for JCL RESET command at the end of job */
-        dstrcatf(jclappend, "%s", jclend);
-    }
-    else {
-        dstrclear(jclprepend);
-        dstrclear(jclappend);
+        dstrcpy(jclappend, jclend);
+        
+        dstrcpy(jclprepend, local_jclprepend->data);
     }
 
     free_dstr(cmdvar);
     free_dstr(open);
     free_dstr(close);
+    free_dstr(local_jclprepend);
 }
 
 
@@ -2667,7 +2566,7 @@ void get_renderer_handle(const dstr_t *prepend, int *fd, pid_t *pid)
             /* When arrived here the renderer command line was successful
             So exit with zero exit value here and inform the main process */
             snprintf(tmp, 256, "3 %d\n", EXIT_PRINTED);
-			write(pfd_kid_message[1], tmp, strlen(tmp));
+            write(pfd_kid_message[1], tmp, strlen(tmp));
             close(pfd_kid_message[0]);
             close(pfd_kid_message[1]);
             /* wait for postpipe/output child */
@@ -2686,7 +2585,7 @@ void get_renderer_handle(const dstr_t *prepend, int *fd, pid_t *pid)
                 if ((fileh = open(postpipe->data, O_WRONLY)) == -1) {
                     close(pfd_kid4[0]);
                     snprintf(tmp, 256, "4 %d\n", EXIT_PRNERR_NORETRY_BAD_SETTINGS);
-					write(pfd_kid_message[1], tmp, strlen(tmp));
+                    write(pfd_kid_message[1], tmp, strlen(tmp));
                     close(pfd_kid_message[0]);
                     close(pfd_kid_message[1]);
                     _log("cannot execute postpipe %s\n", postpipe->data);
@@ -4647,13 +4546,14 @@ int main(int argc, char** argv)
     const char *path;
     FILE *genpdqfile = NULL;
     FILE *ppdfh = NULL;
-    int rargc;
-    char **rargv = NULL;
     char tmp[1024], pstoraster[256];
     int havefilter, havepstoraster;
     char user_default_path [256];
     dstr_t *filelist = create_dstr();
     char programdir[256];
+    struct passwd *passwd;
+    
+    list_t * arglist = list_create_from_array(argc -1, (void**)&argv[1]);
 
     optstr = create_dstr();
     currentcmd = create_dstr();
@@ -4699,9 +4599,10 @@ int main(int argc, char** argv)
     } while (!getcwd(cwd, i));
     
     gethostname(jobhost, 128);
-    getlogin_r(jobuser, 128); /* TODO returns with error "no such process" */
+    passwd = getpwuid(getuid());
+    if (passwd)
+        strlcpy(jobuser, passwd->pw_name, 128);    
     snprintf(jobtitle, 128, "%s@%s", jobuser, jobhost);
-
 
     /* Path for personal Foomatic configuration */
     strlcpy(user_default_path, getenv("HOME"), 256);
@@ -4713,13 +4614,13 @@ int main(int argc, char** argv)
         setenv("PATH", conf.execpath, 1);
 
     /* Command line options for verbosity */
-    if (remove_arg("-v", argc, argv))
+    if (arglist_remove_flag(arglist, "-v"))
         verbose = 1;
-    if (remove_arg("-q", argc, argv))
+    if (arglist_remove_flag(arglist, "-q"))
         quiet = 1;
-    if (remove_arg("-d", argc, argv))
+    if (arglist_remove_flag(arglist, "-d"))
         showdocs = 1;
-    if (remove_arg("--debug", argc, argv))
+    if (arglist_remove_flag(arglist, "--debug"))
         conf.debug = 1;
 
     if (conf.debug)
@@ -4779,7 +4680,7 @@ int main(int argc, char** argv)
     }
 
     /* Check for LPRng first so we do not pick up bogus ppd files by the -ppd option */
-    if (remove_arg("--lprng", argc, argv))
+    if (arglist_remove_flag(arglist, "--lprng"))
         spooler = SPOOLER_LPRNG;
 
     /* 'PRINTCAP_ENTRY' environment variable is : LPRng
@@ -4804,66 +4705,67 @@ int main(int argc, char** argv)
     /* PPD file name given via the command line
        allow duplicates, and use the last specified one */
     if (spooler != SPOOLER_LPRNG) {
-        while ((str = get_option_value("-p", argc, argv))) {
+        while ((str = arglist_get_value(arglist, "-p"))) {
             strncpy_omit(ppdfile, str, 256, omit_shellescapes);
-            remove_option("-p", argc, argv);
+            arglist_remove(arglist, "-p");
         }
     }
-    while ((str = get_option_value("--ppd", argc, argv))) {
+    while ((str = arglist_get_value(arglist, "--ppd"))) {
         strncpy_omit(ppdfile, str, 256, omit_shellescapes);
-        remove_option("--ppd", argc, argv);
+        arglist_remove(arglist, "--ppd");
     }
 
     /* Check for LPD/GNUlpr by typical options which the spooler puts onto
        the filter's command line (options "-w": text width, "-l": text
        length, "-i": indent, "-x", "-y": graphics size, "-c": raw printing,
        "-n": user name, "-h": host name) */
-    if ((str = get_option_value("-h", argc, argv))) {
+    if ((str = arglist_get_value(arglist, "-h"))) {
         if (spooler != SPOOLER_GNULPR && spooler != SPOOLER_LPRNG)
             spooler = SPOOLER_LPD;
         strncpy(jobhost, str, 127);
         jobhost[127] = '\0';
-        remove_option("-h", argc, argv);
+        arglist_remove(arglist, "-h");
     }
-    if ((str = get_option_value("-n", argc, argv))) {
+    if ((str = arglist_get_value(arglist, "-n"))) {
         if (spooler != SPOOLER_GNULPR && spooler != SPOOLER_LPRNG)
             spooler = SPOOLER_LPD;
         
         strncpy(jobuser, str, 127);
         jobuser[127] = '\0';
-        remove_option("-n", argc, argv);
+        arglist_remove(arglist, "-n");
     }   
-    if (remove_option("-w", argc, argv) ||
-        remove_option("-l", argc, argv) ||
-        remove_option("-x", argc, argv) ||
-        remove_option("-y", argc, argv) ||
-        remove_option("-i", argc, argv) ||
-        remove_arg("-c", argc, argv)) {
+    if (arglist_remove(arglist, "-w") ||
+        arglist_remove(arglist, "-l") ||
+        arglist_remove(arglist, "-x") ||
+        arglist_remove(arglist, "-y") ||
+        arglist_remove(arglist, "-i") ||
+        arglist_remove_flag(arglist, "-c")) {
             if (spooler != SPOOLER_GNULPR && spooler != SPOOLER_LPRNG)
                 spooler = SPOOLER_LPD;
     }
     /* LPRng delivers the option settings via the "-Z" argument */
-    if ((str = get_option_value("-Z", argc, argv))) {
+    if ((str = arglist_get_value(arglist, "-Z"))) {
         spooler = SPOOLER_LPRNG;
         dstrcatf(optstr, "%s ", str);
-        remove_option("-Z", argc, argv);
+        arglist_remove(arglist, "-Z");
     }
     /* Job title and options for stock LPD */
-    if ((str = get_option_value("-j", argc, argv)) || (str = get_option_value("-J", argc, argv))) {
+    if ((str = arglist_get_value(arglist, "-j")) || (str = arglist_get_value(arglist, "-J"))) {
         strncpy_omit(jobtitle, str, 128, omit_shellescapes);
         if (spooler == SPOOLER_LPD)
              dstrcatf(optstr, "%s ", jobtitle);
-         if (!remove_option("-j", argc, argv)) remove_option("-J", argc, argv);
+         if (!arglist_remove(arglist, "-j")) 
+            arglist_remove(arglist, "-J");
     }
     /* Check for CPS */
-    if (remove_arg("--cps", argc, argv) > 0)
+    if (arglist_remove_flag(arglist, "--cps") > 0)
         spooler = SPOOLER_CPS;
 
     /* Options for spooler-less printing, CPS, or PDQ */
-    while ((str = get_option_value("-o", argc, argv))) {
+    while ((str = arglist_get_value(arglist, "-o"))) {
         strncpy_omit(tmp, str, 1024, omit_shellescapes);
         dstrcatf(optstr, "%s ", tmp);
-        remove_option("-o", argc, argv);
+        arglist_remove(arglist, "-o");
         /* If we don't print as PPR RIP or as CPS filter, we print
            without spooler (we check for PDQ later) */
         if (spooler != SPOOLER_PPR && spooler != SPOOLER_CPS)
@@ -4871,60 +4773,48 @@ int main(int argc, char** argv)
     }
 
     /* Printer for spooler-less printing or PDQ */
-    if ((str = get_option_value("-d", argc, argv))) {
+    if ((str = arglist_get_value(arglist, "-d"))) {
         strncpy_omit(printer, str, 256, omit_shellescapes);
-        remove_option("-d", argc, argv);
+        arglist_remove(arglist, "-d");
     }
 
     /* Printer for spooler-less printing, PDQ, or LPRng */
-    if ((str = get_option_value("-P", argc, argv))) {
+    if ((str = arglist_get_value(arglist, "-P"))) {
         strncpy_omit(printer, argv[i +1], 256, omit_shellescapes);
-        remove_option("-P", argc, argv);
+        arglist_remove(arglist, "-P");
     }
 
     /* Were we called from a PDQ wrapper? */
-    if (remove_arg("--pdq", argc, argv))
+    if (arglist_remove_flag(arglist, "--pdq"))
         spooler = SPOOLER_PDQ;
 
     /* Were we called to build the PDQ driver declaration file? */
-    genpdqfile = check_pdq_file(argc, argv);
+    genpdqfile = check_pdq_file(arglist);
     if (genpdqfile)
         spooler = SPOOLER_PDQ;
-    
-    /* collect remaining arguments */
-    rargc = 0;
-    for (i = 1; i < argc; i++) {
-        if (!isempty(argv[i]))
-            rargc++;
-    }
-    rargv = malloc(sizeof(char *) * rargc);
-    for (i = 1, j = 0; i < argc; i++) {
-        if (!isempty(argv[i]))
-            rargv[j++] = argv[i];
-    }
     
     /* spooler specific initialization */
     switch (spooler) {
         case SPOOLER_PPR:
-            init_ppr(rargc, rargv);
+            init_ppr(arglist);
             break;
     
         case SPOOLER_CUPS:
-            init_cups(rargc, rargv, filelist);
+            init_cups(arglist, filelist);
             break;
     
         case SPOOLER_LPD:
         case SPOOLER_LPRNG:
         case SPOOLER_GNULPR:
             /* Get PPD file name as the last command line argument */
-            if (rargc < 0)
-                strncpy_omit(ppdfile, rargv[rargc -1], 256, omit_shellescapes);
+            if (arglist->last)
+                strncpy_omit(ppdfile, (char*)arglist->last->data, 256, omit_shellescapes);
             break;
     
         case SPOOLER_DIRECT:
         case SPOOLER_CPS:
         case SPOOLER_PDQ:
-            init_direct_cps_pdq(rargc, rargv, filelist, user_default_path);
+            init_direct_cps_pdq(arglist, filelist, user_default_path);
             break;
     }
     
@@ -5212,7 +5102,6 @@ int main(int argc, char** argv)
     free_dstr(currentcmd);
     if (genpdqfile && genpdqfile != stdout)
         fclose(genpdqfile);
-    free(rargv);
     free_dstr(filelist);
     free_dstr(optstr);
     free_optionlist();
@@ -5229,6 +5118,8 @@ int main(int argc, char** argv)
     if (backendoptions)
         free_dstr(backendoptions);
     free_dstr(postpipe);
+    
+    list_free(arglist);
 
     return retval;
 }

@@ -396,32 +396,33 @@ void option_set_value(option_t *opt, int optionset, const char *value)
 static int stringvalid(option_t *opt, const char *value)
 {
     regex_t rx;
+    char rx_string [128];
 
     /* Maximum length */
     if (opt->maxlength >= 0 && strlen(value) > opt->maxlength)
         return 0;
 
     /* Allowed Characters */
-	/* TODO opt->allowedchars may contain character ranges */
-    /* if (opt->allowedchars) {
-        for (p = value; *p; p++) {
-            if (!strchr(opt->allowedchars, *p))
-                return 0;
+    if (opt->allowedchars) {
+        snprintf(rx_string, 128, "^[%s]*", opt->allowedchars);
+        if (regcomp(&rx, rx_string, 0) != 0) {
+            _log("Error in FoomaticRIPOptionAllowedChars for option %s.\n", opt->name);
+            return 1;
         }
-    } */
+        if (regexec(&rx, value, 0, NULL, 0) != 0)
+            return 0;
+        regfree(&rx);
+    }
 
     /* Regular expression */
     if (opt->allowedregexp) {
-        if (regcomp(&rx, opt->allowedregexp, 0) == 0) {
-            /* TODO quote slashes? (see perl version) */
-            if (regexec(&rx, value, 0, NULL, 0) != 0)
-                return 0;
-        }
-        else {
+        if (regcomp(&rx, opt->allowedregexp, 0) != 0) {
             _log("FoomaticRIPOptionAllowedRegExp for %s could not be compiled.\n", opt->name);
-            /* TODO yreturn success or failure??? */
             return 1;
         }
+        /* TODO quote slashes? (see perl version) */
+        if (regexec(&rx, value, 0, NULL, 0) != 0)
+            return 0;
         regfree(&rx);
     }
 

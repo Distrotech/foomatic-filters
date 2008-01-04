@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <stdarg.h>
+#include <assert.h>
 
 
 const char* shellescapes = "|<>&!$\'\"#*?()[]{}";
@@ -284,6 +285,35 @@ int line_start(const char *str, int line_number)
     return p - str;
 }
 
+void unhexify(char *dest, size_t size, const char *src)
+{
+    char *pdest = dest;
+    const char *psrc = src;
+    long int n;
+    char cstr[3];
+    
+    cstr[2] = '\0';
+
+    while (*psrc && pdest - dest < size -1) {
+        if (*psrc == '<') {
+            psrc++;
+            do {
+                cstr[0] = *psrc++;
+                cstr[1] = *psrc++;
+                if (!isxdigit(cstr[0]) || !isxdigit(cstr[1])) {
+                    printf("Error replacing hex notation in %s!\n", src);
+                    break;
+                }
+                *pdest++ = (char)strtol(cstr, NULL, 16);
+            } while (*psrc != '>');
+            psrc++;
+        }
+        else 
+            *pdest++ = *psrc++;
+    }
+    *pdest = '\0';
+}
+
 /* 
  * Dynamic strings
  */
@@ -531,3 +561,198 @@ void dstrcatline(dstr_t *ds, const char *str)
 
     ds->data[ds->len++] = '\0';
 }
+
+
+/* 
+ *  LIST
+ */
+ 
+list_t * list_create()
+{
+    list_t *l = malloc(sizeof(list_t));
+    l->first = NULL;
+    l->last = NULL;
+    return l;
+}
+
+list_t * list_create_from_array(int count, void ** data)
+{
+    int i;
+    list_t *l = list_create();
+    
+    for (i = 0; i < count; i++)
+        list_append(l, data[i]);
+        
+    return l;
+}
+
+void list_free(list_t *list)
+{
+    listitem_t *i = list->first, *tmp;
+    while (i) {
+        tmp = i->next;
+        free(i);
+        i = tmp;
+    }
+}
+
+size_t list_item_count(list_t *list)
+{
+    size_t cnt = 0;
+    listitem_t *i;    
+    for (i = list->first; i; i = i->next)
+        cnt++;
+    return cnt;
+}
+
+list_t * list_copy(list_t *list)
+{
+    list_t *l = list_create();
+    listitem_t *i;
+
+    for (i = list->first; i; i = i->next)
+        list_append(l, i->data);
+    return l;
+}
+
+void list_prepend(list_t *list, void *data)
+{
+    listitem_t *item;
+
+    assert(list);
+    
+    item = malloc(sizeof(listitem_t));
+    item->data = data;
+    item->prev = NULL;
+    
+    if (list->first) {
+        item->next = list->first;
+        list->first->next = item;
+        list->first = item;
+    }
+    else {
+        item->next = NULL;
+        list->first = item;
+        list->last = item;
+    }
+}
+
+void list_append(list_t *list, void *data)
+{
+    listitem_t *item;
+
+    assert(list);
+    
+    item = malloc(sizeof(listitem_t));
+    item->data = data;
+    item->next = NULL;
+    
+    if (list->last) {
+        item->prev = list->last;
+        list->last->next = item;
+        list->last = item;
+    }
+    else {
+        item->prev = NULL;
+        list->first = item;
+        list->last = item;
+    }    
+}
+
+void list_remove(list_t *list, listitem_t *item)
+{
+    assert(item);
+
+    if (item->prev)
+        item->prev->next = item->next;
+    if (item->next)
+        item->next->prev = item->prev;
+    if (item == list->first)
+        list->first = item->next;
+    if (item == list->last)
+        list->last = item->prev;
+
+    free(item);
+}
+
+listitem_t * list_get(list_t *list, int idx)
+{
+    listitem_t *i;
+    for (i = list->first; i && idx; i = i->next)
+        idx--;
+    return NULL;
+}
+
+listitem_t * arglist_find(list_t *list, const char *name)
+{
+    listitem_t *i;    
+    for (i = list->first; i; i = i->next) {
+        if (!strcmp((const char*)i->data, name))
+            return i;
+    }
+    return NULL;
+}
+
+listitem_t * arglist_find_prefix(list_t *list, const char *name)
+{
+    listitem_t *i;    
+    for (i = list->first; i; i= i->next) {
+        if (!prefixcmp((const char*)i->data, name))
+            return i;
+    }
+    return NULL;
+}
+
+
+char * arglist_get_value(list_t *list, const char *name)
+{
+    listitem_t *i;
+    char *p;
+          
+    for (i = list->first; i; i = i->next) {
+        if (i->next && !strcmp(name, (char*)i->data))
+            return (char*)i->next->data;
+        else if (!prefixcmp(name, (char*)i->data)) {
+            p = &((char*)i->data)[strlen(name)];
+            return *p == '=' ? p +1 : p;
+        }
+    }
+    return NULL;
+}
+
+char * arglist_get(list_t *list, int idx)
+{
+    listitem_t *i = list_get(list, idx);
+    return i ? (char*)i->data : NULL;
+}
+
+int arglist_remove(list_t *list, const char *name)
+{
+    listitem_t *i;
+    char *i_name;
+    
+    for (i = list->first; i; i = i->next) {
+        i_name = (char*)i->data;
+        if (i->next && !strcmp(name, i_name)) {
+            list_remove(list, i->next);
+            list_remove(list, i);
+            return 1;
+        }
+        else if (!prefixcmp(name, i_name)) {
+            list_remove(list, i);
+            return 1;
+        }
+    }
+    return 0;
+}
+
+int arglist_remove_flag(list_t *list, const char *name)
+{
+    listitem_t *i = arglist_find(list, name);
+    if (i) {
+        list_remove(list, i);
+        return 1;
+    }
+    return 0;
+}
+
