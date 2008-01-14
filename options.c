@@ -1257,7 +1257,7 @@ void read_ppd_file(const char *filename)
     dstr_t *value = create_dstr(); /* value can span multiple lines */
     int order;
     value_t *val;
-    option_t *opt, *current_opt;
+    option_t *opt, *current_opt = NULL;
     param_t *param;
 
     fh = fopen(filename, "r");
