@@ -245,15 +245,15 @@ void make_absolute_path(char *path, int len)
 
 int is_true_string(const char *str)
 {
-    return !strcmp(str, "1") || !strcasecmp(str, "Yes") ||
-        !strcasecmp(str, "On") || !strcasecmp(str, "True");
+    return str && (!strcmp(str, "1") || !strcasecmp(str, "Yes") ||
+        !strcasecmp(str, "On") || !strcasecmp(str, "True"));
 }
 
 int is_false_string(const char *str)
 {
-    return !strcmp(str, "0") || !strcasecmp(str, "No") ||
+    return str && (!strcmp(str, "0") || !strcasecmp(str, "No") ||
         !strcasecmp(str, "Off") || !strcasecmp(str, "False") ||
-        !strcasecmp(str, "None");
+        !strcasecmp(str, "None"));
 }
 
 int digit(char c)
@@ -451,7 +451,7 @@ size_t fgetdstr(dstr_t *ds, FILE *stream)
         ds->alloc = 256;
         ds->data = malloc(ds->alloc);
     }
-
+    
     while ((c = fgetc(stream)) != EOF) {
         if (ds->len +1 == ds->alloc) {
             ds->alloc *= 2;
@@ -561,6 +561,53 @@ void dstrcatline(dstr_t *ds, const char *str)
 
     ds->data[ds->len++] = '\0';
 }
+
+int dstrendswith(dstr_t *ds, const char *str)
+{
+    int len = strlen(str);
+    char *pstr;
+
+    if (ds->len < len)
+        return 0;
+    pstr = &ds->data[ds->len - len];
+    return strcmp(pstr, str) == 0;
+
+}
+
+void dstrfixnewlines(dstr_t *ds)
+{
+    if (ds->data[ds->len -1] == '\r') {
+        ds->data[ds->len -1] = '\n';
+    }
+    else if (ds->data[ds->len -2] == '\r') {
+        ds->data[ds->len -1] = '\n';
+        ds->data[ds->len -2] = '\0';
+        ds->len -= 1;
+    }
+}
+
+void dstrremovenewline(dstr_t *ds)
+{
+    if (ds->data[ds->len -1] == '\r' || ds->data[ds->len -1] == '\n') {
+        ds->data[ds->len -1] = '\0';
+        ds->len -= 1;
+    }
+    else if (ds->data[ds->len -2] == '\r') {
+        ds->data[ds->len -2] = '\0';
+        ds->len -= 2;
+    }
+}
+
+void dstrtrim_right(dstr_t *ds)
+{
+    if (!ds->len)
+        return;
+    
+    while (isspace(ds->data[ds->len -1]))
+        ds->len -= 1;
+    ds->data[ds->len] = '\0';
+}
+
 
 
 /* 

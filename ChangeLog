@@ -1,3 +1,19 @@
+2008-01-14 Lars Uebernickel <larsuebernickel@gmx.de>
+	* *: Added support for CUPS custom options
+	  (see http://www.cups.org/documentation.php/spec-ppd.html#OPTIONS)
+	   o PPD files can contain both CUPS and foomatic custom options
+	   o Custom options can be set like this on the command line:
+	   		Options with a single parameter:
+	   			-o optionname=Custom.value  or
+	   		    -o optionname=value
+	   		Options with multiple parameters:
+	   		    -o optionname={param1=value1 param2=value2 ...}
+
+	* options.c: Refactored the options system to allow for custom 
+	  options. As a nice side effect, lots of redundant code (getting
+	  commands / drivervalues for the options, syncing PageSize
+	  and PageRegion) could be removed from foomaticrip.c.
+
 2007-12-21 Lars Uebernickel <larsuebernickel@gmx.de>
 	* *: Converted foomatic-rip to C and updated the build system.
 
