@@ -49,8 +49,6 @@ char* fileconverters[] = {
     NULL
 };
 
-char cups_fileconverter [512];
-
 /*  This piece of PostScript code (initial idea 2001 by Michael
     Allerhand (michael.allerhand at ed dot ac dot uk, vastly
     improved by Till Kamppeter in 2002) lets GhostScript output
@@ -180,24 +178,7 @@ void _log(const char* msg, ...)
     va_end(ap);
 }
 
-/* JCL prefix to put before the JCL options
- (Can be modified by a "*JCLBegin:" keyword in the ppd file): */
-char jclbegin[256] = "\033%-12345X@PJL\n";
-
-/* JCL command to switch the printer to the PostScript interpreter
- (Can be modified by a "*JCLToPSInterpreter:" keyword in the PPD file): */
-char jcltointerpreter[256] = "";
-
-/* JCL command to close a print job
- (Can be modified by a "*JCLEnd:" keyword in the PPD file): */
-char jclend[256] = "\033%-12345X@PJL RESET\n";
-
-/* Prefix for starting every JCL command
- (Can be modified by "*FoomaticJCLPrefix:" keyword in the PPD file): */
-char jclprefix[256] = "@PJL ";
-int jclprefixset = 0;
-
-
+char cups_fileconverter [512];
 char ppdfile[256] = "";
 char printer[256] = "";
 char printer_model[128] = "";
@@ -207,7 +188,6 @@ char jobhost[128] = "";
 char jobtitle[128] = "";
 char copies[128] = "1";
 dstr_t *postpipe;  /* command into which the output of this filter should be piped */
-int ps_accounting = 1; /* Set to 1 to insert postscript code for page accounting (CUPS only). */
 const char *accounting_prolog = NULL;
 char attrpath[256] = "";
 char modern_shell[256] = "/bin/bash"; /* TODO test shells, see perl version line 323 */
@@ -230,7 +210,6 @@ dstr_t *backendoptions = NULL;
 char colorprofile [128];
 char id[128];
 char driver[128];
-char cmd[1024];
 dstr_t *currentcmd;
 char cupsfilter[256];
 int jcl = 0;
@@ -420,379 +399,6 @@ void config_read_from_file(struct config *conf, const char *filename)
     fclose(fh);
 }
 
-void parse_ppd_file(const char* filename)
-{
-    FILE *fh;
-    size_t buf_size = 256; /* PPD line length is max 255 (excl. \0) */
-    char *line, *p, *key, *argname, *value;
-    option_t *opt, *current_opt = NULL;
-    setting_t *setting, *setting2;
-    int len;
-    size_t idx, value_idx;
-
-    fh = fopen(filename, "r");
-    if (!fh) {
-        _log("error opening %s\n", filename);
-        exit(EXIT_PRNERR_NORETRY_BAD_SETTINGS);
-    }
-    _log("Parsing PPD file ...\n");
-
-    line = (char*)malloc(buf_size);
-    while (!feof(fh)) {
-
-        fgets(line, buf_size, fh);
-        if (line[0] != '*' || line[1] == '%') /* line doesn't start with a keyword or is a comment */
-            continue;
-
-        /* extract and \0-terminate 'key' string */
-        if (!(p = strchr(line, ':')))
-            continue;
-        *p = '\0';
-
-        /* skip whitespace */
-        p += 1;
-        while (isspace(*p) && *p)
-            p++;
-
-        value_idx = p - line;
-
-        /* read next line while current line ends with '&&' or value is quoted and quotes are not yet closed */
-        idx = value_idx;
-        while (1) {
-            idx += strcspn(&line[idx], "\r\n");
-
-            if (line[idx -1] == '&' && line[idx -2] == '&')
-                idx -= 2;
-            else if (line[value_idx] != '\"' || strchr(&line[value_idx +1], '\"'))
-                break;
-            else
-                /* leave the newline if lineend was not "&&" and we are in quotes */
-                line[idx++] = '\n';
-
-            if (buf_size - idx < 256) { /* PPD line length is 256 */
-                buf_size += 256;
-                line = realloc(line, buf_size);
-            }
-            fgets(&line[idx], buf_size - idx, fh);
-        }
-
-        key = &line[1];
-        value = &line[value_idx];
-
-        /* remove line end and quotes */
-        if (*value == '\"') {
-            value += 1;
-            p = strrchr(value, '\"');
-            *p = '\0';            
-        }
-        else {
-            idx = strcspn(value, "\r\n");
-            value[idx] = '\0';
-        }
-
-        /* process key/value pairs */
-        if (strcmp(key, "NickName") == 0) {
-            unhtmlify(printer_model, 128, value);
-        }
-        else if (strcmp(key, "FoomaticIDs") == 0) { /* *FoomaticIDs: <printer ID> <driver ID> */
-            p = strtok(value, " \t");
-            strlcpy(id, p, 128);
-            p = strtok(NULL, " \t");
-            strlcpy(driver, p, 128);
-        }
-        else if (strcmp(key, "FoomaticRIPPostPipe") == 0) {
-            dstrassure(postpipe, 1024);
-            unhtmlify(postpipe->data, postpipe->alloc, value);
-        }
-        else if (strcmp(key, "FoomaticRIPCommandLine") == 0) {
-            unhtmlify(cmd, 1024, value);
-        }
-        else if (strcmp(key, "FoomaticNoPageAccounting") == 0) { /* Boolean value */
-            if (strcasecmp(value, "true")) {
-                /* Driver is not compatible with page accounting according to the
-                   Foomatic database, so turn it off for this driver */
-                ps_accounting = 0;
-                accounting_prolog = NULL;
-                _log("CUPS page accounting disabled by driver.\n");
-            }
-        }
-        else if (strcmp(key, "cupsFilter") == 0) { /* cupsFilter: <code> */
-            /* only save the filter for "application/vnd.cups-raster" */
-            if (prefixcmp(value, "application/vnd.cups-raster") == 0) {
-                p = strrchr(value, ' ');
-                if (p)
-                    unhtmlify(cupsfilter, 256, p +1);
-            }
-        }
-        else if (strcmp(key, "CustomPageSize True") == 0) {
-            opt = assure_option("PageSize");
-            setting = option_assure_setting(opt, "Custom");
-            strlcpy(setting->comment, "Custom Size", 128);
-            
-            assure_option("PageRegion");
-            setting2 = option_assure_setting(opt, "Custom");
-            strlcpy(setting->comment, "Custom Size", 128);
-            
-            if (setting && setting2 && !startswith(value, "%% FoomaticRIPOptionSetting")) {
-                strlcpy(setting->driverval, value, 256);
-                strlcpy(setting2->driverval, value, 256);
-            }
-        }
-        else if (startswith(key, "OpenUI") || startswith(key, "JCLOpenUI")) {
-            /* "*[JCL]OpenUI *<option>[/<translation>]: <type>" */
-            if (!(argname = strchr(key, '*')))
-                continue;
-            argname += 1;
-            p = strchr(argname, '/');
-            if (p) {
-                *p = '\0';
-                p += 1;
-            }
-            current_opt = assure_option(argname);
-            if (p)
-                strlcpy(current_opt->comment, p, 128);
-
-            /* Set the argument type only if not defined yet,
-            a definition in "*FoomaticRIPOption" has priority */
-            if (current_opt->type == TYPE_NONE) {
-                if (!strcmp(value, "PickOne"))
-                    current_opt->type = TYPE_ENUM;
-                else if (!strcmp(value, "PickMany"))
-                    current_opt->type = TYPE_PICKMANY;
-                else if (!strcmp(value, "Boolean"))
-                    current_opt->type = TYPE_BOOL;
-            }
-        }
-        else if (!strcmp(key, "CloseUI") || !strcmp(key, "JCLCloseUI")) {
-            /* *[JCL]CloseUI: *<option> */
-            value = strchr(value, '*');
-            if (!value || !current_opt || strcmp(current_opt->name, value +1) != 0)
-                _log("CloseUI found without corresponding OpenUI (%s).\n", value +1);
-            current_opt = NULL;
-        }
-        else if (prefixcmp(key, "FoomaticRIPOption ") == 0) {
-            /* "*FoomaticRIPOption <option>: <type> <style> <spot> [<order>]"
-               <order> only used for 1-choice enum options */
-            if (!(argname = strchr(key, ' ')))
-                continue;
-            argname += 1;
-            opt = assure_option(argname);
-
-            p = strtok(value, " \t"); /* type */
-            if (strcasecmp(p, "enum") == 0)
-                opt->type = TYPE_ENUM;
-            else if (strcasecmp(p, "pickmany") == 0)
-                opt->type = TYPE_PICKMANY;
-            else if (strcasecmp(p, "bool") == 0)
-                opt->type = TYPE_BOOL;
-            else if (strcasecmp(p, "int") == 0)
-                opt->type = TYPE_INT;
-            else if (strcasecmp(p, "float") == 0)
-                opt->type = TYPE_FLOAT;
-            else if (strcasecmp(p, "string") == 0 || strcasecmp(p, "password") == 0)
-                opt->type = TYPE_STRING;
-
-            p = strtok(NULL, " \t"); /* style */
-            if (strcmp(p, "PS") == 0)
-                opt->style = 'G';
-            else if (strcmp(p, "CmdLine") == 0)
-                opt->style = 'C';
-            else if (strcmp(p, "JCL") == 0)
-                opt->style = 'J';
-            else if (strcmp(p, "Composite") == 0)
-                opt->style = 'X';
-
-            p = strtok(NULL, " \t"); /* spot */
-            opt->spot = *p;
-
-            p = strtok(NULL, " \t"); /* order */
-            if (p)
-                opt->order = atoi(p);
-        }
-        else if (prefixcmp(key, "FoomaticRIPOptionPrototype") == 0) {
-            /* "*FoomaticRIPOptionPrototype <option>: <code>"
-               Used for numerical and string options only */
-            if (!(argname = strchr(key, ' ')))
-                continue;
-            argname += 1;
-            opt = assure_option(argname);
-
-            unhtmlify(opt->proto, 128, value);
-        }
-        else if (prefixcmp(key, "FoomaticRIPOptionRange") == 0) {
-            /* *FoomaticRIPOptionRange <option>: <min> <max>
-               Used for numerical options only */
-            if (!(argname = strchr(key, ' ')))
-                continue;
-            argname += 1;
-            opt = assure_option(argname);
-
-            p = strtok(value, " \t"); /* min */
-            strlcpy(opt->min, p, 32);
-            p = strtok(NULL, " \t"); /* max */
-            strlcpy(opt->max, p, 32);
-        }
-        else if (prefixcmp(key, "FoomaticRIPOptionMaxLength") == 0) {
-            /*  "*FoomaticRIPOptionMaxLength <option>: <length>"
-                Used for string options only */
-            if (!(argname = strchr(key, ' ')))
-                continue;
-            argname += 1;
-            opt = assure_option(argname);
-
-            opt->maxlength = atoi(value);
-        }
-        else if (prefixcmp(key, "FoomaticRIPOptionAllowedChars") == 0) {
-            /* *FoomaticRIPOptionAllowedChars <option>: <code>
-                Used for string options only */
-            if (!(argname = strchr(key, ' ')))
-                continue;
-            argname += 1;
-            opt = assure_option(argname);
-
-            len = strlen(value) +1;
-            opt->allowedchars = malloc(len);
-            unhtmlify(opt->allowedchars, len, value);
-        }
-        else if (prefixcmp(key, "FoomaticRIPOptionAllowedRegExp") == 0) {
-            /* "*FoomaticRIPOptionAllowedRegExp <option>: <code>"
-               Used for string options only */
-            if (!(argname = strchr(key, ' ')))
-                continue;
-            argname += 1;
-            opt = assure_option(argname);
-
-            len = strlen(value) +1;
-            opt->allowedregexp = malloc(len);
-            unhtmlify(opt->allowedregexp, len, value);
-        }
-        else if (strcmp(key, "OrderDependency") == 0) {
-            /* OrderDependency: <order> <section> *<option> */
-            if (!(argname = strchr(value, '*')))
-                continue;
-            argname += 1;
-            opt = assure_option(argname);
-
-            p = strtok(value, " \t");
-            option_set_order(opt, atoi(p));
-            p = strtok(NULL, " \t");
-            strlcpy(opt->section, p, 128);
-        }
-        else if (prefixcmp(key, "Default") == 0) {
-            /* Default<option>: <value> */
-            argname = &key[7];
-            opt = assure_option(argname);
-            option_set_value(opt, optionset("default"), value);
-        }
-        else if (prefixcmp(key, "FoomaticRIPDefault") == 0) {
-            /* FoomaticRIPDefault<option>: <value>
-               Used for numerical options only */
-            argname = &key[18];
-            opt = assure_option(argname);
-            option_set_value(opt, optionset("default"), value);
-        }
-        else if (current_opt && !prefixcmp(key, current_opt->name)) { /* current argument */
-            /* *<option> <choice>[/translation]: <code> */
-            opt = current_opt;
-
-            while (*key && isalnum(*key)) key++;
-            while (*key && isspace(*key)) key++; /* 'key' now points to the choice string */
-            if (!key)
-                continue;
-
-            p = strchr(key, '/'); /* translation present? */
-            if (p) {
-                *p = '\0';
-                p += 1; /* points to translation string */
-            }
-
-            if (opt->type == TYPE_BOOL) {
-                /* make sure that boolean arguments always have exactly two settings: 'true' and 'false' */
-                if (strcasecmp(key, "true") == 0)
-                    setting = option_assure_setting(opt, "true");
-                else 
-                    setting = option_assure_setting(opt, "false");
-                if (p)
-                    strlcpy(setting->comment, p, 128);
-            }
-            else {
-                setting = option_assure_setting(opt, key);
-                if (p)
-                    strlcpy(setting->comment, p, 128);
-                /* Make sure that this argument has a default setting, even if
-                   none is defined in the PPD file */
-                if (!option_get_value(opt, optionset("default")))
-                    option_set_value(opt, optionset("default"), key);
-            }
-
-            if (prefixcmp(value, "%% FoomaticRIPOptionSetting") != 0) {
-                if (opt->type == TYPE_BOOL) {
-                    if (!strcasecmp(setting->value, "true"))
-                        strlcpy(opt->proto, value, 128);
-                    else
-                        strlcpy(opt->protof, value, 128);
-                }
-                else
-                    strlcpy(setting->driverval, value, 256);
-            }
-        }
-        else if (prefixcmp(key, "FoomaticRIPOptionSetting") == 0) {
-            /* "*FoomaticRIPOptionSetting <option>[=<choice>]: <code>
-               For boolean options <choice> is not given */
-            argname = key;
-            while (*argname && isalnum(*argname)) argname++;
-            while (*argname && isspace(*argname)) argname++;
-
-            p = strchr(argname, '=');
-            if (p) {
-                *p = 0;
-                p += 1; /* points to <choice> */
-            }
-            opt = assure_option(argname);
-
-            if (p) {
-                setting = option_assure_setting(opt, p);
-                /* Make sure this argument has a default setting, even if
-                   none is defined in this PPD file */
-                if (!option_get_value(opt, optionset("default")))
-                    option_set_value(opt, optionset("default"), p);
-                unhtmlify(setting->driverval, 256, value);
-            }
-            else {
-                unhtmlify(opt->proto, 128, value);
-            }
-        }
-        else if (prefixcmp(key, "JCL") == 0 || prefixcmp(key, "FoomaticJCL") == 0) {
-            /*     "*(Foomatic|)JCL(Begin|ToPSInterpreter|End|Prefix): <code>"
-                The printer supports PJL/JCL when there is such a line */
-
-            key = strstr(key, "JCL") + 3;
-            if (strcmp(key, "Begin") == 0) {
-                unhexify(jclbegin, 256, value);
-                if (!jclprefixset && strstr(jclbegin, "PJL") == NULL)
-                    jclprefix[0] = '\0';
-            }
-            else if (strcmp(key, "ToPSInterpreter") == 0) {
-                unhexify(jcltointerpreter, 256, value);
-            }
-            else if (strcmp(key, "End") == 0) {
-                unhexify(jclend, 256, value);
-            }
-            else if (strcmp(key, "Prefix") == 0) {
-                unhexify(jclprefix, 256, value);
-                jclprefixset = 1;
-            }
-        }
-        else if (prefixcmp(key, "% COMDATA #") == 0) {
-            /* old foomtic 2.0.x PPD file */
-            _log("You are using an old Foomatic 2.0 PPD file, which is no longer supported by Foomatic >4.0.\n");
-            exit(1); /* TODO exit more gracefully */
-        }
-    }
-
-    free(line);
-    fclose(fh);
-}
 
 /* returns position in 'str' after the option */
 char * extract_next_option(char *str, char **pagerange, char **key, char **value)
@@ -864,10 +470,9 @@ void process_cmdline_options()
 {
     char *p, *pagerange, *key, *value;
     option_t *opt, *opt2;
-    setting_t *setting;
     int optset;
     char tmp [256];
-    int width, height;
+    float width, height;
     char unit[2];
 
     p = extract_next_option(optstr->data, &pagerange, &key, &value);
@@ -887,23 +492,24 @@ void process_cmdline_options()
             strlcpy(colorprofile, value, 128);
             continue;
         }
+        /* Solaris options that have no reason to be */
+        if (!strcmp(key, "nobanner") || !strcmp(key, "dest") || !strcmp(key, "protocol"))
+            continue;
 
         if (pagerange) {
-            opt = find_option(key);
-            if (opt && (strcmp(opt->section, "AnySetup") || strcmp(opt->section, "PageSetup"))) {
-                _log("This option (%s) is not a \"PageSetup\" or \"AnySetup\" option, so it cannot be restricted to a page range.\n", key);
-                continue;
-            }
-
             snprintf(tmp, 256, "pages:%s", pagerange);
             optset = optionset(tmp);
+            
+            opt = find_option(key);
+            if (opt && (option_get_section(opt) != SECTION_ANYSETUP || 
+                        option_get_section(opt) != SECTION_PAGESETUP)) {
+                _log("This option (%s) is not a \"PageSetup\" or \"AnySetup\" option, so it cannot be restricted to a page range.\n", key);
+                continue;                
+            }
         }
         else
             optset = optionset("userval");
 
-        /* Solaris options that have no reason to be */
-        if (!strcmp(key, "nobanner") || !strcmp(key, "dest") || !strcmp(key, "protocol"))
-            continue;
 
         if (value) {
             /* At first look for the "backend" option to determine the PPR backend to use */
@@ -928,30 +534,15 @@ void process_cmdline_options()
     
                 p = strtok(value, ",");
                 do {
-                    if ((opt = find_option("PageSize"))) {
-                        if ((setting = option_find_setting(opt, p))) {
-                            option_set_value(opt, optset, setting->value);
-    
-                            /* Keep "PageRegion" in sync */
-                            opt = find_option("PageRegion");
-                            if (opt && (setting = option_find_setting(opt, p)))
-                                option_set_value(opt, optset, setting->value);
-                        }
-                        else if (startswith(p, "Custom")) {
-                            option_set_value(opt, optset, p);
-    
-                            /* Keep "PageRegion" in sync */
-                            if ((opt = find_option("PageRegion")));
-                                option_set_value(opt, optset, p);
-                        }
-                    }
-                    else if ((opt = find_option("MediaType")) && (setting = option_find_setting(opt, p)))
-                        option_set_value(opt, optset, setting->value);
-                    else if ((opt = find_option("InputSlot")) && (setting = option_find_setting(opt, p)))
-                        option_set_value(opt, optset, setting->value);
+                    if ((opt = find_option("PageSize")) && option_accepts_value(opt, p))
+                        option_set_value(opt, optset, p);
+                    else if ((opt = find_option("MediaType")) && option_has_choice(opt, p))
+                        option_set_value(opt, optset, p);
+                    else if ((opt = find_option("InputSlot")) && option_has_choice(opt, p))
+                        option_set_value(opt, optset, p);
                     else if (!strcasecmp(p, "manualfeed")) {
                         /* Special case for our typical boolean manual
-                        feeder option if we didn't match an InputSlot above */
+                           feeder option if we didn't match an InputSlot above */
                         if ((opt = find_option("ManualFeed")))
                             option_set_value(opt, optset, "1");
                     }
@@ -964,31 +555,31 @@ void process_cmdline_options()
                 /* Handle the standard duplex option, mostly */
                 if (!prefixcasecmp(value, "two-sided")) {
                     if ((opt = find_option("Duplex"))) {
-                        /* We set "Duplex" to '1' here, the real argument setting will be done later */
-                        option_set_value(opt, optset, "1");
-    
+		                /* Default to long-edge binding here, for the case that
+		                   there is no binding setting */
+                        option_set_value(opt, optset, "DuplexNoTumble");
+
                         /* Check the binding: "long edge" or "short edge" */
                         if (strcasestr(value, "long-edge")) {
-                            if ((opt2 = find_option("Binding")) && (setting = option_find_setting(opt2, "LongEdge")))
-                                option_set_value(opt2, optset, setting->value);
-                            else
+                            if ((opt2 = find_option("Binding")))
                                 option_set_value(opt2, optset, "LongEdge");
+                            else
+                                option_set_value(opt, optset, "DuplexNoTumble");
                         }
                         else if (strcasestr(value, "short-edge")) {
-                            if ((opt2 = find_option("Binding")) && (setting = option_find_setting(opt2, "ShortEdge")))
-                                option_set_value(opt2, optset, setting->value);
-                            else
+                            if ((opt2 = find_option("Binding")))
                                 option_set_value(opt2, optset, "ShortEdge");
+                            else
+                                option_set_value(opt, optset, "DuplexNoTumble");
                         }
                     }
                 }
                 else if (!prefixcasecmp(value, "one-sided")) {
                     if ((opt = find_option("Duplex")))
-                        /* We set "Duplex" to '0' here, the real argument setting will be done later */
                         option_set_value(opt, optset, "0");
                 }
     
-                /*
+                /*  TODO
                     We should handle the other half of this option - the
                     BindEdge bit.  Also, are there well-known ipp/cups
                     options for Collate and StapleLocation?  These may be
@@ -999,9 +590,7 @@ void process_cmdline_options()
                 /* Various non-standard printer-specific options */
                 if ((opt = find_option(key))) {
                     /* use the choice if it is valid, otherwise ignore it */
-                    if (option_set_validated_value(opt, optset, value, 0))
-                        sync_pagesize(opt, p, optset);
-                    else
+                    if (!option_set_value(opt, optset, value))
                         _log("Invalid choice %s=%s.\n", opt->name, value);
                 }
                 else if (spooler == SPOOLER_PPR_INT) {
@@ -1015,18 +604,9 @@ void process_cmdline_options()
             }
         }
         /* Custom paper size */
-        else if (sscanf(key, "%dx%d%2c", &width, &height, unit) == 3 &&
-            width != 0 && height != 0 &&
-            (opt = find_option("PageSize")) &&
-            (setting = option_find_setting(opt, "Custom")))
-        {
-            snprintf(tmp, 256, "Custom.%s", tmp);
-            option_set_value(opt, optset, tmp);
-            /* Keep "PageRegion" in sync */
-            if ((opt2 = find_option("PageRegion")))
-                option_set_value(opt2, optset, tmp);
+        else if ((opt = find_option("PageSize")) && option_set_value(opt, optset, key)) {
+            /* do nothing, if the value could be set, it has been set */
         }
-
         /* Standard bool args:
            landscape; what to do here?
            duplex; we should just handle this one OK now? */
@@ -1422,11 +1002,14 @@ void init_direct_cps_pdq(list_t *arglist, dstr_t *filelist, const char *user_def
     }
 }
 
+
 /* Build a PDQ driver description file to use the given PPD file
    together with foomatic-rip with the PDQ printing system
    and output it into 'pdqfile' */
 void print_pdq_driver(FILE *pdqfile, int optset)
 {
+}
+#if 0
     option_t *opt;
     value_t *val;
     setting_t *setting, *setting_true, *setting_false;
@@ -1435,7 +1018,7 @@ void print_pdq_driver(FILE *pdqfile, int optset)
     dstr_t *driveropts = create_dstr();
 
     /* Do we have a "Custom" setting for the page size?
-       The we have to insert the following into the filter_exec script. */
+       Then we have to insert the following into the filter_exec script. */
     dstr_t *setcustompagesize = create_dstr();
 
     dstr_t *tmp = create_dstr();
@@ -1466,30 +1049,25 @@ void print_pdq_driver(FILE *pdqfile, int optset)
             /* Omit "PageRegion" option, it does the same as "PageSize" */
             if (!strcmp(opt->name, "PageRegion"))
                 continue;
-
-            /* Assure that the comment is not emtpy */
-            if (isempty(opt->comment))
-                strcpy(opt->comment, opt->name);
-    
-            strcpy(opt->varname, opt->name);
-            strrepl(opt->varname, "-/.", '_');
     
             /* 1, if setting "PageSize=Custom" was found
                Then we must add options for page width and height */
             custompagesize = 0;
-    
+
             if ((val = option_get_value(opt, optset)))
                 strlcpy(def, val->value, 128);
 
+#if 0 TODO not used ?!
             /* If the default is a custom size we have to set also
                defaults for the width, height, and units of the page */
-            if (!strcmp(opt->name, "PageSize") &&  sscanf(def, "Custom.%dx%d%2c", &pagewidth, &pageheight, pageunit))
+            if (!strcmp(opt->name, "PageSize") && val && value_has_custom_setting(val))
                 strcpy(def, "Custom");
+#endif
 
             dstrcatf(driveropts,
                     "  option {\n"
                     "    var = \"%s\"\n"
-                    "    desc = \"%s\"\n", opt->varname, opt->comment);
+                    "    desc = \"%s\"\n", opt->varname, option_text(opt));
     
             /* get enumeration values for each enum arg */
             dstrclear(tmp);
@@ -1752,6 +1330,7 @@ void print_pdq_driver(FILE *pdqfile, int optset)
     free_dstr(cmdline);
     free_dstr(psfilter);
 }
+#endif
 
 /* returns status - see wait(2) */
 int modern_system(const char *cmd)
@@ -1783,6 +1362,7 @@ int modern_system(const char *cmd)
 }
 
 /* escapes all format strings, except %s */
+/* TODO not needed anymore ? */
 void escape_format_strings(char *dest, size_t size, char *src)
 {
     while (*src && --size > 0) {
@@ -1802,9 +1382,8 @@ void build_commandline(int optset)
 {
     option_t *opt, *o;
     value_t *val;
-    setting_t *setting;
     char driverval [256];
-    char userval [128];
+    const char *userval;
     char tmp [256];
     char *s, *p, *key, *value;
     dstr_t *cmdvar = create_dstr();
@@ -1822,364 +1401,72 @@ void build_commandline(int optset)
     dstrclear(cupspagesetupprepend);
     
     dstrcpy(currentcmd, cmd);
-
-    /* At first search for composite options and determine how they
-    set their member options */
-    for (opt = optionlist_sorted_by_order; opt; opt = opt->next_by_order) {
-        
-        /* Here we are only interested in composite options, skip the others */
-        if (opt->style != 'X')
-            continue;
-
-        /* Check whether this composite option is controlled by another
-        composite option, so nested composite options are possible. */
-        if (!isempty(opt->fromcomposite))
-            strlcpy(userval, opt->fromcomposite, 128);
-        else
-            strlcpy(userval, option_get_value_string(opt, optset), 128);
-
-        /* Get the current setting */
-        setting = option_find_setting(opt, userval);
-        if (!setting)
-            continue; /* TODO what should be done in this case? */
-
-        strlcpy(driverval, setting->driverval, 256);
-        for (s = strtok(driverval, " \n\t"); s; s = strtok(NULL, " \n\t")) {
-            p = strchr(s, '=');
-            if (p) {
-                *p = '\0';
-                key = s;
-                value = p +1;
-            }
-            else if (startswith(s, "no")) {
-                key = &s[3];
-                value = "0";
-            }
-            else {
-                key = s;
-                value = "1";
-            }
-
-            o = find_option(key);
-            if (!o)
-                continue; /* TODO what should be done in this case? */
-            val = option_get_value(o, optset);
-            if (val && startswith(val->value, "From") && !strcmp(&val->value[4], opt->name)) {
-                /* We must set this option according to the composite option */
-                strlcpy(o->fromcomposite, value, 256);
-
-                /* Mark the option telling by which composite otpion it is controlled */
-                o->controlledby = opt;
-            }
-            else
-                o->fromcomposite[0] = '\0';
-        }
-
-        /* Remove PostScript code to be inserted after an appearance of the
-        Composite option in the PostScript code */
-        dstrclear(opt->jclsetup);
-        dstrclear(opt->prolog);
-        dstrclear(opt->setup);
-        dstrclear(opt->pagesetup);
-    }
+    
 
     for (opt = optionlist_sorted_by_order; opt; opt = opt->next_by_order) {
-
         /* Composite options have no direct influence on the command
         line, skip them here */
-        if (opt->style == 'X')
+        if (option_is_composite(opt))
             continue;
 
-        dstrclear(cmdvar);
-
-        /* If we have both "PageSize" and "PageRegion" options, we kept
-        them all the time in sync, so we don't need to insert the settings
-        of both options. So skip "PageRegion". */
-        if (!strcmp(opt->name, "PageRegion") && find_option("PageSize"))
-            continue;
-
-        if (!isempty(opt->fromcomposite))
-            strlcpy(userval, opt->fromcomposite, 128);
-        else
-            strlcpy(userval, option_get_value_string(opt, optset), 128);
-
-        /* Build the command line snippet/PostScript/JCL code for the current option */
-        switch (opt->type) {
-            case TYPE_BOOL:
-                /* If true, stick the proto into the command line, if false
-                and we have a proto for false, stick that in */
-                if (!isempty(userval) && !strcmp(userval, "1"))
-                    dstrcpyf(cmdvar, "%s", opt->proto);
-                else if (!isempty(opt->protof)) {
-                    strlcpy(userval, "0", 128);
-                    dstrcpy(cmdvar, opt->protof);
-                }
-                break;
-
-            case TYPE_INT:
-            case TYPE_FLOAT:
-                /* If defined, process the proto and stick the result into
-                the command line or postscript queue */
-                if (!isempty(userval)) {
-                    /* We have already range checked, correct only
-                    floating point inaccuracies here */  /* TODO check if this is really necessary */
-
-                    escape_format_strings(tmp, 256, opt->proto);
-                    dstrcpyf(cmdvar, tmp, userval);
-                }
-                break;
-
-            case TYPE_ENUM:
-                /* If defined, stick the selected value into the proto and
-                then into the commandline */
-                setting = NULL;
-                if (!isempty(userval)) {
-                    /* CUPS assumes that options with the choices "Yes", "No",
-                    "On", "Off", "True", or "False" are boolean options and
-                    maps "-o Option=On" to "-o Option" and "-o Option=Off"
-                    to "-o noOption", which foomatic-rip maps to "0" and "1".
-                    So when "0" or "1" is unavailable in the option, we try
-                    "Yes", "No", "On", "Off", "True", and "False". */
-                    if ((setting = option_find_setting(opt, userval))) {
-                    }
-                    else if (sscanf(userval, "Custom.%fx%f%2s", &width, &height, unit) == 3) {
-                        /* Custom Paper Size */
-                        setting = option_find_setting(opt, "Custom");
-                    }
-                    else if (is_false_string(userval)) {
-                        setting = option_find_setting(opt, "0");
-                        if (!setting) setting = option_find_setting(opt, "No");
-                        if (!setting) setting = option_find_setting(opt, "Off");
-                        if (!setting) setting = option_find_setting(opt, "False");
-                        if (!setting) setting = option_find_setting(opt, "None");
-                        
-                        if (setting) {
-                            strcpy(userval, setting->value);
-                            option_set_value(opt, optset, userval);
-                        }
-                    }
-                    else if (is_true_string(userval)) {
-                        setting = option_find_setting(opt, "1");
-                        if (!setting) setting = option_find_setting(opt, "Yes");
-                        if (!setting) setting = option_find_setting(opt, "On");
-                        if (!setting) setting = option_find_setting(opt, "True");
-                        
-                        if (setting) {
-                            strcpy(userval, setting->value);
-                            option_set_value(opt, optset, userval);
-                        }
-                    }
-                    else if (!strcmp(userval, "LongEdge")) {
-                        /* Handle different names for the choices of the
-                        "Duplex" option */
-                        /* TODO this can NEVER happen, as it would have been caught by the first condition */
-                        setting = option_find_setting(opt, "LongEdge");
-                        if (!setting)
-                            setting = option_find_setting(opt, "DuplexNoTumble");
-                        if (setting) {
-                            strcpy(userval, setting->value);
-                            option_set_value(opt, optset, userval);
-                        }
-                    }
-                    else if (!strcmp(userval, "ShortEdge")) {
-                        /* TODO this can NEVER happen, as it would have been caught by the first condition */
-                        setting = option_find_setting(opt, "ShortEdge");
-                        if (!setting)
-                            setting = option_find_setting(opt, "DuplexTumble");
-                        if (setting) {
-                            strcpy(userval, setting->value);
-                            option_set_value(opt, optset, userval);
-                        }
-                    }
-
-
-                    if (setting) {
-                        escape_format_strings(tmp, 256, opt->proto);
-                        dstrcpyf(cmdvar, tmp,
-                                 isempty(setting->driverval) ?
-                                         setting->value : setting->driverval);
-
-                        /* Custom paper size */
-                        if (sscanf(userval, "Custom.%fx%f%2s", &width, &height, unit) == 3) {
-                            /* Conert width and height to PostScript points */
-                            /* TODO same for PDF? */
-                            if (!strcasecmp(unit, "in")) {
-                                width *= 72.0;
-                                height *= 72.0;
-                            }
-                            else if (!strcasecmp(unit, "cm")) {
-                                width *= 72.0 / 2.54;
-                                height *= 72.0 / 2.54;
-                            }
-                            else if (!strcasecmp(unit, "mm")) {
-                                width *= 72.0 / 25.4;
-                                height *= 72.0 / 25.4;
-                            }
-                            /* Round width and height */
-                            width = roundf(width);
-                            height = roundf(height);
-                            /* Insert width and height into the prototype */
-                            if ((p = strstr(cmdvar->data, "pop")) && (!p[4] || isspace(p[4]))) {
-                                /* Custom page size for PostScript printers */
-                                s = malloc(cmdvar->len +1);
-                                strcpy(s, cmdvar->data);
-                                dstrcpyf(cmdvar, "%d %d 0 0 0\n%s", (int)width, (int)height, s);
-                                free(s);
-                            }
-                            else {
-                                /* Custom page size for Foomatic/Gutenprint/Gimp-Print */
-                                /* TODO from which to which format is cmdvar converted? */
-                            }
-                        }
-                    }
-                    else {
-                        /* user gave unknown value? */
-                        strcpy(userval, "None");
-                        _log("Value %s for %s is not a valid choice.\n", userval, opt->name);
-                    }
-                }
-                else {
-                    strcpy(userval, "None");
-                }
-                break;
-
-            case TYPE_STRING:
-                /* Stick the entered value into the proto and
-                hence into the command line */
-                if (!isempty(userval)) {
-                    if ((setting = option_find_setting(opt, userval))) {
-                        strcpy(userval, setting->value);
-                        /* TODO perl code inserts driverval when it is defined, even when it is empty
-                                is it ever NOT defined? */
-                        /* dstrcpy(cmdvar, isempty(setting->driverval) ? setting->value : setting->driverval); */
-    
-                        /* HACK always insert setting->driverval to have same behavior as the perl version */
-                        dstrcpy(cmdvar, setting->driverval);
-                    }
-                    else {
-                        escape_format_strings(tmp, 256, opt->proto);
-                        dstrcpyf(cmdvar, tmp, userval);
-                    }
-                }
-                else
-                    strcpy(userval, "None");
-                break;
-
-            default:
-                /* Ignore unknown options silently */
-                break;
-        }
-
+        userval = option_get_value(opt, optset);
+        option_get_command(cmdvar, opt, optset, -1);
 
         /* Insert the built snippet at the correct place */
-        if (opt->style == 'G') {
+        if (option_is_ps_command(opt)) {
             /* Place this Postscript command onto the prepend queue
-            for the appropriate section. */
+               for the appropriate section. */
             if (cmdvar->len) {
                 dstrcpyf(open, "[{\n%%%%BeginFeature: *%s ", opt->name);
                 if (opt->type == TYPE_BOOL)
-                    dstrcatf(open, userval[0] == '1' ? "True\n" : "False\n");
+                    dstrcatf(open, is_true_string(userval) ? "True\n" : "False\n");
                 else
                     dstrcatf(open, "%s\n", userval);
                 dstrcpyf(close, "\n%%%%EndFeature\n} stopped cleartomark\n");
                 
-                if (!strcmp(opt->section, "Prolog")) {
-                    dstrcatf(prologprepend, "%s%s%s", open->data, cmdvar->data, close->data);
-                    o = opt;
-                    while (o->controlledby) {
-                        /* Collect option PostScript code to be inserted when
-                        the composite option which controls this option
-                        is found in the PostScript code*/
-                        o = o->controlledby;
-                        dstrcatf(o->prolog, "%s\n", cmdvar->data);
-                    }
-                }
-                else if (!strcmp(opt->section, "AnySetup")) {
-                    if (optset != optionset("currentpage"))
+                switch (option_get_section(opt)) {
+                    case SECTION_PROLOG:
+                        dstrcatf(prologprepend, "%s%s%s", open->data, cmdvar->data, close->data);
+                        break;
+                        
+                    case SECTION_ANYSETUP:
+                        if (optset != optionset("currentpage"))
+                            dstrcatf(setupprepend, "%s%s%s", open->data, cmdvar->data, close->data);
+                        else if (strcmp(option_get_value(opt, optionset("header")), userval) != 0) {
+                            dstrcatf(pagesetupprepend, "%s%s%s", open->data, cmdvar->data, close->data);
+                            dstrcatf(cupspagesetupprepend, "%s%s%s", open->data, cmdvar->data, close->data);
+                        }
+                        break;
+                    
+                    case SECTION_DOCUMENTSETUP:
                         dstrcatf(setupprepend, "%s%s%s", open->data, cmdvar->data, close->data);
-                    else if (strcmp(option_get_value_string(opt, optionset("header")), userval)) {
+                        break;
+                        
+                    case SECTION_PAGESETUP:
                         dstrcatf(pagesetupprepend, "%s%s%s", open->data, cmdvar->data, close->data);
-                        dstrcatf(cupspagesetupprepend, "%s%s%s", open->data, cmdvar->data, close->data);
-                    }
-                    o = opt;
-                    while (o->controlledby) {
-                        /* Collect option PostScript code to be inserted when
-                        the composite option which controls this option
-                        is found in the PostScript code*/
-                        o = o->controlledby;
-                        dstrcatf(o->setup, "%s\n", cmdvar->data);
-                        dstrcatf(o->pagesetup, "%s\n", cmdvar->data);
-                    }
+                        break;
+                    
+                    case SECTION_JCLSETUP:          /* PCL/JCL argument */
+                        s = malloc(cmdvar->len +1);
+                        unhexify(s, cmdvar->len +1, cmdvar->data);
+                        dstrcatf(local_jclprepend, "%s", s);
+                        free(s);
+                        break;
+                    
+                    default:
+                        dstrcatf(setupprepend, "%s%s%s", open->data, cmdvar->data, close->data);
                 }
-                else if (!strcmp(opt->section, "DocumentSetup")) {
-                    dstrcatf(setupprepend, "%s%s%s", open->data, cmdvar->data, close->data);
-                    o = opt;
-                    while (o->controlledby) {
-                        /* Collect option PostScript code to be inserted when
-                        the composite option which controls this option
-                        is found in the PostScript code*/
-                        o = o->controlledby;
-                        dstrcatf(o->setup, "%s\n", cmdvar->data);
-                    }
-                }
-                else if (!strcmp(opt->section, "PageSetup")) {
-                    dstrcatf(pagesetupprepend, "%s%s%s", open->data, cmdvar->data, close->data);
-                    o = opt;
-                    while (o->controlledby) {
-                        /* Collect option PostScript code to be inserted when
-                        the composite option which controls this option
-                        is found in the PostScript code*/
-                        o = o->controlledby;
-                        dstrcatf(o->pagesetup, "%s\n", cmdvar->data);
-                    }
-                }
-                else if (!strcmp(opt->section, "JCLSetup")) {
-                    /* PCL/JCL argument */
-                    s = malloc(cmdvar->len +1);
-                    unhexify(s, cmdvar->len +1, cmdvar->data);
-                    dstrcatf(local_jclprepend, "%s", s);
-                    free(s);
-                    o = opt;
-                    while (o->controlledby) {
-                        /* Collect option PostScript code to be inserted when
-                        the composite option which controls this option
-                        is found in the PostScript code*/
-                        o = o->controlledby;
-                        dstrcatf(o->jclsetup, "%s\n", cmdvar->data);
-                    }
-                }
-                else {
-                    dstrcatf(setupprepend, "%s%s%s", open->data, cmdvar->data, close->data);
-                    o = opt;
-                    while (o->controlledby) {
-                        /* Collect option PostScript code to be inserted when
-                        the composite option which controls this option
-                        is found in the PostScript code*/
-                        o = o->controlledby;
-                        dstrcatf(o->setup, "%s\n", cmdvar->data);
-                    }
-                }
-            }
-
-            /* Do we have an option which is set to "Controlled by 
-            '<Composite>'"? Then make PostScript code available
-            for substitution of "%% FoomaticRIPOptionSetting: ..." */
-            if (!isempty(opt->fromcomposite)) {
-                dstrcpyf(opt->compositesubst, "%s\n", cmdvar->data);
             }
         }
-        else if (opt->style == 'J') {
-            /* JCL argument */
+        else if (option_is_jcl_arg(opt)) {
             jcl = 1;
             /* Put jcl commands onto JCL stack */
             if (cmdvar->len)
                 dstrcatf(local_jclprepend, "%s%s\n", jclprefix, cmdvar->data);
         }
-        else if (opt->style == 'C') {
-            /* command-line argument */
+        else if (option_is_commandline_arg(opt)) {
             /* Insert the processed argument in the commandline
             just before every occurance of the spot marker. */
-
             p = malloc(3);
             snprintf(p, 3, "%%%c", opt->spot);
             s = malloc(cmdvar->len +3);
@@ -2198,11 +1485,6 @@ void build_commandline(int optset)
             dstrreplace(currentcmd, "%Y", s);
             free(s);
         }
-
-        /* Remove the marks telling that this option is currently controlled
-        by a composite option (setting "From<composite>") */
-        opt->fromcomposite[0] = '\0';
-        opt->controlledby = NULL;
     }
 
     /* Tidy up after computing option statements for all of P, J, and C types: */
@@ -2334,7 +1616,7 @@ void get_renderer_handle(const dstr_t *prepend, int *fd, pid_t *pid)
 
     dstrcpy(jclprepend_copy, jclprepend->data);
 
-    _log("Starting renderer\n");
+    _log("\nStarting renderer\n");
 
     /* Catch signals */
     retval = EXIT_PRINTED;
@@ -2596,7 +1878,7 @@ void get_renderer_handle(const dstr_t *prepend, int *fd, pid_t *pid)
                 fileh = STDOUT_FILENO;
 
             /* Debug output */
-            _log("JCL: %s <job data> %s\n", jclprepend->data, jclappend->data);
+            _log("JCL: %s <job data> %s\n\n", jclprepend->data, jclappend->data);
 
             /* wrap the JCL around the job data, if there are any
             options specified...
@@ -2754,7 +2036,7 @@ int close_renderer_handle(int rendererhandle, pid_t rendererpid)
     ssize_t n;
     int kid_id, exitstat;
 
-    _log("Closing renderer\n");
+    _log("\nClosing renderer\n");
     close(rendererhandle);
 
     /* Wait for all kid processed to finish or one kid process to fail */
@@ -2805,14 +2087,14 @@ void get_fileconverter_handle(const char *already_read, int *fd, pid_t *pid)
     char cmd[32];
     const char *p, *p2, *lastp;
     option_t *opt;
-    value_t *val;
+    const char *val;
     ssize_t count;
     
     pid_t kid1, kid2;
     int pfd_kid1[2];
     int pfd_kid2[2];
 
-    _log("Starting converter for non-PostScript files\n");
+    _log("\nStarting converter for non-PostScript files\n");
 
     /* Determine with which command non-PostScript files are converted */
     if (isempty(conf.fileconverter)) {
@@ -2871,13 +2153,13 @@ void get_fileconverter_handle(const char *already_read, int *fd, pid_t *pid)
                 /* Use wider margins so that the pages come out completely on
                 every printer model (especially HP inkjets) */
                 if (startswith(conf.fileconverter, "a2ps")) {
-                    if (!strcasecmp(val->value, "letter"))
+                    if (!strcasecmp(val, "letter"))
                         strlcat(conf.fileconverter, "Letterdj", 512);
-                    else if (!strcasecmp(val->value, "a4"))
+                    else if (!strcasecmp(val, "a4"))
                         strlcat(conf.fileconverter, "A4dj", 512);
                 }
                 else
-                    strlcat(conf.fileconverter, val->value, 512);
+                    strlcat(conf.fileconverter, val, 512);
             }
 
             /* advance p to after the @@PAGESIZE@@ */
@@ -3122,7 +2404,7 @@ int close_fileconverter_handle(int fileconverter_handle, pid_t fileconverter_pid
     ssize_t n;
     int kid_id, exitstat;
     
-    _log("Closing file converter\n");
+    _log("\nClosing file converter\n");
     close(fileconverter_handle);
 
     /* Wait for all kid processes to finish or one kid process to fail */
@@ -3573,8 +2855,7 @@ void print_file()
     int currentpage = 0;   /* The page which we are currently printing */
 
     option_t *o;
-    value_t *val;
-    setting_t *setting;
+    const char *val;
 
     int linetype;
 
@@ -3726,7 +3007,7 @@ void print_file()
                         many "dvips" (TeX/LaTeX) files miss the "%%BeginProlog"
                         comment.
                         Beginning of Prolog */
-                        _log("-----------\nFound: %%%%BeginProlog\n");
+                        _log("\n-----------\nFound: %%%%BeginProlog\n");
                         inprolog = 1;
                         if (inheader)
                             postscriptsection = PS_SECTION_PROLOG;
@@ -3745,7 +3026,7 @@ void print_file()
                     }
                     else if (nestinglevel == 0 && startswith(line->data, "%%BeginSetup")) {
                         /* Beginning of Setup */
-                        _log("-----------\nFound: %%%%BeginSetup\n");
+                        _log("\n-----------\nFound: %%%%BeginSetup\n");
                         insetup = 1;
                         nondsclines = 0;
                         /* We need to distinguish with the $inheader variable
@@ -3829,7 +3110,7 @@ void print_file()
                         else {
                             /* the previous page is printed, so we can prepare
                             the current one */
-                            _log("-----------\nNew page: %s", line->data);
+                            _log("\n-----------\nNew page: %s", line->data);
                             printprevpage = 0;
                             currentpage++;
                             /* We consider the beginning of the page already as
@@ -3904,7 +3185,7 @@ void print_file()
                                     they have to be set to the correct value
                                     for every page */
                                 for (o = optionlist; o; o = o->next) {
-                                    if (!strcmp(o->section, "PageSetup"))
+                                    if (option_get_section(o ) == SECTION_PAGESETUP)
                                         o->notfirst = 0;
                                 }
                             }
@@ -3928,7 +3209,7 @@ void print_file()
                         nothing of the page will be drawn, page-specific
                         option settngs (as letter-head paper for page 1)
                         go here*/
-                        _log("Found: %%%%BeginPageSetup\n");
+                        _log("\nFound: %%%%BeginPageSetup\n");
                         passthru = 0;
                         inpageheader = 1;
                         postscriptsection = PS_SECTION_PAGESETUP;
@@ -3999,8 +3280,8 @@ void print_file()
                             if (spooler == SPOOLER_CUPS &&
                                 linetype == LT_BEGIN_FEATURE &&
                                 !option_get_value(o, optionset("notfirst")) &&
-                                strcmp(option_get_value_string(o, optset), value) != 0 &&
-                                (inheader || !strcmp(o->section, "PageSetup"))) {
+                                strcmp(option_get_value(o, optset), value) != 0 &&
+                                (inheader || option_get_section(o) == SECTION_PAGESETUP)) {
 
                                 /* We have the first occurence of an option
                                 setting and the spooler is CUPS, so this
@@ -4031,53 +3312,29 @@ void print_file()
                                 range-checked, so do not check again here
                                 Insert DSC comment */
                                 pdest = (inheader && isdscjob) ? psheader : psfifo;
-                                if (o->style == 'G') {
+                                if (option_is_ps_command(o)) {
                                     /* PostScript option, insert the code */
-                                    if (o->type == TYPE_BOOL) {
-                                        val = option_get_value(o, optset);
+                                    
+                                    option_get_command(tmp, o, optset, -1);
+                                    if (!(val = option_get_value(o, optset)))
+                                        val = "";
+
+                                    if (o->type == TYPE_BOOL)
                                         dstrcatf(pdest, "%%%%BeginFeature: *%s %s\n", o->name,
-                                                val && !strcmp(val->value, "1") ? "True" : "False");
-                                        if (val && !strcmp(val->value, "1"))
-                                            dstrcatf(pdest, "%s\n", o->proto);
-                                        else if (!isempty(o->protof))
-                                            dstrcatf(pdest, "%s\n", o->protof);
-                                    }
-                                    else if ((o->type == TYPE_ENUM || o->type == TYPE_STRING) &&
-                                            (val = option_get_value(o, optset)) &&
-                                            (setting = option_find_setting(o, val->value))) {
-                                        dstrcatf(pdest, "%%%%BeginFeature: *%s %s\n", o->name, val->value);
-                                        dstrcatf(pdest, "%s\n", setting->driverval);
-                                    }
-                                    else if (o->type == TYPE_STRING &&
-                                            (val = option_get_value(o, optset)) &&
-                                            !strcmp(val->value, "None")) {
-                                        /* None is mapped to the empty string
-                                        in string options */
-                                        dstrcatf(pdest, "%%%%BeginFeature: *%s %s\n", o->name, val->value);
-                                        dstrcpy(tmp, o->proto);
-                                        dstrreplace(tmp, "%s", "");
-                                        dstrcatf(pdest, "%s\n", tmp->data);
-                                    }
-                                    else {
-                                        /* Setting for numerical or string
-                                        option which is not under the
-                                        enumerated choices */
-                                        val = option_get_value(o, optset);
-                                        dstrcatf(pdest, "%%%%BeginFeature: *%s %s", o->name, val ? val->value : "");
-                                        dstrassure(tmp, 256);
-                                        escape_format_strings(tmp->data, tmp->len, o->proto);
-                                        dstrcpyf(tmp, tmp->data, val->value);
-                                        dstrcatf(pdest, "%s\n", tmp->data);
-                                    }
+                                                val && !strcmp(val, "1") ? "True" : "False");
+                                    else 
+                                        dstrcatf(pdest, "%%%%BeginFeature: *%s %s\n", o->name, val);
+                                    
+                                    dstrcatf(pdest, "%s\n", tmp->data);
                                 }
                                 else {   /* Command line or JCL option */
                                     val = option_get_value(o, optset);
                                     dstrcatf(pdest, "%%%% FoomaticRIPOptionSetting: %s=%s\n",
-                                            o->name, val ? val->value : "");
+                                            o->name, val ? val : "");
                                 }
                                 val = option_get_value(o, optset);
                                 _log(" --> Correcting numerical/string option to %s=%s (Command line argument)\n",
-                                    o->name, val ? val->value : "");
+                                    o->name, val ? val : "");
                                 /* We have replaced this option on the FIFO */
                                 optionreplaced = 1;
                             }
@@ -4095,9 +3352,9 @@ void print_file()
 
                                     /* Non PostScript option
                                     Check whether it is valid */
-                                    if (option_set_validated_value(o, optset, value, 0)) {
+                                    if (option_set_value(o, optset, value)) {
                                         _log("Setting option\n");
-                                        strlcpy(value, option_get_value_string(o, optset), 128);
+                                        strlcpy(value, option_get_value(o, optset), 128);
                                         if (optionsalsointoheader)
                                             option_set_value(o, optionset("header"), value);
                                         if (o->type == TYPE_ENUM &&
@@ -4125,22 +3382,20 @@ void print_file()
                                         The code from the member options
                                         is chosen according to the setting
                                         of the composite option. */
-                                        if (o->style == 'X' && linetype == LT_FOOMATIC_RIP_OPTION_SETTING) {
-                                            build_commandline(optset);
-                                            if (postscriptsection == PS_SECTION_JCLSETUP)
-                                                dstrcat(line, o->jclsetup->data);
+                                        if (option_is_composite(o) && linetype == LT_FOOMATIC_RIP_OPTION_SETTING) {
+                                            build_commandline(optset); /* TODO can this be removed? */
+                                            
+                                            /* TODO merge section and ps_section */
+                                            if (postscriptsection == PS_SECTION_JCLSETUP) 
+                                                option_get_command(tmp, o, optset, SECTION_JCLSETUP);
                                             else if (postscriptsection == PS_SECTION_PROLOG)
-                                                dstrcat(line, o->prolog->data);
+                                                option_get_command(tmp, o, optset, SECTION_PROLOG);
                                             else if (postscriptsection == PS_SECTION_SETUP)
-                                                dstrcat(line, o->setup->data);
+                                                option_get_command(tmp, o, optset, SECTION_DOCUMENTSETUP);
                                             else if (postscriptsection == PS_SECTION_PAGESETUP)
-                                                dstrcat(line, o->pagesetup->data);
+                                                option_get_command(tmp, o, optset, SECTION_PAGESETUP);
+                                            dstrcat(line, tmp->data);
                                         }
-
-                                        /* If this argument is PageSize or PageRegion, also set the other */
-                                        sync_pagesize(o, value, optset);
-                                        if (optionsalsointoheader)
-                                            sync_pagesize(o, value, optionset("header"));
                                     }
                                     else
                                         _log(" --> Invalid option setting found in job\n");
@@ -4154,14 +3409,15 @@ void print_file()
                                     /* Set the option */
                                     dstrcpyf(tmp, "From%s", value);
                                     strlcpy(value, tmp->data, 128);
-                                    if (option_set_validated_value(o, optset, value, 0)) {
+                                    if (option_set_value(o, optset, value)) {
                                         _log(" --> Looking up setting in composite option %s\n", value);
                                         if (optionsalsointoheader)
                                             option_set_value(o, optionset("header"), value);
                                         /* update composite options */
                                         build_commandline(optset);
                                         /* Substitute PostScript comment by the real code */
-                                        dstrcpy(line, o->compositesubst->data);
+                                        /* TODO what exactly is the next line doing? */
+                                        /* dstrcpy(line, o->compositesubst->data); */
                                     }
                                     else
                                         _log(" --> Invalid option setting found in job\n");
@@ -4277,9 +3533,9 @@ void print_file()
             /* Debug Info */
             if (lastpassthru != passthru) {
                 if (passthru)
-                    _log("Found: %s --> Output goes directly to the renderer now.\n", line->data);
+                    _log("Found: %s --> Output goes directly to the renderer now.\n\n", line->data);
                 else
-                    _log("Found: %s --> Output goes to the FIFO buffer now.\n", line->data);
+                    _log("Found: %s --> Output goes to the FIFO buffer now.\n\n", line->data);
             }
 
             /* We are in an option which was replaced, do not output the current line */
@@ -4344,7 +3600,7 @@ void print_file()
                         while (fgetdstr(line, stdin) > 0) {
                             if (startswith(line->data, "%%")) {
                                 _log("Found: %s", line->data);
-                                _log(" --> Continue DSC parsing now.\n");
+                                _log(" --> Continue DSC parsing now.\n\n");
                                 saved = 1;
                                 break;
                             }
@@ -4375,7 +3631,7 @@ void print_file()
             header ($maxlinestopsstart). */
             if (linect <= nonpslines) {
                 /* This is not a PostScript job, we must convert it */
-                _log("Job does not start with \"%%!\", is it PostScript?\n"
+                _log("\nJob does not start with \"%%!\", is it PostScript?\n"
                      "Starting file converter\n");
 
                 /* Reset all variables but conserve the data which
@@ -4565,7 +3821,7 @@ int main(int argc, char** argv)
     jclappend = create_dstr();
     postpipe = create_dstr();
 
-    init_optionlist();
+    options_init();
 
 
     /* set the time once to keep output consistent */
@@ -4871,7 +4127,7 @@ int main(int argc, char** argv)
         exit(EXIT_PRNERR_NORETRY_BAD_SETTINGS);
     }
     
-    parse_ppd_file(ppdfile);
+    read_ppd_file(ppdfile);
     
     /* We do not need to parse the PostScript job when we don't have
        any options. If we have options, we must check whether the
@@ -4881,10 +4137,6 @@ int main(int argc, char** argv)
         /* We don't have any options, so we do not need to parse the
            PostScript data */
         dontparse = 1;
-    }
-    else {
-        check_options(optionset("default"));
-         /* TODO check value ranges */
     }
     
     /* Is our PPD for a CUPS raster driver */
@@ -4954,14 +4206,14 @@ int main(int argc, char** argv)
     }
     
     /* Summary for debugging */
-    _log("Parameter Summary\n"
-         "-----------------\n"
+    _log("\nParameter Summary\n"
+         "-----------------\n\n"
          "Spooler: %s\n"
          "Printer: %s\n"
          "Shell: %s\n"
          "PPD file: %s\n"
          "ATTR file: %s\n"
-         "Printer Model: %s\n",
+         "Printer model: %s\n",
         spooler_name(spooler), printer, modern_shell, ppdfile, attrpath, printer_model);
     /* Print the options string only in debug mode, Mac OS X adds very many
        options so that CUPS cannot handle the output of the option string
@@ -4971,7 +4223,7 @@ int main(int argc, char** argv)
         _log("Options: %s\n", optstr->data);
     _log("Job title: %s\n", jobtitle);
     _log("File(s) to be printed:\n");
-    _log("%s\n", filelist->data);
+    _log("%s\n\n", filelist->data);
     if (getenv("GS_LIB"))
         _log("GhostScript extra search path ('GS_LIB'): %s\n", getenv("GS_LIB"));
     
@@ -5040,10 +4292,10 @@ int main(int argc, char** argv)
 
 
     filename = strtok_r(filelist->data, " ", &p);
-    do {
-        _log("================================================\n"
-             "File: %s\n"
-             "================================================\n", filename);
+    while (filename) {
+        _log("\n================================================\n\n"
+             "File: %s\n\n"
+             "================================================\n\n", filename);
 
         /* If we do not print standard input, open the file to print */
         if (strcmp(filename, "<STDIN>") != 0) {
@@ -5063,7 +4315,7 @@ int main(int argc, char** argv)
         if (dontparse == 2) {
             /* Raw queue, simply pass the input into the postpipe (or to STDOUT
                when there is no postpipe) */
-            _log("Raw printing, executing \"cat %s\"\n");
+            _log("Raw printing, executing \"cat %s\"\n\n");
             snprintf(tmp, 1024, "cat %s", postpipe->data);
             modern_system(tmp);
             continue;
@@ -5077,8 +4329,8 @@ int main(int argc, char** argv)
         optionset_copy_values(optionset("userval"), optionset("header"));
 
         print_file();
+        filename = strtok_r(NULL, " ", &p);
     }
-    while ((filename = strtok_r(NULL, " ", &p)));
 
     /* Close documentation page generator */
     /* if (docgenerator_pid) {
@@ -5095,7 +4347,7 @@ int main(int argc, char** argv)
 
     /* TODO dump everything in $dat when debug is turned on (necessary?) */
 
-    _log("Closing foomatic-rip.\n");
+    _log("\nClosing foomatic-rip.\n");
 
 
     /* Cleanup */
@@ -5104,7 +4356,7 @@ int main(int argc, char** argv)
         fclose(genpdqfile);
     free_dstr(filelist);
     free_dstr(optstr);
-    free_optionlist();
+    options_free();
     if (logh && logh != stderr)
         fclose(logh);
     free(cwd);
@@ -5117,9 +4369,8 @@ int main(int argc, char** argv)
     free_dstr(jclappend);
     if (backendoptions)
         free_dstr(backendoptions);
-    free_dstr(postpipe);
     
     list_free(arglist);
-
+    
     return retval;
 }

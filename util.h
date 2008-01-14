@@ -107,6 +107,10 @@ void dstrinsert(dstr_t *ds, int idx, const char *str);
 void dstrremove(dstr_t *ds, int idx, size_t count);
 void dstrcatline(dstr_t *ds, const char *str); /* appends the first line from str to ds (incl. \n) */
 
+int dstrendswith(dstr_t *ds, const char *str);
+void dstrfixnewlines(dstr_t *ds);
+void dstrremovenewline(dstr_t *ds);
+void dstrtrim_right(dstr_t *ds);
 
 
 /* Doubly linked list of void pointers */
@@ -149,3 +153,4 @@ int arglist_remove(list_t *list, const char *name);
 int arglist_remove_flag(list_t *list, const char *name);
 
 #endif
+
