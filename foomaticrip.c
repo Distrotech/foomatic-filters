@@ -476,7 +476,7 @@ void process_cmdline_options()
     char unit[2];
 
     p = extract_next_option(optstr->data, &pagerange, &key, &value);
-    while (key) {
+    while (p) {
         if (value)
             _log("Pondering option '%s=%s'\n", key, value);
         else
@@ -1570,6 +1570,76 @@ void set_exit_engaged()
     retval = EXIT_ENGAGED;
 }
 
+/* Check whether we have a Ghostscript version with redirection of the
+   standard output of the PostScript programs via '-sstdout=%stderr' */
+int test_gs_output_redirection()
+{
+    char * gstestcommand = GS_PATH " -dQUIET -dPARANOIDSAFER -dNOPAUSE -dBATCH -dNOMEDIAATTRS "
+        "-sDEVICE=pswrite -sstdout=%stderr -sOutputFile=/dev/null -c '(hello\n) print flush' 2>&1";
+    char output[10] = "";
+    
+    FILE *pd = popen(gstestcommand, "r");    
+    if (!pd) {
+        _log("Failed to execute ghostscript!\n");
+        return 0;
+    }
+    
+    fread(output, 1, 1024, pd); 
+    pclose(pd);
+    
+    if (startswith(output, "hello"))
+        return 1;
+    
+    return 0;
+}
+
+/* Massage arguments to make ghostscript execute properly as a filter, with
+   output on stdout and errors on stderr etc.
+   (This function does what foomatic-gswrapper used to do) */
+void massage_gs_commandline(dstr_t *cmd)
+{
+    int gswithoutputredirection = test_gs_output_redirection();
+    
+    /* TODO Handle commandlines in which the 'gs' command is part of a pipe */
+    if (!startswith(cmd->data, "gs"))
+        return;
+    
+    /* If Ghostscript does not support redirecting the standard output
+       of the PostScript program to standard error with
+       '-sstdout=%stderr', sen the job output data to fd 3; errors 
+       will be on 2(stderr) and job ps program interpreter output on 
+       1(stdout). */
+    if (gswithoutputredirection)
+        dstrreplace(cmd, "-sOutputFile=- ", "-sOutputFile=%stdout");
+    else
+        dstrreplace(cmd, "-sOutputFile=- ", "-sOutputFile=/dev/fd/3");
+        
+    /* Use always buffered input. This works around a Ghostscript
+	   bug which prevents printing encrypted PDF files with Adobe
+	   Reader 8.1.1 and Ghostscript built as shared library
+	   (Ghostscript bug #689577, Ubuntu bug #172264) */
+	dstrreplace(cmd, " - ", " -_ ");
+	dstrreplace(cmd, " /dev/fd/0 ", " -_ ");
+	
+	/* Turn *off* -q (quiet!); now that stderr is useful! :) */
+	dstrreplace(cmd, " -q ", "");
+	
+	/* Escape any quotes, and then quote everything just to be sure... 
+       Escaping a single quote inside single quotes is a bit complex as the shell
+       takes everything literal there. So we have to assemble it by concatinating
+       different quoted strings.
+       Finally we get e.g.: 'x'"'"'y' or ''"'"'xy' or 'xy'"'"'' or ... */
+    /* dstrreplace(cmd, "'", "'\"'\"'"); TODO tbd */
+
+    
+    dstrremove(cmd, 0, 2);     /* Remove 'gs' */
+    if (gswithoutputredirection) 
+        dstrprepend(cmd, " -sstdout=%stderr ");
+    else
+        dstrcat(cmd, " 3>&1 1>&2");
+    dstrprepend(cmd, GS_PATH);
+}
+
 
 /* TODO move! */
 /* shared by get_renderer_handle and close_renderer_handle */
@@ -1599,8 +1669,7 @@ void get_renderer_handle(const dstr_t *prepend, int *fd, pid_t *pid)
     dstr_t *commandline = create_dstr();
     char tmp[1024];
 
-    int havewrapper;
-    char *path, *p, *line;
+    char *p, *line;
     int insert, commandfound;
 
     int fileh;
@@ -1669,6 +1738,17 @@ void get_renderer_handle(const dstr_t *prepend, int *fd, pid_t *pid)
         if (kid4) {
             /* parent, child of primary task; we are |commandline| */
             close(pfd_kid4[0]);
+            
+            /* Massage commandline to execute foomatic-gswrapper */
+            massage_gs_commandline(commandline);
+            
+            /* If the renderer command line contains the "echo"
+            command, replace the "echo" by the user-chosen $myecho
+            (important for non-GNU systems where GNU echo is in a
+            special path */
+            /* TODO search for regexp "\wecho\w" */
+            dstrreplace(commandline, "echo", ECHO);
+
 
             _log("renderer PID kid4=%d\n", kid4);
             _log("renderer command: %s\n", commandline->data);
@@ -1725,29 +1805,6 @@ void get_renderer_handle(const dstr_t *prepend, int *fd, pid_t *pid)
                     exit(EXIT_PRNERR_NORETRY_BAD_SETTINGS);
                 }
             }
-
-            /* TODO incorporate gswrapper */
-
-            /* Massage commandline to execute foomatic-gswrapper */
-            havewrapper = 0;
-            path = malloc(strlen(getenv("PATH")) +1);
-            strcpy(path, getenv("PATH"));
-            for (p = strtok(path, ":"); p; p = strtok(NULL, ":")) {
-                if (access(p, X_OK) == 0) {
-                    havewrapper = 1;
-                    break;
-                }
-            }
-            free(path);
-
-            if (havewrapper)
-                dstrreplace(commandline, "gs", "foomatic-gswrapper");
-
-            /* If the renderer command line contains the "echo"
-            command, replace the "echo" by the user-chosen $myecho
-            (important for non-GNU systems where GNU echo is in a
-            special path */
-            dstrreplace(commandline, "echo", ECHO);
 
             /* In debug mode save the data supposed to be fed into the
             renderer also into a file */

@@ -29,6 +29,10 @@ gnu echo and put gecho here or something. */
 #define ECHO "echo"
 #endif
 
+#ifndef GS_PATH
+#define GS_PATH "gs"
+#endif
+
 /* Constants used by this filter
  *                             
  * Error codes, as some spooles behave different depending on the reason why

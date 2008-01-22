@@ -759,7 +759,7 @@ char * arglist_get_value(list_t *list, const char *name)
     for (i = list->first; i; i = i->next) {
         if (i->next && !strcmp(name, (char*)i->data))
             return (char*)i->next->data;
-        else if (!prefixcmp(name, (char*)i->data)) {
+        else if (!prefixcmp((char*)i->data, name)) {
             p = &((char*)i->data)[strlen(name)];
             return *p == '=' ? p +1 : p;
         }
@@ -785,7 +785,7 @@ int arglist_remove(list_t *list, const char *name)
             list_remove(list, i);
             return 1;
         }
-        else if (!prefixcmp(name, i_name)) {
+        else if (!prefixcmp(i_name, name)) {
             list_remove(list, i);
             return 1;
         }

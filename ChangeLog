@@ -1,3 +1,7 @@
+2008-01-22 Lars Uebernickel <larsuebernickel@gmx.de>
+	* foomatic-rip: Merged foomatic-gswrapper into foomatic-rip.
+	* *: Fixed 'make install'
+
 2008-01-14 Lars Uebernickel <larsuebernickel@gmx.de>
 	* *: Added support for CUPS custom options
 	  (see http://www.cups.org/documentation.php/spec-ppd.html#OPTIONS)
