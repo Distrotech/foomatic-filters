@@ -1,3 +1,7 @@
+2008-01-26 Lars Uebernickel <larsuebernickel@gmx.de>
+	* foomatic-rip: Fixed minor bugs found while testing foomatic-rip
+	  with cups.
+
 2008-01-22 Lars Uebernickel <larsuebernickel@gmx.de>
 	* foomatic-rip: Merged foomatic-gswrapper into foomatic-rip.
 	* *: Fixed 'make install'

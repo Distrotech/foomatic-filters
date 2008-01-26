@@ -598,6 +598,19 @@ void dstrremovenewline(dstr_t *ds)
     }
 }
 
+void dstrtrim(dstr_t *ds)
+{
+    int pos = 0;
+    
+    while (pos < ds->len && isspace(ds->data[pos]))
+        pos++;
+    
+    if (pos > 0) {
+        ds->len -= pos;
+        memmove(ds->data, &ds->data[pos], ds->len +1);
+    }
+}
+
 void dstrtrim_right(dstr_t *ds)
 {
     if (!ds->len)
@@ -727,7 +740,7 @@ listitem_t * list_get(list_t *list, int idx)
     listitem_t *i;
     for (i = list->first; i && idx; i = i->next)
         idx--;
-    return NULL;
+    return i;
 }
 
 listitem_t * arglist_find(list_t *list, const char *name)

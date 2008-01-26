@@ -468,15 +468,16 @@ char * extract_next_option(char *str, char **pagerange, char **key, char **value
 /* processes optstr */
 void process_cmdline_options()
 {
-    char *p, *pagerange, *key, *value;
+    char *p, *nextopt, *pagerange, *key, *value;
     option_t *opt, *opt2;
     int optset;
     char tmp [256];
     float width, height;
     char unit[2];
-
-    p = extract_next_option(optstr->data, &pagerange, &key, &value);
-    while (p) {
+       
+    _log("%s\n", optstr->data);
+    nextopt = extract_next_option(optstr->data, &pagerange, &key, &value);
+    while (nextopt) {
         if (value)
             _log("Pondering option '%s=%s'\n", key, value);
         else
@@ -618,7 +619,7 @@ void process_cmdline_options()
             _log("Unknown boolean option \"%s\".\n", key);
 
         /* get next option */
-        p = extract_next_option(p, &pagerange, &key, &value);
+        nextopt = extract_next_option(nextopt, &pagerange, &key, &value);
     }
 }
 
@@ -801,14 +802,15 @@ void init_cups(list_t *arglist, dstr_t *filelist)
         strcat(path, ":");
         strcat(path, getenv("GS_LIB"));
     }
-    
+    setenv("GS_LIB", path, 1);
+        
     /* Get all command line parameters */
     strncpy_omit(cups_jobid, arglist_get(arglist, 0), 128, omit_shellescapes);
     strncpy_omit(cups_user, arglist_get(arglist, 1), 128, omit_shellescapes);
     strncpy_omit(cups_jobtitle, arglist_get(arglist, 2), 128, omit_shellescapes);
     strncpy_omit(cups_copies, arglist_get(arglist, 3), 128, omit_shellescapes);
     strncpy_omit(cups_options, arglist_get(arglist, 4), 512, omit_shellescapes);
-    
+      
     /* Common job parameters */
     /* TODO why is this copied into the cups_* vars in the first place? */
     strcpy(jobid, cups_jobid);
@@ -3879,7 +3881,7 @@ int main(int argc, char** argv)
     postpipe = create_dstr();
 
     options_init();
-
+    
 
     /* set the time once to keep output consistent */
     curtime = time(NULL);
@@ -3894,15 +3896,15 @@ int main(int argc, char** argv)
         programdir[0] = '\0';
 
     /* spooler specific file converters */
-    snprintf(cups_fileconverter, 512, "%stexttops '%s' '%s' '%s' '%s' '%s' "
-            "page-top=36 page-bottom=36 page-left=36 page-right=36 "
-            "nolandscape cpi=12 lpi=7 columns=1 wrap'",
-            programdir,
-            argc > 0 ? argv[1] : "",
-            argc > 1 ? argv[2] : "",
-            argc > 2 ? argv[3] : "",
-            argc > 3 ? argv[4] : "",
-            argc > 4 ? argv[5] : "");
+    snprintf(cups_fileconverter, 512, "%stexttops '%s' '%s' '%s' '%s' "
+         "page-top=36 page-bottom=36 page-left=36 page-right=36 "
+         "nolandscape cpi=12 lpi=7 columns=1 wrap %s'",
+         programdir,
+         argc > 0 ? argv[1] : "1",
+         argc > 1 ? argv[2] : "unknown",
+         argc > 2 ? argv[3] : "foomatic-rip",
+         argc > 3 ? argv[4] : "1",
+         argc > 4 ? argv[5] : "");
 
     i = 1024;
     cwd = NULL;
@@ -3942,7 +3944,7 @@ int main(int argc, char** argv)
         logh = NULL; /* Quiet mode, do not log */
     else
         logh = stderr; /* Default: log to stderr */
-
+        
     /* Start debug logging */
     if (conf.debug) {
         /* If we are not in debug mode, we do this later, as we must find out at
@@ -4133,6 +4135,7 @@ int main(int argc, char** argv)
     
     /* Files to be printed (can be more than one for spooler-less printing) */
     /* Empty file list -> print STDIN */
+    dstrtrim(filelist);
     if (filelist->len == 0)
         dstrcpyf(filelist, "<STDIN>");
 

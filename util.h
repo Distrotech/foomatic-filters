@@ -110,6 +110,7 @@ void dstrcatline(dstr_t *ds, const char *str); /* appends the first line from st
 int dstrendswith(dstr_t *ds, const char *str);
 void dstrfixnewlines(dstr_t *ds);
 void dstrremovenewline(dstr_t *ds);
+void dstrtrim(dstr_t *ds);
 void dstrtrim_right(dstr_t *ds);
 
 
