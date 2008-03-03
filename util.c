@@ -98,7 +98,7 @@ size_t strlcpy(char *dest, const char *src, size_t size)
         dest[0] = '\0';
         return 0;
     }
-    
+
     if (size) {
         while (--size && (*pdest++ = *psrc++) != '\0');
         *pdest = '\0';
@@ -114,25 +114,25 @@ size_t strlcat(char *dest, const char *src, size_t size)
     const char *psrc = src;
     size_t i = size;
     size_t len;
-    
+
     while (--i && *pdest)
         pdest++;
     len = pdest - dest;
 
     if (!i)
         return strlen(src) + len;
-    
+
     while (i-- && *psrc)
         *pdest++ = *psrc++;
     *pdest = '\0';
-    
+
     return len + (psrc - src);
 }
 
 void strrepl(char *str, const char *chars, char repl)
 {
     char *p = str;
-    
+
     while (*p) {
         if (strchr(chars, *p))
             *p = repl;
@@ -175,7 +175,7 @@ void strclr(char *str)
 char * strnchr(const char *str, int c, size_t n)
 {
     char *p = (char*)str;
-    
+
     while (*p && --n > 0) {
         if (*p == (char)c)
             return p;
@@ -227,17 +227,17 @@ void file_basename(char *dest, const char *path, size_t dest_size)
 void make_absolute_path(char *path, int len)
 {
     char *tmp, *cwd;
-    
+
     if (path[0] != '/') {
         tmp = malloc(len +1);
         strlcpy(tmp, path, len);
-        
+
         cwd = malloc(len);
         getcwd(cwd, len);
         strlcpy(path, cwd, len);
         strlcat(path, "/", len);
         strlcat(path, tmp, len);
-        
+
         free(tmp);
         free(cwd);
     }
@@ -291,7 +291,7 @@ void unhexify(char *dest, size_t size, const char *src)
     const char *psrc = src;
     long int n;
     char cstr[3];
-    
+
     cstr[2] = '\0';
 
     while (*psrc && pdest - dest < size -1) {
@@ -308,13 +308,13 @@ void unhexify(char *dest, size_t size, const char *src)
             } while (*psrc != '>');
             psrc++;
         }
-        else 
+        else
             *pdest++ = *psrc++;
     }
     *pdest = '\0';
 }
 
-/* 
+/*
  * Dynamic strings
  */
 dstr_t * create_dstr()
@@ -381,7 +381,7 @@ void dstrcpyf(dstr_t *ds, const char *src, ...)
 {
     va_list ap;
     size_t srclen;
-    
+
     va_start(ap, src);
     srclen = vsnprintf(ds->data, ds->alloc, src, ap);
     va_end(ap);
@@ -394,9 +394,9 @@ void dstrcpyf(dstr_t *ds, const char *src, ...)
 
         va_start(ap, src);
         vsnprintf(ds->data, ds->alloc, src, ap);
-        va_end(ap);       
+        va_end(ap);
     }
-    
+
     ds->len = srclen;
 }
 
@@ -421,23 +421,23 @@ void dstrcatf(dstr_t *ds, const char *src, ...)
     va_list ap;
     size_t restlen = ds->alloc - ds->len;
     size_t srclen;
-    
+
     va_start(ap, src);
     srclen = vsnprintf(&ds->data[ds->len], restlen, src, ap);
     va_end(ap);
-    
+
     if (srclen >= restlen) {
         do {
             ds->alloc *= 2;
             restlen = ds->alloc - ds->len;
         } while (srclen >= restlen);
         ds->data = realloc(ds->data, ds->alloc);
-        
+
         va_start(ap, src);
         srclen = vsnprintf(&ds->data[ds->len], restlen, src, ap);
         va_end(ap);
     }
-    
+
     ds->len += srclen;
 }
 
@@ -451,7 +451,7 @@ size_t fgetdstr(dstr_t *ds, FILE *stream)
         ds->alloc = 256;
         ds->data = malloc(ds->alloc);
     }
-    
+
     while ((c = fgetc(stream)) != EOF) {
         if (ds->len +1 == ds->alloc) {
             ds->alloc *= 2;
@@ -479,11 +479,11 @@ void dstrreplace(dstr_t *ds, const char *find, const char *repl)
     while ((next = strstr(p, find))) {
         *next = '\0';
         next += findlen;
-    
+
         dstrcatf(ds, "%s", p);
         dstrcatf(ds, "%s", repl);
-		
-		p = next;
+
+        p = next;
     }
 
     dstrcatf(ds, "%s", p);
@@ -501,9 +501,8 @@ void dstrprepend(dstr_t *ds, const char *str)
 
 void dstrinsert(dstr_t *ds, int idx, const char *str)
 {
-    dstr_t *copy = create_dstr();
+    char * copy = strdup(ds->data);
     size_t len = strlen(str);
-    dstrcpy(copy, ds->data);
 
     if (idx >= ds->len)
         idx = ds->len;
@@ -518,17 +517,38 @@ void dstrinsert(dstr_t *ds, int idx, const char *str)
         ds->data = malloc(ds->alloc);
     }
 
-    strncpy(ds->data, copy->data, idx);
+    strncpy(ds->data, copy, idx);
+    ds->data[idx] = '\0';
     strcat(ds->data, str);
-    strcat(ds->data, &copy->data[idx]);
+    strcat(ds->data, &copy[idx]);
     ds->len += len;
-    free_dstr(copy);
+    free(copy);
+}
+
+void dstrinsertf(dstr_t *ds, int idx, const char *str, ...)
+{
+    va_list ap;
+    char *strf;
+    size_t len;
+
+    va_start(ap, str);
+    len = vsnprintf(NULL, 0, str, ap);
+    va_end(ap);
+
+    strf = malloc(len +1);
+    va_start(ap, str);
+    vsnprintf(strf, len +1, str, ap);
+    va_end(ap);
+
+    dstrinsert(ds, idx, strf);
+
+    free(strf);
 }
 
 void dstrremove(dstr_t *ds, int idx, size_t count)
 {
     char *p1, *p2;
-    
+
     if (idx + count >= ds->len)
         return;
 
@@ -601,10 +621,10 @@ void dstrremovenewline(dstr_t *ds)
 void dstrtrim(dstr_t *ds)
 {
     int pos = 0;
-    
+
     while (pos < ds->len && isspace(ds->data[pos]))
         pos++;
-    
+
     if (pos > 0) {
         ds->len -= pos;
         memmove(ds->data, &ds->data[pos], ds->len +1);
@@ -615,7 +635,7 @@ void dstrtrim_right(dstr_t *ds)
 {
     if (!ds->len)
         return;
-    
+
     while (isspace(ds->data[ds->len -1]))
         ds->len -= 1;
     ds->data[ds->len] = '\0';
@@ -623,10 +643,10 @@ void dstrtrim_right(dstr_t *ds)
 
 
 
-/* 
+/*
  *  LIST
  */
- 
+
 list_t * list_create()
 {
     list_t *l = malloc(sizeof(list_t));
@@ -639,10 +659,10 @@ list_t * list_create_from_array(int count, void ** data)
 {
     int i;
     list_t *l = list_create();
-    
+
     for (i = 0; i < count; i++)
         list_append(l, data[i]);
-        
+
     return l;
 }
 
@@ -659,7 +679,7 @@ void list_free(list_t *list)
 size_t list_item_count(list_t *list)
 {
     size_t cnt = 0;
-    listitem_t *i;    
+    listitem_t *i;
     for (i = list->first; i; i = i->next)
         cnt++;
     return cnt;
@@ -680,11 +700,11 @@ void list_prepend(list_t *list, void *data)
     listitem_t *item;
 
     assert(list);
-    
+
     item = malloc(sizeof(listitem_t));
     item->data = data;
     item->prev = NULL;
-    
+
     if (list->first) {
         item->next = list->first;
         list->first->next = item;
@@ -702,11 +722,11 @@ void list_append(list_t *list, void *data)
     listitem_t *item;
 
     assert(list);
-    
+
     item = malloc(sizeof(listitem_t));
     item->data = data;
     item->next = NULL;
-    
+
     if (list->last) {
         item->prev = list->last;
         list->last->next = item;
@@ -716,7 +736,7 @@ void list_append(list_t *list, void *data)
         item->prev = NULL;
         list->first = item;
         list->last = item;
-    }    
+    }
 }
 
 void list_remove(list_t *list, listitem_t *item)
@@ -745,7 +765,7 @@ listitem_t * list_get(list_t *list, int idx)
 
 listitem_t * arglist_find(list_t *list, const char *name)
 {
-    listitem_t *i;    
+    listitem_t *i;
     for (i = list->first; i; i = i->next) {
         if (!strcmp((const char*)i->data, name))
             return i;
@@ -755,7 +775,7 @@ listitem_t * arglist_find(list_t *list, const char *name)
 
 listitem_t * arglist_find_prefix(list_t *list, const char *name)
 {
-    listitem_t *i;    
+    listitem_t *i;
     for (i = list->first; i; i= i->next) {
         if (!prefixcmp((const char*)i->data, name))
             return i;
@@ -768,7 +788,7 @@ char * arglist_get_value(list_t *list, const char *name)
 {
     listitem_t *i;
     char *p;
-          
+
     for (i = list->first; i; i = i->next) {
         if (i->next && !strcmp(name, (char*)i->data))
             return (char*)i->next->data;
@@ -790,7 +810,7 @@ int arglist_remove(list_t *list, const char *name)
 {
     listitem_t *i;
     char *i_name;
-    
+
     for (i = list->first; i; i = i->next) {
         i_name = (char*)i->data;
         if (i->next && !strcmp(name, i_name)) {

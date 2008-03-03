@@ -34,15 +34,20 @@ BINFILES=beh
 #DESTDIR=
 
 bin_PROGRAMS = foomatic-rip
+INCLUDES=$(POPPLER_CFLAGS)
 
 foomatic_ripdir = .
 foomatic_rip_SOURCES = \
-    foomaticrip.c \
-    foomaticrip.h \
-    options.c \
-    options.h \
-    util.c \
-    util.h
+	foomaticrip.c \
+	foomaticrip.h \
+	options.c \
+	options.h \
+	pdf.cc \
+	pdf.h \
+	util.c \
+	util.h
+
+foomatic_rip_LDADD = $(POPPLER_LIBS)
 
 # Masks for trash files which have to be removed before packaging Foomatic
 TRASHFILES="*~" "*\#*" ".??*" "*.rej"

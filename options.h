@@ -137,6 +137,8 @@ int option_has_choice(option_t *opt, const char *choice);
 const char * optionset_name(int idx);
 int optionset(const char * name);
 
+void optionset_copy_values(int src_optset, int dest_optset);
+int optionset_equal(int optset1, int optset2, int exceptPS);
 
 #endif
 

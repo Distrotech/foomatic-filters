@@ -1,3 +1,9 @@
+2008-03-03 Lars Uebernickel <larsuebernickel@gmx.de>
+	* foomatic-rip.c: Fixed minor bug in option parsing
+	* pdf.cc/pdf.h: Beginning of pdf printing support. Printing is done
+	  via ghostscript, using the commandline in the ppd file that is already
+	  used for rendering postscript.
+
 2008-01-26 Lars Uebernickel <larsuebernickel@gmx.de>
 	* foomatic-rip: Fixed minor bugs found while testing foomatic-rip
 	  with cups.

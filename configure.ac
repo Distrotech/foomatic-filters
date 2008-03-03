@@ -14,6 +14,7 @@ AC_CONFIG_SRCDIR([options.c])
 
 # Checks for programs.
 AC_PROG_CC
+AC_PROG_CXX
 AC_PROG_INSTALL
 AC_PROG_LN_S
 AC_PROG_MAKE_SET
@@ -78,6 +79,10 @@ AC_PATH_DIR(PPR_INTERFACES,ppr/interfaces,/usr/lib/ppr/interfaces,$LIBSEARCHPATH
 
 # Check for /usr/lib/ppr/lib
 AC_PATH_DIR(PPR_LIB,ppr/lib,/usr/lib/ppr/lib,$LIBSEARCHPATH)
+
+
+# Check for poppler
+PKG_CHECK_MODULES(POPPLER, poppler)
 
 AC_ARG_ENABLE(file-converter-check, [  --enable-file-converter-check  check whether a file converter is installed [default=yes]],
 [if eval "test x${enableval} = xno"; then

@@ -2,6 +2,7 @@
 #include "foomaticrip.h"
 #include "util.h"
 #include "options.h"
+#include "pdf.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -70,7 +71,7 @@ char* fileconverters[] = {
     activation" but instead count the physical pages by ourselves
     (in a global dictionary).
 */
-const char *accounting_prolog_code = 
+const char *accounting_prolog_code =
     "[{\n"
     "%% Code for writing CUPS accounting tags on standard error\n"
     "\n"
@@ -190,6 +191,8 @@ char copies[128] = "1";
 dstr_t *postpipe;  /* command into which the output of this filter should be piped */
 const char *accounting_prolog = NULL;
 char attrpath[256] = "";
+
+/* TODO replace by MODERN_SHELL */
 char modern_shell[256] = "/bin/bash"; /* TODO test shells, see perl version line 323 */
 
 pid_t renderer_pid = 0;
@@ -227,9 +230,9 @@ char *cwd;
 struct config conf;
 
 typedef struct {
-    char year[5]; 
-    char mon[3]; 
-    char day[3]; 
+    char year[5];
+    char mon[3];
+    char day[3];
     char hour[3];
     char min[3];
     char sec[3];
@@ -258,11 +261,11 @@ void unhtmlify(char *dest, size_t size, const char *src)
     const char *repl;
 
     while (*psrc && pdest - dest < size) {
-    
+
         if (*psrc == '&') {
             psrc++;
             repl = NULL;
-    
+
             /* Replace HTML/XML entities by the original characters */
             if (!prefixcmp(psrc, "apos;"))
                 repl = "\'";
@@ -274,7 +277,7 @@ void unhtmlify(char *dest, size_t size, const char *src)
                 repl = "<";
             else if (!prefixcmp(psrc, "amp;"))
                 repl = "&";
-    
+
             /* Replace special entities by job data */
             else if (!prefixcmp(psrc, "job;"))
                 repl = jobid;
@@ -300,7 +303,7 @@ void unhtmlify(char *dest, size_t size, const char *src)
                 repl = curtime_strings.min;
             else if (!prefixcmp(psrc, "sec;"))
                 repl = curtime_strings.sec;
-    
+
             if (repl) {
                 strncpy(pdest, repl, size - (pdest - dest));
                 pdest += strlen(repl);
@@ -415,7 +418,10 @@ char * extract_next_option(char *str, char **pagerange, char **key, char **value
 
     /* skip whitespace and commas */
     while (*p && (isspace(*p) || *p == ',')) p++;
-    
+
+    if (!*p)
+        return NULL;
+
     /* read the pagerange if we have one */
     if (prefixcmp(p, "even:") == 0 || prefixcmp(p, "odd:") == 0 || isdigit(*p)) {
         *pagerange = p;
@@ -474,10 +480,10 @@ void process_cmdline_options()
     char tmp [256];
     float width, height;
     char unit[2];
-       
+
     _log("%s\n", optstr->data);
     nextopt = extract_next_option(optstr->data, &pagerange, &key, &value);
-    while (nextopt) {
+    while (key) {
         if (value)
             _log("Pondering option '%s=%s'\n", key, value);
         else
@@ -500,12 +506,12 @@ void process_cmdline_options()
         if (pagerange) {
             snprintf(tmp, 256, "pages:%s", pagerange);
             optset = optionset(tmp);
-            
+
             opt = find_option(key);
-            if (opt && (option_get_section(opt) != SECTION_ANYSETUP || 
+            if (opt && (option_get_section(opt) != SECTION_ANYSETUP ||
                         option_get_section(opt) != SECTION_PAGESETUP)) {
                 _log("This option (%s) is not a \"PageSetup\" or \"AnySetup\" option, so it cannot be restricted to a page range.\n", key);
-                continue;                
+                continue;
             }
         }
         else
@@ -522,17 +528,17 @@ void process_cmdline_options()
                 /*  Standard arguments?
                     media=x,y,z
                     sides=one|two-sided-long|short-edge
-    
+
                     Rummage around in the media= option for known media, source,
                     etc types.
                     We ought to do something sensible to make the common manual
                     boolean option work when specified as a media= tray thing.
-    
+
                     Note that this fails miserably when the option value is in
                     fact a number; they all look alike.  It's unclear how many
                     drivers do that.  We may have to standardize the verbose
                     names to make them work as selections, too. */
-    
+
                 p = strtok(value, ",");
                 do {
                     if ((opt = find_option("PageSize")) && option_accepts_value(opt, p))
@@ -549,7 +555,7 @@ void process_cmdline_options()
                     }
                     else
                         _log("Unknown \"media\" component: \"%s\".\n", p);
-    
+
                 } while ((p = strtok(NULL, ",")));
             }
             else if (!strcasecmp(key, "sides")) {
@@ -579,7 +585,7 @@ void process_cmdline_options()
                     if ((opt = find_option("Duplex")))
                         option_set_value(opt, optset, "0");
                 }
-    
+
                 /*  TODO
                     We should handle the other half of this option - the
                     BindEdge bit.  Also, are there well-known ipp/cups
@@ -636,7 +642,7 @@ FILE * check_pdq_file(list_t *arglist)
     FILE *handle;
     char *p;
     int raw, append;
-    
+
     if ((i = arglist_find_prefix(arglist, "--genpdq"))) {
         raw = 0;
         append = 0;
@@ -670,7 +676,7 @@ FILE * check_pdq_file(list_t *arglist)
         handle = stdout;
     else
         return NULL;
-    
+
     /* remove option from args */
     list_remove(arglist, i);
 
@@ -719,7 +725,7 @@ void init_ppr(list_t *arglist)
     char tmp[256];
     char *p;
 
-    
+
     /* TODO read interface.sh and signal.sh for exit and signal codes respectively */
 
     /* Check whether we run as a PPR interface (if not, we run as a PPR RIP)
@@ -729,7 +735,7 @@ void init_ppr(list_t *arglist)
        (PPR>=1.32), 11 (PPR >= 1.50) command line parameters.
        We also check whether the current working directory is a
        PPR directory. */
-    if ((arg_count == 11 || arg_count == 10 || arg_count == 8) && 
+    if ((arg_count == 11 || arg_count == 10 || arg_count == 8) &&
         atoi(arglist_get(arglist, 3)) < 100 && atoi(arglist_get(arglist, 5)) < 100)
     {
         /* get all command line parameters */
@@ -763,7 +769,7 @@ void init_ppr(list_t *arglist)
             fgets(tmp, 255, ph);
             tmp[255] = '\0';
             pclose(ph);
-            
+
             strncpy_omit(ppdfile, tmp, 255, omit_shellescapes);
             if (ppdfile[0] == '/') {
                 strcpy(tmp, ppdfile);
@@ -797,20 +803,20 @@ void init_cups(list_t *arglist, dstr_t *filelist)
     else if (getenv("CUPS_DATADIR")) {
         strcpy(path, getenv("CUPS_DATADIR"));
         strcat(path, "/fonts");
-    }    
+    }
     if (getenv("GS_LIB")) {
         strcat(path, ":");
         strcat(path, getenv("GS_LIB"));
     }
     setenv("GS_LIB", path, 1);
-        
+
     /* Get all command line parameters */
     strncpy_omit(cups_jobid, arglist_get(arglist, 0), 128, omit_shellescapes);
     strncpy_omit(cups_user, arglist_get(arglist, 1), 128, omit_shellescapes);
     strncpy_omit(cups_jobtitle, arglist_get(arglist, 2), 128, omit_shellescapes);
     strncpy_omit(cups_copies, arglist_get(arglist, 3), 128, omit_shellescapes);
     strncpy_omit(cups_options, arglist_get(arglist, 4), 512, omit_shellescapes);
-      
+
     /* Common job parameters */
     /* TODO why is this copied into the cups_* vars in the first place? */
     strcpy(jobid, cups_jobid);
@@ -828,9 +834,9 @@ void init_cups(list_t *arglist, dstr_t *filelist)
             _log("Getting input from file %s\n", cups_filename);
         }
     }
-    
+
     accounting_prolog = ps_accounting ? accounting_prolog_code : NULL;
-    
+
     /* On which queue are we printing?
        CUPS gives the PPD file the same name as the printer queue,
        so we can get the queue name from the name of the PPD file. */
@@ -842,16 +848,16 @@ void init_solaris(list_t *arglist, dstr_t *filelist)
     char *str;
     int len;
     listitem_t *i;
-       
+
     /* Get all command line parameters */
     strncpy_omit(jobtitle, arglist_get(arglist, 2), 128, omit_shellescapes);
-    
+
     len = strlen(arglist_get(arglist, 4));
     str = malloc(len +1);
     strncpy_omit(str, arglist_get(arglist, 4), len, omit_shellescapes);
     dstrcatf(optstr, " %s", str);
     free(str);
-    
+
     for (i = arglist->first; i; i = i->next)
         dstrcatf(filelist, "%s ", (char*)i->data);
 }
@@ -862,12 +868,12 @@ int configfile_find_option(const char *configfile, const char *key, char *dest, 
     FILE *fh;
     char line [1024];
     char *p;
-    
+
     dest[0] = '\0';
-    
+
     if (!(fh = fopen(configfile, "r")))
         return 0;
-    
+
     while (fgets(line, 1024, fh)) {
         if (!prefixcmp(line, "default")) {
             p = strchr(line, ':');
@@ -882,13 +888,13 @@ int configfile_find_option(const char *configfile, const char *key, char *dest, 
     return dest[0] != '\0';
 }
 
-/* tries to find a default printer name in various config files and copies the 
+/* tries to find a default printer name in various config files and copies the
    result into the global var 'printer'. Returns success */
 int find_default_printer(const char *user_default_path)
 {
     char configfile [1024];
     char *key = "default";
-    
+
     if (configfile_find_option("./.directconfig", key, printer, 256))
         return 1;
     if (configfile_find_option("./directconfig", key, printer, 256))
@@ -907,7 +913,7 @@ int find_default_printer(const char *user_default_path)
         return 1;
     if (configfile_find_option(CONFIG_PATH "/direct.conf", key, printer, 256))
         return 1;
-    
+
     return 0;
 }
 
@@ -916,11 +922,11 @@ int find_ppdfile(const char *user_default_path)
 {
     /* Search also common spooler-specific locations, this way a printer
        configured under a certain spooler can also be used without spooler */
-    
+
     strcpy(ppdfile, printer);
     if (access(ppdfile, R_OK) == 0)
         return 1;
-    
+
     /* CPS can have the PPD in the spool directory */
     if (spooler == SPOOLER_CPS) {
         snprintf(ppdfile, 256, "/var/spool/lpd/%s/%s.ppd", printer, printer);
@@ -966,7 +972,7 @@ int find_ppdfile(const char *user_default_path)
     snprintf(ppdfile, 256, "/usr/local/share/ppr/PPDFiles/%s.ppd", printer); /* PPR PPDs */
     if (access(ppdfile, R_OK) == 0)
         return 1;
-    
+
     /* nothing found */
     ppdfile[0] = '\0';
     return 0;
@@ -976,26 +982,26 @@ void init_direct_cps_pdq(list_t *arglist, dstr_t *filelist, const char *user_def
 {
     char tmp [1024];
     listitem_t *i;
-    
+
     /* Which files do we want to print? */
     for (i = arglist->first; i; i = i->next) {
         strncpy_omit(tmp, (char*)i->data, 1024, omit_shellescapes);
         dstrcatf(filelist, "%s ", tmp);
     }
-    
+
     if (ppdfile[0] == '\0') {
         if (printer[0] == '\0') {
             /* No printer definition file selected, check whether we have a
                default printer defined */
             find_default_printer(user_default_path);
         }
-    
+
         /* Neither in a config file nor on the command line a printer was selected */
         if (!printer[0]) {
             _log("No printer definition (option \"-P <name>\") specified!\n");
             exit(EXIT_PRNERR_NORETRY_BAD_SETTINGS);
         }
-    
+
         /* Search for the PPD file */
         if (!find_ppdfile(user_default_path)) {
             _log("There is no readable PPD file for the printer %s, is it configured?\n");
@@ -1015,7 +1021,7 @@ void print_pdq_driver(FILE *pdqfile, int optset)
     option_t *opt;
     value_t *val;
     setting_t *setting, *setting_true, *setting_false;
-    
+
     /* Construct option list */
     dstr_t *driveropts = create_dstr();
 
@@ -1026,12 +1032,12 @@ void print_pdq_driver(FILE *pdqfile, int optset)
     dstr_t *tmp = create_dstr();
     dstr_t *cmdline = create_dstr();
     dstr_t *psfilter = create_dstr();
-    
-    
+
+
     /* 1, if setting "PageSize=Custom" was found
        Then we must add options for page width and height */
     int custompagesize = 0;
-    
+
     /* Data for a custom page size, to allow a custom size as default */
     int pagewidth = 612;
     int pageheight = 792;
@@ -1047,11 +1053,11 @@ void print_pdq_driver(FILE *pdqfile, int optset)
                this choice anyway */
             if (option_setting_count(opt) <= 1)
                 continue;
-    
+
             /* Omit "PageRegion" option, it does the same as "PageSize" */
             if (!strcmp(opt->name, "PageRegion"))
                 continue;
-    
+
             /* 1, if setting "PageSize=Custom" was found
                Then we must add options for page width and height */
             custompagesize = 0;
@@ -1070,7 +1076,7 @@ void print_pdq_driver(FILE *pdqfile, int optset)
                     "  option {\n"
                     "    var = \"%s\"\n"
                     "    desc = \"%s\"\n", opt->varname, option_text(opt));
-    
+
             /* get enumeration values for each enum arg */
             dstrclear(tmp);
             for (setting = opt->settinglist; setting; setting = setting->next)  {
@@ -1082,7 +1088,7 @@ void print_pdq_driver(FILE *pdqfile, int optset)
                      opt->name, setting->value,
                       isempty(setting->comment) ? setting->value : setting->comment,
                     opt->name, setting->value);
-    
+
                 if (!strcmp(opt->name, "PageSize") && !strcmp(setting->value, "Custom")) {
                     custompagesize = 1;
                     if (isempty(setcustompagesize->data)) {
@@ -1096,11 +1102,11 @@ void print_pdq_driver(FILE *pdqfile, int optset)
                     }
                 }
             }
-    
+
             dstrcatf(driveropts, "    default_choice \"%s_%s\"\n", opt->name, def);
             dstrcatf(driveropts, tmp->data);
             dstrcatf(driveropts, "  }\n\n");
-    
+
             if (custompagesize) {
                 /* Add options to set the custom page size */
                 dstrcatf(driveropts,
@@ -1150,9 +1156,9 @@ void print_pdq_driver(FILE *pdqfile, int optset)
 
             strcpy(opt->varname, opt->name);
             strrepl(opt->varname, "-/.", '_');
-                
-            
-            dstrcatf(driveropts, 
+
+
+            dstrcatf(driveropts,
                 "  argument {\n"
                 "    var = \"%s\"\n"
                 "    desc = \"%s\"\n"
@@ -1177,12 +1183,12 @@ void print_pdq_driver(FILE *pdqfile, int optset)
                 "  option {\n"
                 "    var = \"%s\"\n"
                 "    desc = \"%s\"\n", opt->varname, opt->comment);
-            
+
             if (!isempty(def) && !strcasecmp(def, "true"))
                 dstrcatf(driveropts, "    default_choice \"%s\"\n", def);
             else
                 dstrcatf(driveropts, "    default_choice \"no%s\"\n", def);
-            
+
             dstrcatf(driveropts,
                 "    choice \"%s\" {\n"
                 "      desc = \"%s\"\n"
@@ -1217,7 +1223,7 @@ void print_pdq_driver(FILE *pdqfile, int optset)
             }
         }
     }
-    
+
     /* Define the "docs" option to print the driver documentation page */
     dstrcatf(driveropts,
         "  option {\n"
@@ -1233,25 +1239,25 @@ void print_pdq_driver(FILE *pdqfile, int optset)
         "      value = \"\"\n"
         "    }\n"
         "  }\n\n");
-    
+
     /* Build the foomatic-rip command line */
     dstrcatf(cmdline, "foomatic-rip --pdq");
     if (!isempty(printer)) {
         dstrcatf(cmdline, " -P %s", printer);
     }
-    else { 
+    else {
         /* Make sure that the PPD file is entered with an absolute path */
         make_absolute_path(ppdfile, 256);
         dstrcatf(cmdline, " --ppd=%s", ppdfile);
     }
-    
+
     for (opt = optionlist; opt; opt = opt->next) {
         if (!isempty(opt->varname))
             dstrcatf(cmdline, "${%s}", opt->varname);
     }
     dstrcatf(cmdline, "${DRIVERDOCS} $INPUT > $OUTPUT");
-    
-    
+
+
     /* Now we generate code to build the command line snippets for the numerical options */
     for (opt = optionlist; opt; opt = opt->next) {
         /* Only numerical and string options need to be treated here */
@@ -1259,7 +1265,7 @@ void print_pdq_driver(FILE *pdqfile, int optset)
             opt->type != TYPE_FLOAT &&
             opt->type != TYPE_STRING)
             continue;
-    
+
         /* If the option's variable is non-null, put in the
            argument.  Otherwise this option is the empty
            string.  Error checking? */
@@ -1270,14 +1276,14 @@ void print_pdq_driver(FILE *pdqfile, int optset)
                 "      # this is done by foomatic-rip\n"
                 "      if [ \"x${%s}\" != 'x' ]; then\n  ", opt->varname);
         }
-    
+
         dstrcatf(psfilter, "      %s=\" -o %s='${%s}'\"\n", opt->varname, opt->name, opt->varname);
-    
+
         if (opt->type == TYPE_INT || opt->type == TYPE_FLOAT)
             dstrcatf(psfilter, "      fi\n");
         dstrcatf(psfilter, "\n");
     }
-    
+
     /* Command execution */
     dstrcatf(psfilter,
         "      if ! test -e $INPUT.ok; then\n"
@@ -1289,8 +1295,8 @@ void print_pdq_driver(FILE *pdqfile, int optset)
         "      else\n"
         "        ln -s $INPUT $OUTPUT\n"
         "      fi\n\n", cmdline->data);
-    
-    
+
+
     dstrclear(tmp);
     dstrcatf(tmp, "%s", printer_model);
     strrepl_nodups(tmp->data, " \t\n.,;/()[]{}+*", '-');
@@ -1298,8 +1304,8 @@ void print_pdq_driver(FILE *pdqfile, int optset)
     if (tmp->data[tmp->len -1] == '-') {
         tmp->data[--tmp->len] = '\0';
     }
-        
-    
+
+
     fprintf(pdqfile,
         "driver \"%s-%u\" {\n\n"
         "  # This PDQ driver declaration file was generated automatically by\n"
@@ -1324,8 +1330,8 @@ void print_pdq_driver(FILE *pdqfile, int optset)
         "}\n",
         tmp->data, /* cleaned printer_model */ (unsigned int)curtime, ppdfile, printer_model,
         driveropts->data, setcustompagesize->data, psfilter->data);
-    
-    
+
+
     free_dstr(setcustompagesize);
     free_dstr(driveropts);
     free_dstr(tmp);
@@ -1339,7 +1345,7 @@ int modern_system(const char *cmd)
 {
     pid_t pid;
     int status;
-    
+
     if (!isempty(modern_shell) && strcmp(modern_shell, "/bin/sh")) {
         /* a "modern" shell other than the default shell was specified */
 
@@ -1360,7 +1366,7 @@ int modern_system(const char *cmd)
         }
     }
     else /* the system shell is modern enough */
-        return system(cmd);        
+        return system(cmd);
 }
 
 /* escapes all format strings, except %s */
@@ -1380,7 +1386,7 @@ void escape_format_strings(char *dest, size_t size, char *src)
 }
 
 /* build a renderer command line, based on the given option set */
-void build_commandline(int optset)
+const char * build_commandline(int optset)
 {
     option_t *opt, *o;
     value_t *val;
@@ -1394,16 +1400,16 @@ void build_commandline(int optset)
     float width, height;
     char unit[3];
     char letters[] = "%A %B %C %D %E %F %G %H %I %J %K %L %M %W %X %Y %Z";
-    
+
     dstr_t *local_jclprepend = create_dstr();
 
     dstrclear(prologprepend);
     dstrclear(setupprepend);
     dstrclear(pagesetupprepend);
     dstrclear(cupspagesetupprepend);
-    
+
     dstrcpy(currentcmd, cmd);
-    
+
 
     for (opt = optionlist_sorted_by_order; opt; opt = opt->next_by_order) {
         /* Composite options have no direct influence on the command
@@ -1425,12 +1431,12 @@ void build_commandline(int optset)
                 else
                     dstrcatf(open, "%s\n", userval);
                 dstrcpyf(close, "\n%%%%EndFeature\n} stopped cleartomark\n");
-                
+
                 switch (option_get_section(opt)) {
                     case SECTION_PROLOG:
                         dstrcatf(prologprepend, "%s%s%s", open->data, cmdvar->data, close->data);
                         break;
-                        
+
                     case SECTION_ANYSETUP:
                         if (optset != optionset("currentpage"))
                             dstrcatf(setupprepend, "%s%s%s", open->data, cmdvar->data, close->data);
@@ -1439,22 +1445,22 @@ void build_commandline(int optset)
                             dstrcatf(cupspagesetupprepend, "%s%s%s", open->data, cmdvar->data, close->data);
                         }
                         break;
-                    
+
                     case SECTION_DOCUMENTSETUP:
                         dstrcatf(setupprepend, "%s%s%s", open->data, cmdvar->data, close->data);
                         break;
-                        
+
                     case SECTION_PAGESETUP:
                         dstrcatf(pagesetupprepend, "%s%s%s", open->data, cmdvar->data, close->data);
                         break;
-                    
+
                     case SECTION_JCLSETUP:          /* PCL/JCL argument */
                         s = malloc(cmdvar->len +1);
                         unhexify(s, cmdvar->len +1, cmdvar->data);
                         dstrcatf(local_jclprepend, "%s", s);
                         free(s);
                         break;
-                    
+
                     default:
                         dstrcatf(setupprepend, "%s%s%s", open->data, cmdvar->data, close->data);
                 }
@@ -1462,13 +1468,13 @@ void build_commandline(int optset)
         }
         else if (option_is_jcl_arg(opt)) {
             jcl = 1;
-            /* Put jcl commands onto JCL stack */
+            /* Put JCL commands onto JCL stack */
             if (cmdvar->len)
                 dstrcatf(local_jclprepend, "%s%s\n", jclprefix, cmdvar->data);
         }
         else if (option_is_commandline_arg(opt)) {
-            /* Insert the processed argument in the commandline
-            just before every occurance of the spot marker. */
+            /* Insert the processed argument in the command line
+            just before every occurrence of the spot marker. */
             p = malloc(3);
             snprintf(p, 3, "%%%c", opt->spot);
             s = malloc(cmdvar->len +3);
@@ -1477,7 +1483,7 @@ void build_commandline(int optset)
             free(p);
             free(s);
         }
-        
+
         /* Insert option into command line of CUPS raster driver */
         if (strstr(currentcmd->data, "%Y")) {
             if (isempty(userval))
@@ -1509,7 +1515,7 @@ void build_commandline(int optset)
 
         /* Arrange for JCL RESET command at the end of job */
         dstrcpy(jclappend, jclend);
-        
+
         dstrcpy(jclprepend, local_jclprepend->data);
     }
 
@@ -1517,6 +1523,8 @@ void build_commandline(int optset)
     free_dstr(open);
     free_dstr(close);
     free_dstr(local_jclprepend);
+
+    return currentcmd->data;
 }
 
 
@@ -1579,19 +1587,19 @@ int test_gs_output_redirection()
     char * gstestcommand = GS_PATH " -dQUIET -dPARANOIDSAFER -dNOPAUSE -dBATCH -dNOMEDIAATTRS "
         "-sDEVICE=pswrite -sstdout=%stderr -sOutputFile=/dev/null -c '(hello\n) print flush' 2>&1";
     char output[10] = "";
-    
-    FILE *pd = popen(gstestcommand, "r");    
+
+    FILE *pd = popen(gstestcommand, "r");
     if (!pd) {
         _log("Failed to execute ghostscript!\n");
         return 0;
     }
-    
-    fread(output, 1, 1024, pd); 
+
+    fread(output, 1, 1024, pd);
     pclose(pd);
-    
+
     if (startswith(output, "hello"))
         return 1;
-    
+
     return 0;
 }
 
@@ -1601,41 +1609,41 @@ int test_gs_output_redirection()
 void massage_gs_commandline(dstr_t *cmd)
 {
     int gswithoutputredirection = test_gs_output_redirection();
-    
+
     /* TODO Handle commandlines in which the 'gs' command is part of a pipe */
     if (!startswith(cmd->data, "gs"))
         return;
-    
+
     /* If Ghostscript does not support redirecting the standard output
        of the PostScript program to standard error with
-       '-sstdout=%stderr', sen the job output data to fd 3; errors 
-       will be on 2(stderr) and job ps program interpreter output on 
+       '-sstdout=%stderr', sen the job output data to fd 3; errors
+       will be on 2(stderr) and job ps program interpreter output on
        1(stdout). */
     if (gswithoutputredirection)
         dstrreplace(cmd, "-sOutputFile=- ", "-sOutputFile=%stdout");
     else
         dstrreplace(cmd, "-sOutputFile=- ", "-sOutputFile=/dev/fd/3");
-        
+
     /* Use always buffered input. This works around a Ghostscript
 	   bug which prevents printing encrypted PDF files with Adobe
 	   Reader 8.1.1 and Ghostscript built as shared library
 	   (Ghostscript bug #689577, Ubuntu bug #172264) */
 	dstrreplace(cmd, " - ", " -_ ");
 	dstrreplace(cmd, " /dev/fd/0 ", " -_ ");
-	
+
 	/* Turn *off* -q (quiet!); now that stderr is useful! :) */
 	dstrreplace(cmd, " -q ", "");
-	
-	/* Escape any quotes, and then quote everything just to be sure... 
+
+	/* Escape any quotes, and then quote everything just to be sure...
        Escaping a single quote inside single quotes is a bit complex as the shell
        takes everything literal there. So we have to assemble it by concatinating
        different quoted strings.
        Finally we get e.g.: 'x'"'"'y' or ''"'"'xy' or 'xy'"'"'' or ... */
     /* dstrreplace(cmd, "'", "'\"'\"'"); TODO tbd */
 
-    
+
     dstrremove(cmd, 0, 2);     /* Remove 'gs' */
-    if (gswithoutputredirection) 
+    if (gswithoutputredirection)
         dstrprepend(cmd, " -sstdout=%stderr ");
     else
         dstrcat(cmd, " 3>&1 1>&2");
@@ -1705,7 +1713,7 @@ void get_renderer_handle(const dstr_t *prepend, int *fd, pid_t *pid)
     dstrcpy(commandline, currentcmd->data);
 
     pipe(pfd_kid3);
-    
+
     kid3 = fork();
     if (kid3 < 0) {
         close(pfd_kid3[0]);
@@ -1717,7 +1725,8 @@ void get_renderer_handle(const dstr_t *prepend, int *fd, pid_t *pid)
         /* We are the parent, return glob to the file handle */
         close(pfd_kid3[0]);
         /* Feed the PostScript header and the FIFO contents */
-        write(pfd_kid3[1], prepend->data, prepend->len);
+        if (prepend)
+            write(pfd_kid3[1], prepend->data, prepend->len);
         *fd = pfd_kid3[1];
         *pid = kid3;
         return;
@@ -1740,10 +1749,10 @@ void get_renderer_handle(const dstr_t *prepend, int *fd, pid_t *pid)
         if (kid4) {
             /* parent, child of primary task; we are |commandline| */
             close(pfd_kid4[0]);
-            
+
             /* Massage commandline to execute foomatic-gswrapper */
             massage_gs_commandline(commandline);
-            
+
             /* If the renderer command line contains the "echo"
             command, replace the "echo" by the user-chosen $myecho
             (important for non-GNU systems where GNU echo is in a
@@ -1952,7 +1961,7 @@ void get_renderer_handle(const dstr_t *prepend, int *fd, pid_t *pid)
                     /* read from the renderer output until the first non-JCL
                     line appears */
                     /* TODO the first non-JCL line is discarded? */
-                    
+
                     /* TODO tbd */
 
                     /* If we had read at least two lines, at least one is
@@ -1969,7 +1978,7 @@ void get_renderer_handle(const dstr_t *prepend, int *fd, pid_t *pid)
                         /* Line after which we insert new JCL commands in the
                         JCL header of the job */
                         insert = 1;
-                        
+
                         /* Go through every JCL command in jclprepend */
                         for (line = strtok(jclprepend_copy->data, "\r\n"); line; line = strtok(NULL, "\r\n")) {
                             /* Search the command in the JCL header from the
@@ -2148,7 +2157,7 @@ void get_fileconverter_handle(const char *already_read, int *fd, pid_t *pid)
     option_t *opt;
     const char *val;
     ssize_t count;
-    
+
     pid_t kid1, kid2;
     int pfd_kid1[2];
     int pfd_kid2[2];
@@ -2234,7 +2243,7 @@ void get_fileconverter_handle(const char *already_read, int *fd, pid_t *pid)
                 strncat(conf.fileconverter, p, p2 - p);
                 if (!strnchr(p, '\"', p2 - p))
                     strlcat(conf.fileconverter, "\"", 512);
-                if (!isempty(jobtitle)) 
+                if (!isempty(jobtitle))
                     escapechars(&conf.fileconverter[strlen(conf.fileconverter)], 512, jobtitle, "\"");
                 strlcat(conf.fileconverter, "\"", 512);
             }
@@ -2317,7 +2326,7 @@ void get_fileconverter_handle(const char *already_read, int *fd, pid_t *pid)
                 snprintf(tmp, 256, "1 %d\n", EXIT_PRNERR_NORETRY_BAD_SETTINGS);
                 write(pfd_kid_message_conv[1], (const void*)tmp, strlen(tmp));
                 _log("Couldn't dup KID2_IN\n");
-                exit(EXIT_PRNERR_NORETRY_BAD_SETTINGS);                
+                exit(EXIT_PRNERR_NORETRY_BAD_SETTINGS);
             }
 
             if (close(STDOUT_FILENO) == -1) {
@@ -2348,7 +2357,7 @@ void get_fileconverter_handle(const char *already_read, int *fd, pid_t *pid)
                     snprintf(tmp, 256, "1 %d\n", EXIT_PRNERR_NORETRY_BAD_SETTINGS);
                     write(pfd_kid_message_conv[1], (const void*)tmp, strlen(tmp));
                     _log("Couldn't dup logh to stderr\n");
-                    exit(EXIT_PRNERR_NORETRY_BAD_SETTINGS);                    
+                    exit(EXIT_PRNERR_NORETRY_BAD_SETTINGS);
                 }
             }
 
@@ -2364,7 +2373,7 @@ void get_fileconverter_handle(const char *already_read, int *fd, pid_t *pid)
                 close(STDOUT_FILENO);
                 close(pfd_kid1[1]);
                 close(pfd_kid2[0]);
-                
+
                 /* Handle signals*/
                 if (WIFSIGNALED(status)) {
                     if (WTERMSIG(status) == SIGUSR1)
@@ -2462,13 +2471,13 @@ int close_fileconverter_handle(int fileconverter_handle, pid_t fileconverter_pid
     char message [1024];
     ssize_t n;
     int kid_id, exitstat;
-    
+
     _log("\nClosing file converter\n");
     close(fileconverter_handle);
 
     /* Wait for all kid processes to finish or one kid process to fail */
     close(pfd_kid_message_conv[1]);
-    
+
     while (!convkidfailed && !(kid1finished && kid2finished)) {
         n = read(pfd_kid_message_conv[0], message, 1024);
         message[n] = '\0';
@@ -2602,7 +2611,7 @@ void set_options_for_page(int optset, int page)
     }
 }
 
-/* comments: 1: Add "%%BeginProlog...%%EndProlog" */
+/* if "comments" is set, add "%%BeginProlog...%%EndProlog" */
 void append_prolog_section(dstr_t *str, int optset, int comments)
 {
     /* Start comment */
@@ -2787,10 +2796,10 @@ int line_type(const char *line)
 #define MAX_LINES_FOR_PAGE_OPTIONS 200
 
 
-void print_file()
+void print_ps_file()
 {
     char *p;
-    
+
     int maxlines = 1000;    /* Maximum number of lines to be read  when the
                                documenent is not  DSC-conforming.
                                "$maxlines = 0"  means that all will be read and
@@ -2818,7 +2827,7 @@ void print_file()
     int isdscjob = 0;       /* is the job dsc conforming */
     int inheader = 1;       /* Are we still in the header, before first
                                "%%Page:" comment= */
-    
+
     int optionsalsointoheader = 0; /* 1: We are in a "%%BeginSetup...
                                     %%EndSetup" section after the first
                                     "%%Page:..." line (OpenOffice.org
@@ -2829,14 +2838,14 @@ void print_file()
                                     @psheader now and we have to set
                                     non-PostScript options also in the
                                     "header" optionset. 0: otherwise. */
-    
+
     int insertoptions = 1;  /* If we find out that a file with a DSC magic
                                string ("%!PS-Adobe-") is not really DSC-
                                conforming, we insert the options directly
                                after the line with the magic string. We use
                                this variable to store the number of the line
                                with the magic string */
-    
+
     int prologfound = 0;    /* Did we find the
                                "%%BeginProlog...%%EndProlog" section? */
     int setupfound = 0;     /* Did we find the
@@ -2869,12 +2878,12 @@ void print_file()
 
     int passthru = 0;       /* 0: write data into psfifo,
                                1: pass data directly to the renderer */
-    
+
     int lastpassthru = 0;   /* State of 'passthru' in previous line
                                (to allow debug output when $passthru
                                switches. */
 
-    int ignorepageheader = 0; /* Will be set to 1 as soon as active 
+    int ignorepageheader = 0; /* Will be set to 1 as soon as active
                                  code (not between "%%BeginPageSetup"
                                  and "%%EndPageSetup") appears after a
                                  "%%Page:" comment. In this case
@@ -2922,7 +2931,7 @@ void print_file()
 
     char optionname [128];
     char value [128];
-    int fromcomposite;
+    int fromcomposite = 0;
 
     dstr_t *pdest;
 
@@ -3176,11 +3185,11 @@ void print_file()
                             page setup section, as some apps do not use
                             "%%PageSetup" tags. */
                             postscriptsection = PS_SECTION_PAGESETUP;
-                            
+
                             /* TODO can this be removed?
                             Save PostScript state before beginning the page
                             $line .= "/foomatic-saved-state save def\n"; */
-                            
+
                             /* Here begins a new page */
                             if (inheader) {
                                 /* Here we add some stuff which still
@@ -3351,7 +3360,7 @@ void print_file()
                                 the choices in the PPD. Possible
                                 reasons:
 
-                                - "pstops" and "imagetops" ignore settings 
+                                - "pstops" and "imagetops" ignore settings
                                 of numerical or string options which are
                                 not one of the choices in the PPD file,
                                 and inserts the default value instead.
@@ -3367,13 +3376,13 @@ void print_file()
                                 with the exact setting given on the command
                                 line. */
 
-                                /* $arg->{$optionset} is already 
+                                /* $arg->{$optionset} is already
                                 range-checked, so do not check again here
                                 Insert DSC comment */
                                 pdest = (inheader && isdscjob) ? psheader : psfifo;
                                 if (option_is_ps_command(o)) {
                                     /* PostScript option, insert the code */
-                                    
+
                                     option_get_command(tmp, o, optset, -1);
                                     if (!(val = option_get_value(o, optset)))
                                         val = "";
@@ -3381,9 +3390,9 @@ void print_file()
                                     if (o->type == TYPE_BOOL)
                                         dstrcatf(pdest, "%%%%BeginFeature: *%s %s\n", o->name,
                                                 val && !strcmp(val, "1") ? "True" : "False");
-                                    else 
+                                    else
                                         dstrcatf(pdest, "%%%%BeginFeature: *%s %s\n", o->name, val);
-                                    
+
                                     dstrcatf(pdest, "%s\n", tmp->data);
                                 }
                                 else {   /* Command line or JCL option */
@@ -3443,9 +3452,9 @@ void print_file()
                                         of the composite option. */
                                         if (option_is_composite(o) && linetype == LT_FOOMATIC_RIP_OPTION_SETTING) {
                                             build_commandline(optset); /* TODO can this be removed? */
-                                            
+
                                             /* TODO merge section and ps_section */
-                                            if (postscriptsection == PS_SECTION_JCLSETUP) 
+                                            if (postscriptsection == PS_SECTION_JCLSETUP)
                                                 option_get_command(tmp, o, optset, SECTION_JCLSETUP);
                                             else if (postscriptsection == PS_SECTION_PROLOG)
                                                 option_get_command(tmp, o, optset, SECTION_PROLOG);
@@ -3576,7 +3585,7 @@ void print_file()
                         we are perhaps already drawing onto a page now */
                         if (startswith(onelinebefore->data, "%%Page"))
                             _log("No page header or page header not DSC-conforming\n");
-                        /* Stop buffering lines to search for options 
+                        /* Stop buffering lines to search for options
                         placed not DSC-conforming */
                         if (line_count(psfifo->data) >= MAX_LINES_FOR_PAGE_OPTIONS) {
                             _log("Stopping search for page header options\n");
@@ -3701,7 +3710,7 @@ void print_file()
                 dstrclear(onelinebefore);
                 dstrclear(twolinesbefore);
                 dstrclear(line);
-                
+
                 dstrcpy(tmp, psheader->data);
                 dstrcat(tmp, psfifo->data);
                 dstrclear(psfifo);
@@ -3851,6 +3860,82 @@ void print_file()
     free_dstr(tmp);
 }
 
+void write_output(void *data, size_t len)
+{
+    /* TODO
+     * - all output should be written with this function
+     * - take postpipe into account
+     */
+    fwrite(data, len, 1, stdout);
+}
+
+enum FileType {
+    UNKNOWN_FILE,
+    PDF_FILE,
+    PS_FILE
+};
+
+int guess_file_type(const char *begin, size_t len, int *startpos)
+{
+    const char * p;
+
+    p = memchr(begin, '%', len);
+    if (!p)
+        return UNKNOWN_FILE;
+    *startpos = p - begin;
+    if (!memcmp(p, "%!", 2))
+        return PS_FILE;
+    else if (!memcmp(p, "%PDF-1.", 7))
+        return PDF_FILE;
+}
+
+int print_file(const char *filename)
+{
+    FILE *file;
+    char buf[8192];
+    int type;
+    char tmpfile[PATH_MAX];
+    int startpos, res;
+
+    if (!strcasecmp(filename, "<STDIN>"))
+        file = stdin;
+    else {
+        file = fopen(filename, "r");
+        if (!file) {
+            _log("Could not open \"%s\" for reading\n", filename);
+            return 1;
+        }
+    }
+
+    fread(buf, 1, sizeof(buf), file);
+    type = guess_file_type(buf, sizeof(buf), &startpos);
+    if (startpos > 0)
+        write_output(buf, startpos);
+
+    switch (type) {
+        case UNKNOWN_FILE:
+            break;
+
+        case PDF_FILE:
+            res = print_pdf(file, filename, startpos);
+            return res;
+
+        case PS_FILE:
+            /* If we do not print standard input, open the file to print */
+            if (file != stdin) {
+                fclose(file); /* make print_ps_file() use the open filehandle */
+
+                freopen(filename, "r", stdin);
+                if (!stdin) {
+                    _log("Cannot open %s, skipping.\n", filename);
+                    return 1;
+                }
+            }
+            print_ps_file();
+            break;
+    }
+    fclose(file);
+}
 
 int main(int argc, char** argv)
 {
@@ -3867,7 +3952,7 @@ int main(int argc, char** argv)
     dstr_t *filelist = create_dstr();
     char programdir[256];
     struct passwd *passwd;
-    
+
     list_t * arglist = list_create_from_array(argc -1, (void**)&argv[1]);
 
     optstr = create_dstr();
@@ -3881,7 +3966,7 @@ int main(int argc, char** argv)
     postpipe = create_dstr();
 
     options_init();
-    
+
 
     /* set the time once to keep output consistent */
     curtime = time(NULL);
@@ -3912,11 +3997,11 @@ int main(int argc, char** argv)
         free(cwd);
         cwd = malloc(i);
     } while (!getcwd(cwd, i));
-    
+
     gethostname(jobhost, 128);
     passwd = getpwuid(getuid());
     if (passwd)
-        strlcpy(jobuser, passwd->pw_name, 128);    
+        strlcpy(jobuser, passwd->pw_name, 128);
     snprintf(jobtitle, 128, "%s@%s", jobuser, jobhost);
 
     /* Path for personal Foomatic configuration */
@@ -3944,7 +4029,7 @@ int main(int argc, char** argv)
         logh = NULL; /* Quiet mode, do not log */
     else
         logh = stderr; /* Default: log to stderr */
-        
+
     /* Start debug logging */
     if (conf.debug) {
         /* If we are not in debug mode, we do this later, as we must find out at
@@ -4044,11 +4129,11 @@ int main(int argc, char** argv)
     if ((str = arglist_get_value(arglist, "-n"))) {
         if (spooler != SPOOLER_GNULPR && spooler != SPOOLER_LPRNG)
             spooler = SPOOLER_LPD;
-        
+
         strncpy(jobuser, str, 127);
         jobuser[127] = '\0';
         arglist_remove(arglist, "-n");
-    }   
+    }
     if (arglist_remove(arglist, "-w") ||
         arglist_remove(arglist, "-l") ||
         arglist_remove(arglist, "-x") ||
@@ -4069,7 +4154,7 @@ int main(int argc, char** argv)
         strncpy_omit(jobtitle, str, 128, omit_shellescapes);
         if (spooler == SPOOLER_LPD)
              dstrcatf(optstr, "%s ", jobtitle);
-         if (!arglist_remove(arglist, "-j")) 
+         if (!arglist_remove(arglist, "-j"))
             arglist_remove(arglist, "-J");
     }
     /* Check for CPS */
@@ -4107,17 +4192,17 @@ int main(int argc, char** argv)
     genpdqfile = check_pdq_file(arglist);
     if (genpdqfile)
         spooler = SPOOLER_PDQ;
-    
+
     /* spooler specific initialization */
     switch (spooler) {
         case SPOOLER_PPR:
             init_ppr(arglist);
             break;
-    
+
         case SPOOLER_CUPS:
             init_cups(arglist, filelist);
             break;
-    
+
         case SPOOLER_LPD:
         case SPOOLER_LPRNG:
         case SPOOLER_GNULPR:
@@ -4125,14 +4210,14 @@ int main(int argc, char** argv)
             if (arglist->last)
                 strncpy_omit(ppdfile, (char*)arglist->last->data, 256, omit_shellescapes);
             break;
-    
+
         case SPOOLER_DIRECT:
         case SPOOLER_CPS:
         case SPOOLER_PDQ:
             init_direct_cps_pdq(arglist, filelist, user_default_path);
             break;
     }
-    
+
     /* Files to be printed (can be more than one for spooler-less printing) */
     /* Empty file list -> print STDIN */
     dstrtrim(filelist);
@@ -4154,7 +4239,7 @@ int main(int argc, char** argv)
         }
         p = strtok(NULL, " ");
     }
-    
+
     /* When we print without spooler or with CPS do not log onto STDERR unless
        the "-v" ('Verbose') is set or the debug mode is used */
     if ((spooler == SPOOLER_DIRECT || spooler == SPOOLER_CPS || genpdqfile) && !verbose && !conf.debug) {
@@ -4162,7 +4247,7 @@ int main(int argc, char** argv)
             fclose(logh);
         logh = NULL;
     }
-    
+
     /* If we are in debug mode, we do this earlier. */
     if (!conf.debug) {
         _log("foomatic-rip version " RIP_VERSION " running...\n");
@@ -4177,7 +4262,7 @@ int main(int argc, char** argv)
             _log("\'%s\'\n", argv[i]);
         }
     }
-    
+
     /* PPD File */
     /* Load the PPD file and build a data structure for the renderer's
        command line and the options */
@@ -4186,9 +4271,9 @@ int main(int argc, char** argv)
         _log("Unable to open PPD file %s\n", ppdfile);
         exit(EXIT_PRNERR_NORETRY_BAD_SETTINGS);
     }
-    
+
     read_ppd_file(ppdfile);
-    
+
     /* We do not need to parse the PostScript job when we don't have
        any options. If we have options, we must check whether the
        default settings from the PPD file are valid and correct them
@@ -4198,7 +4283,7 @@ int main(int argc, char** argv)
            PostScript data */
         dontparse = 1;
     }
-    
+
     /* Is our PPD for a CUPS raster driver */
     if (!isempty(cupsfilter)) {
         /* Search the filter in cupsfilterpath
@@ -4215,7 +4300,7 @@ int main(int argc, char** argv)
                 break;
             }
         }
-    
+
         if (!havefilter) {
             /* We do not have the required filter, so we assume that
                rendering this job is supposed to be done on a remote
@@ -4243,15 +4328,15 @@ int main(int argc, char** argv)
             if (!havepstoraster) {
                 strcpy(pstoraster, "gs -dQUIET -dDEBUG -dPARANOIDSAFER -dNOPAUSE -dBATCH -dNOMEDIAATTRS -sDEVICE=cups -sOutputFile=-%W -");
             }
-    
+
             /* build GhostScript/CUPS driver command line */
             snprintf(cmd, 1024, "%s | %s", pstoraster, cupsfilter);
-    
+
             /* Set environment variables */
             setenv("PPD", ppdfile, 1);
         }
     }
-    
+
     /* Was the RIP command line defined in the PPD file? If not, we assume a PostScript printer
        and do not render/translate the input data */
     if (isempty(cmd)) {
@@ -4264,7 +4349,7 @@ int main(int argc, char** argv)
             strcpy(printer_model, "Raw queue");
         }
     }
-    
+
     /* Summary for debugging */
     _log("\nParameter Summary\n"
          "-----------------\n\n"
@@ -4286,12 +4371,12 @@ int main(int argc, char** argv)
     _log("%s\n\n", filelist->data);
     if (getenv("GS_LIB"))
         _log("GhostScript extra search path ('GS_LIB'): %s\n", getenv("GS_LIB"));
-    
+
     /* Process options from command line,
        but save the defaults for printing documentation pages first */
     optionset_copy_values(optionset("default"), optionset("userval"));
     process_cmdline_options();
-    
+
     /* Were we called to build the PDQ driver declaration file? */
     if (genpdqfile) {
         print_pdq_driver(genpdqfile, optionset("userval"));
@@ -4334,7 +4419,7 @@ int main(int argc, char** argv)
     if (postpipe->len)
         _log("Ouput will be redirected to:\n%s\n", postpipe);
 
-    
+
     /* Print documentation page when asked for */
     if (do_docs) {
         /* Don't print the supplied files, STDIN will be redirected to the
@@ -4357,20 +4442,6 @@ int main(int argc, char** argv)
              "File: %s\n\n"
              "================================================\n\n", filename);
 
-        /* If we do not print standard input, open the file to print */
-        if (strcmp(filename, "<STDIN>") != 0) {
-            if (access(filename, R_OK) != 0) {
-                _log("File %s missing or not readable, skipping.\n");
-                continue;
-            }
-
-            freopen(filename, "r", stdin);
-            if (!stdin) {
-                _log("Cannot open %s, skipping.\n", filename);
-                continue;
-            }
-        }
-
         /* Do we have a raw queue? */
         if (dontparse == 2) {
             /* Raw queue, simply pass the input into the postpipe (or to STDOUT
@@ -4388,7 +4459,7 @@ int main(int argc, char** argv)
            PostScript file (all before the first page begins). */
         optionset_copy_values(optionset("userval"), optionset("header"));
 
-        print_file();
+        print_file(filename);
         filename = strtok_r(NULL, " ", &p);
     }
 
@@ -4429,8 +4500,8 @@ int main(int argc, char** argv)
     free_dstr(jclappend);
     if (backendoptions)
         free_dstr(backendoptions);
-    
+
     list_free(arglist);
-    
+
     return retval;
 }
