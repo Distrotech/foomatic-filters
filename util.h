@@ -3,7 +3,9 @@
 #define util_h
 
 /* TODO write replacements for strcasecmp() etc. for non-gnu systems */
+#ifndef _GNU_SOURCE
 #define _GNU_SOURCE
+#endif
 
 #include <string.h>
 #include <stdio.h>
@@ -104,12 +106,14 @@ size_t fgetdstr(dstr_t *ds, FILE *stream); /* returns number of characters read 
 void dstrreplace(dstr_t *ds, const char *find, const char *repl);
 void dstrprepend(dstr_t *ds, const char *str);
 void dstrinsert(dstr_t *ds, int idx, const char *str);
+void dstrinsertf(dstr_t *ds, int idx, const char *str, ...);
 void dstrremove(dstr_t *ds, int idx, size_t count);
 void dstrcatline(dstr_t *ds, const char *str); /* appends the first line from str to ds (incl. \n) */
 
 int dstrendswith(dstr_t *ds, const char *str);
 void dstrfixnewlines(dstr_t *ds);
 void dstrremovenewline(dstr_t *ds);
+void dstrtrim(dstr_t *ds);
 void dstrtrim_right(dstr_t *ds);
 
 

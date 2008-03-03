@@ -8,12 +8,13 @@ AC_CONFIG_SRCDIR([options.c])
 
 # If the user didn't specify the $sysconfdir on the command line, let it
 # be /etc, not /usr/local/etc or /usr/etc
-if [[ x$sysconfdir = 'x${prefix}/etc' ]]; then
-  sysconfdir=/etc
-fi
+# if [[ x$sysconfdir = 'x${prefix}/etc' ]]; then
+#  sysconfdir=/etc
+# fi
 
 # Checks for programs.
 AC_PROG_CC
+AC_PROG_CXX
 AC_PROG_INSTALL
 AC_PROG_LN_S
 AC_PROG_MAKE_SET
@@ -79,6 +80,10 @@ AC_PATH_DIR(PPR_INTERFACES,ppr/interfaces,/usr/lib/ppr/interfaces,$LIBSEARCHPATH
 # Check for /usr/lib/ppr/lib
 AC_PATH_DIR(PPR_LIB,ppr/lib,/usr/lib/ppr/lib,$LIBSEARCHPATH)
 
+
+# Check for poppler
+PKG_CHECK_MODULES(POPPLER, poppler)
+
 AC_ARG_ENABLE(file-converter-check, [  --enable-file-converter-check  check whether a file converter is installed [default=yes]],
 [if eval "test x${enableval} = xno"; then
   NOCONVERTERCHECK=1
@@ -116,8 +121,7 @@ AC_ARG_WITH(execpath,[  --with-execpath=(path to various filters)
 AC_MSG_RESULT([Execpath: $EXECPATH])
 AC_SUBST(EXECPATH)
 
-AC_CONFIG_FILES([Makefile beh foomatic-gswrapper foomatic-rip.1
-	foomatic-gswrapper.1])
+AC_CONFIG_FILES([Makefile beh foomatic-rip.1])
 AC_OUTPUT
 
 # Finished

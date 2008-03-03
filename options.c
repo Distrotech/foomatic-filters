@@ -660,7 +660,7 @@ char * get_valid_value_string(option_t *opt, const char *value)
         }
         else if (is_false_string(value)) {
             for (choice = opt->choicelist; choice; choice = choice->next) {
-                if (is_true_string(choice->value))
+                if (is_false_string(choice->value))
                     return strdup(choice->value);
             }
         }
@@ -1302,7 +1302,7 @@ void read_ppd_file(const char *filename)
                 break;
             
             fgets(line, 256, fh);
-            dstrcatf(value, line);
+            dstrcat(value, line);
             dstrremovenewline(value);
         }
 

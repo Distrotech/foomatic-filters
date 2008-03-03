@@ -29,6 +29,16 @@ gnu echo and put gecho here or something. */
 #define ECHO "echo"
 #endif
 
+#ifndef GS_PATH
+#define GS_PATH "gs"
+#endif
+
+
+#ifndef MODERN_SHELL
+#define MODERN_SHELL "/bin/bash"
+#endif
+
+
 /* Constants used by this filter
  *                             
  * Error codes, as some spooles behave different depending on the reason why
@@ -79,7 +89,12 @@ gnu echo and put gecho here or something. */
 #define SPOOLER_DIRECT    10
 
 
+#define PATH_MAX 1024
+
 
 void _log(const char* msg, ...);
+
+
+const char * build_commandline(int optionset);
 
 #endif
