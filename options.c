@@ -142,12 +142,12 @@ static void free_param(param_t *param)
         regfree(param->allowedchars);
         free(param->allowedchars);
     }
-    
+
     if (param->allowedregexp) {
-        regfree(param->allowedregexp);    
+        regfree(param->allowedregexp);
         free(param->allowedregexp);
     }
-    
+
     free(param);
 }
 
@@ -295,10 +295,10 @@ int option_has_name(option_t *opt, const char *name)
 {
     if (!strcmp(opt->name, name))
         return 1;
-    
+
     if (!strcmp(opt->name, "PageSize") && !strcmp(name, "PageRegion"))
         return 1;
-    
+
     return 0;
 }
 
@@ -370,7 +370,7 @@ static param_t * option_find_param(option_t *opt, const char *name)
 static param_t * option_find_param_index(option_t *opt, const char *name, int *idx)
 {
     param_t *param;
-    for (param = opt->paramlist, *idx = 0; param; param = param->next, *idx++) {
+    for (param = opt->paramlist, *idx = 0; param; param = param->next, *idx += 1) {
         if (!strcasecmp(param->name, name))
             return param;
     }
@@ -615,7 +615,7 @@ char * get_valid_value_string(option_t *opt, const char *value)
     char *res;
     choice_t *choice;
     char **paramvalues;
-    
+
     if (!value)
         return NULL;
 
@@ -636,12 +636,12 @@ char * get_valid_value_string(option_t *opt, const char *value)
             return NULL;
         }
     }
-    
+
     /* Check if "value" is a predefined choice */
     if ((choice = option_find_choice(opt, value)))
         return strdup(choice->value);
 
-    
+
     if (opt->type == TYPE_ENUM) {
         if (!strcasecmp(value, "none"))
             return strdup("None");
@@ -665,7 +665,7 @@ char * get_valid_value_string(option_t *opt, const char *value)
             }
         }
     }
-    
+
     /* Custom value */
     if (opt->paramlist) {
         paramvalues = paramvalues_from_string(opt, value);
@@ -811,14 +811,14 @@ int option_get_command(dstr_t *cmd, option_t *opt, int optionset, int section)
     valstr = option_get_value(opt, optionset);
     if (!valstr)
         return 0;
-    
+
     /* If the value is set to a predefined choice */
     choice = option_find_choice(opt, valstr);
     if (choice) {
         dstrcpy(cmd, choice->command);
         return 1;
     }
-    
+
     if (opt->type == TYPE_STRING && !strcasecmp(valstr, "None")) {
         /* TODO Is "none" always mapped to the empty string? */
         return 1;
@@ -844,7 +844,7 @@ void composite_set_values(option_t *opt, int optionset, const char *values)
     char *copy, *cur, *p;
     option_t *dep;
     value_t *val;
-    
+
     copy = strdup(values);
     for (cur = strtok(copy, " \t"); cur; cur = strtok(NULL, " \t")) {
         if ((p = strchr(cur, '='))) {
@@ -878,22 +878,23 @@ void composite_set_values(option_t *opt, int optionset, const char *values)
 int option_set_value(option_t *opt, int optionset, const char *value)
 {
     value_t *val = option_assure_value(opt, optionset);
+    char *newvalue;
     choice_t *choice;
 
-    free(val->value); /* delete old value */
-
-    if (!(val->value = get_valid_value_string(opt, value)))
+    newvalue = get_valid_value_string(opt, value);
+    if (!newvalue)
         return 0;
-        
+
+    free(val->value);
+    val->value = newvalue;
+
     if (option_is_composite(opt)) {
         /* set dependent values */
         choice = option_find_choice(opt, value);
         if (choice && !isempty(choice->command))
             composite_set_values(opt, optionset, choice->command);
     }
-
-        
-    return val->value != NULL;
+    return 1;
 }
 
 int option_accepts_value(option_t *opt, const char *value)
@@ -1140,7 +1141,7 @@ param_t * option_assure_foomatic_param(option_t *opt)
     strcpy(param->name, "Custom");
     param->order = 0;
     param->type = opt->type;
-    
+
     opt->paramlist = param;
     opt->param_count = 1;
     return param;
@@ -1298,9 +1299,9 @@ void read_ppd_file(const char *filename)
             else if (value->data[0] == '\"' && !strchr(value->data +1, '\"'))
                 dstrcat(value, "\n"); /* keep newlines in quoted string*/
             /* not quoted, or quotes already closed */
-            else 
+            else
                 break;
-            
+
             fgets(line, 256, fh);
             dstrcat(value, line);
             dstrremovenewline(value);
@@ -1432,16 +1433,16 @@ void read_ppd_file(const char *filename)
             opt->section = section_from_string(text);
             option_set_order(opt, order);
         }
-        
+
         /* Default options are not yet validated (not all options/choices
            have been read yet) */
         else if (!prefixcmp(key, "Default")) {
             /* Default<option>: <value> */
-            
+
             /* TODO *DefaultColorSpace is a keyword and doesn't need to be extraced, does it? */
             if (!strcmp(key, "DefaultColorSpace"))
                 continue;
-            
+
             opt = assure_option(&key[7]);
             val = option_assure_value(opt, optionset("default"));
             free(val->value);

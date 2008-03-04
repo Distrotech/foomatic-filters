@@ -158,8 +158,15 @@ int render_pages(const char *filename, int firstpage, int lastpage)
     }
 
     for (pos = start +2; pos < end; pos++) {
-        if (!strcmp(&cmd->data[pos], " -"))
+        if (!strcmp(&cmd->data[pos], " -")) {
             cmd->data[pos +1] = ' ';
+            break;
+        }
+        else if (!strcmp(&cmd->data[pos], " -_")) { /* buffered input */
+            cmd->data[pos +1] = ' ';
+            cmd->data[pos +2] = ' ';
+            break;
+        }
     }
     dstrinsertf(cmd, pos, " %s ", filename);
     dstrinsertf(cmd, start +2, " -dFirstPage=%d -dLastPage=%d ", firstpage, lastpage);

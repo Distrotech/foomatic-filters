@@ -481,7 +481,6 @@ void process_cmdline_options()
     float width, height;
     char unit[2];
 
-    _log("%s\n", optstr->data);
     nextopt = extract_next_option(optstr->data, &pagerange, &key, &value);
     while (key) {
         if (value)
@@ -562,8 +561,8 @@ void process_cmdline_options()
                 /* Handle the standard duplex option, mostly */
                 if (!prefixcasecmp(value, "two-sided")) {
                     if ((opt = find_option("Duplex"))) {
-		                /* Default to long-edge binding here, for the case that
-		                   there is no binding setting */
+                        /* Default to long-edge binding here, for the case that
+                           there is no binding setting */
                         option_set_value(opt, optset, "DuplexNoTumble");
 
                         /* Check the binding: "long edge" or "short edge" */
@@ -588,17 +587,17 @@ void process_cmdline_options()
 
                 /*  TODO
                     We should handle the other half of this option - the
-                    BindEdge bit.  Also, are there well-known ipp/cups
-                    options for Collate and StapleLocation?  These may be
-                    here...
+                    BindEdge bit.  Also, are there well-known ipp/cups options
+                    for Collate and StapleLocation?  These may be here...
                 */
             }
             else {
                 /* Various non-standard printer-specific options */
                 if ((opt = find_option(key))) {
-                    /* use the choice if it is valid, otherwise ignore it */
-                    if (!option_set_value(opt, optset, value))
-                        _log("Invalid choice %s=%s.\n", opt->name, value);
+                    if (!option_set_value(opt, optset, value)) {
+                        _log("  invalid choice \"%s\", using \"%s\" instead\n", 
+                                value, option_get_value(opt, optset));
+                    }
                 }
                 else if (spooler == SPOOLER_PPR_INT) {
                     /* Unknown option, pass it to PPR's backend interface */
