@@ -56,8 +56,7 @@ gnu echo and put gecho here or something. */
 #define EXIT_INCAPABLE 50                       /* printer wants (lacks) features or resources */
 
 
-/* We don't know yet, which spooler will be used. If we don't detect one.  we
- * assume that we do spooler-less printing. Supported spoolers are currently:
+/* Supported spoolers are currently:
  *
  *   cups    - CUPS - Common Unix Printing System
  *   solaris - Solaris LP (possibly some other SysV LP services as well)
@@ -81,14 +80,22 @@ gnu echo and put gecho here or something. */
 #define SPOOLER_PDQ       9
 #define SPOOLER_DIRECT    10
 
+/* The spooler from which foomatic-rip was called. set in main() */
+extern int spooler;
+
 
 #define PATH_MAX 1024
 
 
 void _log(const char* msg, ...);
 
-
-const char * build_commandline(int optionset);
 const char * get_modern_shell();
 
+extern struct dstr *currentcmd;
+extern struct dstr *jclappend;
+extern struct dstr *jclprepend;
+extern int jobhasjcl;
+extern const char *accounting_prolog;
+
 #endif
+

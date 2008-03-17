@@ -43,13 +43,13 @@ typedef struct param_s {
     char text [128];       /* formerly comment, changed to 'text' to
                               be consistent with cups */
     int order;
-    
+
     int type;
     char min[20], max[20]; /* contents depend on 'type' */
-    
+
     regex_t *allowedchars;
     regex_t *allowedregexp;
-    
+
     struct param_s *next;
 } param_t;
 
@@ -63,23 +63,23 @@ typedef struct option_s {
     char spot;
     int order;
     int section;
-    
+
     int notfirst;               /* TODO remove */
-    
+
     choice_t *choicelist;
-    
+
     char *custom_command;       /* *CustomFoo */
     char *proto;                /* *FoomaticRIPOptionPrototype: if this is set
                                    it will be used with only the first option
                                    in paramlist (there should be only one) */
-                                   
+
     param_t *paramlist;         /* for custom values, sorted by stack order */
     size_t param_count;
-    
+
     struct value_s *valuelist;
-  
+
     struct option_s *next;
-    struct option_s *next_by_order;    
+    struct option_s *next_by_order;
 } option_t;
 
 
@@ -114,7 +114,7 @@ int option_is_commandline_arg(option_t *opt);
 int option_get_section(option_t *opt); /* TODO deprecated */
 
 /* handles ANYSETUP (for (PAGE|DOCUMENT)SETUP) */
-int option_is_in_section(option_t *opt, int section); 
+int option_is_in_section(option_t *opt, int section);
 
 void options_init();
 void options_free();
@@ -139,6 +139,11 @@ int optionset(const char * name);
 
 void optionset_copy_values(int src_optset, int dest_optset);
 int optionset_equal(int optset1, int optset2, int exceptPS);
+
+void append_prolog_section(dstr_t *str, int optset, int comments);
+void append_setup_section(dstr_t *str, int optset, int comments);
+void append_page_setup_section(dstr_t *str, int optset, int comments);
+const char * build_commandline(int optset);
 
 #endif
 

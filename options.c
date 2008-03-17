@@ -35,6 +35,11 @@ char jclprefix[256] = "@PJL ";
 int jclprefixset = 0;
 
 
+dstr_t *prologprepend;
+dstr_t *setupprepend;
+dstr_t *pagesetupprepend;
+
+
 
 option_t *optionlist = NULL;
 option_t *optionlist_sorted_by_order = NULL;
@@ -134,6 +139,10 @@ void options_init()
     optionset_alloc = 8;
     optionset_count = 0;
     optionsets = calloc(optionset_alloc, sizeof(char *));
+
+    prologprepend = create_dstr();
+    setupprepend = create_dstr();
+    pagesetupprepend = create_dstr();
 }
 
 static void free_param(param_t *param)
@@ -215,6 +224,10 @@ void options_free()
 
     if (postpipe)
         free_dstr(postpipe);
+
+    free_dstr(prologprepend);
+    free_dstr(setupprepend);
+    free_dstr(pagesetupprepend);
 }
 
 size_t option_count()
@@ -1520,5 +1533,207 @@ void read_ppd_file(const char *filename)
                defined in the PPD file */
             option_set_value(opt, optionset("default"), opt->choicelist->value);
     }
+}
+
+/* build a renderer command line, based on the given option set */
+const char * build_commandline(int optset)
+{
+    option_t *opt, *o;
+    value_t *val;
+    char driverval [256];
+    const char *userval;
+    char tmp [256];
+    char *s, *p, *key, *value;
+    dstr_t *cmdvar = create_dstr();
+    dstr_t *open = create_dstr();
+    dstr_t *close = create_dstr();
+    float width, height;
+    char unit[3];
+    char letters[] = "%A %B %C %D %E %F %G %H %I %J %K %L %M %W %X %Y %Z";
+    int jcl = 0;
+
+    dstr_t *local_jclprepend = create_dstr();
+
+    dstrclear(prologprepend);
+    dstrclear(setupprepend);
+    dstrclear(pagesetupprepend);
+
+    dstrcpy(currentcmd, cmd);
+
+
+    for (opt = optionlist_sorted_by_order; opt; opt = opt->next_by_order) {
+        if (option_is_composite(opt))
+            continue;
+
+        userval = option_get_value(opt, optset);
+        option_get_command(cmdvar, opt, optset, -1);
+
+        /* Insert the built snippet at the correct place */
+        if (option_is_ps_command(opt)) {
+            /* Place this Postscript command onto the prepend queue
+               for the appropriate section. */
+            if (cmdvar->len) {
+                dstrcpyf(open, "[{\n%%%%BeginFeature: *%s ", opt->name);
+                if (opt->type == TYPE_BOOL)
+                    dstrcatf(open, is_true_string(userval) ? "True\n" : "False\n");
+                else
+                    dstrcatf(open, "%s\n", userval);
+                dstrcpyf(close, "\n%%%%EndFeature\n} stopped cleartomark\n");
+
+                switch (option_get_section(opt)) {
+                    case SECTION_PROLOG:
+                        dstrcatf(prologprepend, "%s%s%s", open->data, cmdvar->data, close->data);
+                        break;
+
+                    case SECTION_ANYSETUP:
+                        if (optset != optionset("currentpage"))
+                            dstrcatf(setupprepend, "%s%s%s", open->data, cmdvar->data, close->data);
+                        else if (strcmp(option_get_value(opt, optionset("header")), userval) != 0)
+                            dstrcatf(pagesetupprepend, "%s%s%s", open->data, cmdvar->data, close->data);
+                        break;
+
+                    case SECTION_DOCUMENTSETUP:
+                        dstrcatf(setupprepend, "%s%s%s", open->data, cmdvar->data, close->data);
+                        break;
+
+                    case SECTION_PAGESETUP:
+                        dstrcatf(pagesetupprepend, "%s%s%s", open->data, cmdvar->data, close->data);
+                        break;
+
+                    case SECTION_JCLSETUP:          /* PCL/JCL argument */
+                        s = malloc(cmdvar->len +1);
+                        unhexify(s, cmdvar->len +1, cmdvar->data);
+                        dstrcatf(local_jclprepend, "%s", s);
+                        free(s);
+                        break;
+
+                    default:
+                        dstrcatf(setupprepend, "%s%s%s", open->data, cmdvar->data, close->data);
+                }
+            }
+        }
+        else if (option_is_jcl_arg(opt)) {
+            jcl = 1;
+            /* Put JCL commands onto JCL stack */
+            if (cmdvar->len)
+                dstrcatf(local_jclprepend, "%s%s\n", jclprefix, cmdvar->data);
+        }
+        else if (option_is_commandline_arg(opt)) {
+            /* Insert the processed argument in the command line
+            just before every occurrence of the spot marker. */
+            p = malloc(3);
+            snprintf(p, 3, "%%%c", opt->spot);
+            s = malloc(cmdvar->len +3);
+            snprintf(s, cmdvar->len +3, "%s%%%c", cmdvar->data, opt->spot);
+            dstrreplace(currentcmd, p, s);
+            free(p);
+            free(s);
+        }
+
+        /* Insert option into command line of CUPS raster driver */
+        if (strstr(currentcmd->data, "%Y")) {
+            if (isempty(userval))
+                continue;
+            s = malloc(strlen(opt->name) + strlen(userval) + 20);
+            sprintf(s, "%s=%s %%Y", opt->name, userval);
+            dstrreplace(currentcmd, "%Y", s);
+            free(s);
+        }
+    }
+
+    /* Tidy up after computing option statements for all of P, J, and C types: */
+
+    /* C type finishing */
+    /* Pluck out all of the %n's from the command line prototype */
+    s = strtok(letters, " ");
+    do {
+        dstrreplace(currentcmd, s, "");
+    } while ((s = strtok(NULL, " ")));
+
+    /* J type finishing */
+    /* Compute the proper stuff to say around the job */
+    if (jcl && !jobhasjcl) {
+        /* Stick the beginning job cruft on the front of the jcl stuff */
+        dstrprepend(local_jclprepend, jclbegin);
+
+        /* command to switch to the interpreter */
+        dstrcatf(local_jclprepend, "%s", jcltointerpreter);
+
+        /* Arrange for JCL RESET command at the end of job */
+        dstrcpy(jclappend, jclend);
+
+        dstrcpy(jclprepend, local_jclprepend->data);
+    }
+
+    free_dstr(cmdvar);
+    free_dstr(open);
+    free_dstr(close);
+    free_dstr(local_jclprepend);
+
+    return currentcmd->data;
+}
+
+/* if "comments" is set, add "%%BeginProlog...%%EndProlog" */
+void append_prolog_section(dstr_t *str, int optset, int comments)
+{
+    /* Start comment */
+    if (comments) {
+        _log("\"Prolog\" section is missing, inserting it.\n");
+        dstrcat(str, "%%BeginProlog\n");
+    }
+
+    /* Generate the option code (not necessary when CUPS is spooler) */
+    if (spooler != SPOOLER_CUPS) {
+        _log("Inserting option code into \"Prolog\" section.\n");
+        build_commandline(optset);
+        dstrcat(str, prologprepend->data);
+    }
+
+    /* End comment */
+    if (comments)
+        dstrcat(str, "%%EndProlog\n");
+}
+
+void append_setup_section(dstr_t *str, int optset, int comments)
+{
+    /* Start comment */
+    if (comments) {
+        _log("\"Setup\" section is missing, inserting it.\n");
+        dstrcat(str, "%%BeginSetup\n");
+    }
+
+    /* PostScript code to generate accounting messages for CUPS */
+    if (spooler == SPOOLER_CUPS) {
+        _log("Inserting PostScript code for CUPS' page accounting\n");
+        dstrcat(str, accounting_prolog);
+    }
+    /* Generate the option code (not necessary when CUPS is spooler) */
+    else {
+        _log("Inserting option code into \"Setup\" section.\n");
+        build_commandline(optset);
+        dstrcat(str, setupprepend->data);
+    }
+
+    /* End comment */
+    if (comments)
+        dstrcat(str, "%%EndSetup\n");
+}
+
+void append_page_setup_section(dstr_t *str, int optset, int comments)
+{
+    /* Start comment */
+    if (comments) {
+        _log("\"PageSetup\" section is missing, inserting it.\n");
+        dstrcat(str, "%%BeginPageSetup\n");
+    }
+
+    /* Generate the option code (not necessary when CUPS is spooler) */
+    _log("Inserting option code into \"PageSetup\" section.\n");
+    build_commandline(optset);
+    dstrcat(str, pagesetupprepend->data);
+
+    /* End comment */
+    if (comments)
+        dstrcat(str, "%%EndPageSetup\n");
 }
 

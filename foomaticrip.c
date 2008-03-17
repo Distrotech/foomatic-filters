@@ -226,11 +226,6 @@ char id[128];
 char driver[128];
 dstr_t *currentcmd;
 char cupsfilter[256];
-int jcl = 0;
-dstr_t *prologprepend;
-dstr_t *setupprepend;
-dstr_t *pagesetupprepend;
-dstr_t *cupspagesetupprepend;
 dstr_t *jclprepend;
 dstr_t *jclappend;
 
@@ -1368,149 +1363,6 @@ int modern_system(const char *cmd)
     }
 }
 
-/* build a renderer command line, based on the given option set */
-const char * build_commandline(int optset)
-{
-    option_t *opt, *o;
-    value_t *val;
-    char driverval [256];
-    const char *userval;
-    char tmp [256];
-    char *s, *p, *key, *value;
-    dstr_t *cmdvar = create_dstr();
-    dstr_t *open = create_dstr();
-    dstr_t *close = create_dstr();
-    float width, height;
-    char unit[3];
-    char letters[] = "%A %B %C %D %E %F %G %H %I %J %K %L %M %W %X %Y %Z";
-
-    dstr_t *local_jclprepend = create_dstr();
-
-    dstrclear(prologprepend);
-    dstrclear(setupprepend);
-    dstrclear(pagesetupprepend);
-    dstrclear(cupspagesetupprepend);
-
-    dstrcpy(currentcmd, cmd);
-
-
-    for (opt = optionlist_sorted_by_order; opt; opt = opt->next_by_order) {
-        /* Composite options have no direct influence on the command
-        line, skip them here */
-        if (option_is_composite(opt))
-            continue;
-
-        userval = option_get_value(opt, optset);
-        option_get_command(cmdvar, opt, optset, -1);
-
-        /* Insert the built snippet at the correct place */
-        if (option_is_ps_command(opt)) {
-            /* Place this Postscript command onto the prepend queue
-               for the appropriate section. */
-            if (cmdvar->len) {
-                dstrcpyf(open, "[{\n%%%%BeginFeature: *%s ", opt->name);
-                if (opt->type == TYPE_BOOL)
-                    dstrcatf(open, is_true_string(userval) ? "True\n" : "False\n");
-                else
-                    dstrcatf(open, "%s\n", userval);
-                dstrcpyf(close, "\n%%%%EndFeature\n} stopped cleartomark\n");
-
-                switch (option_get_section(opt)) {
-                    case SECTION_PROLOG:
-                        dstrcatf(prologprepend, "%s%s%s", open->data, cmdvar->data, close->data);
-                        break;
-
-                    case SECTION_ANYSETUP:
-                        if (optset != optionset("currentpage"))
-                            dstrcatf(setupprepend, "%s%s%s", open->data, cmdvar->data, close->data);
-                        else if (strcmp(option_get_value(opt, optionset("header")), userval) != 0) {
-                            dstrcatf(pagesetupprepend, "%s%s%s", open->data, cmdvar->data, close->data);
-                            dstrcatf(cupspagesetupprepend, "%s%s%s", open->data, cmdvar->data, close->data);
-                        }
-                        break;
-
-                    case SECTION_DOCUMENTSETUP:
-                        dstrcatf(setupprepend, "%s%s%s", open->data, cmdvar->data, close->data);
-                        break;
-
-                    case SECTION_PAGESETUP:
-                        dstrcatf(pagesetupprepend, "%s%s%s", open->data, cmdvar->data, close->data);
-                        break;
-
-                    case SECTION_JCLSETUP:          /* PCL/JCL argument */
-                        s = malloc(cmdvar->len +1);
-                        unhexify(s, cmdvar->len +1, cmdvar->data);
-                        dstrcatf(local_jclprepend, "%s", s);
-                        free(s);
-                        break;
-
-                    default:
-                        dstrcatf(setupprepend, "%s%s%s", open->data, cmdvar->data, close->data);
-                }
-            }
-        }
-        else if (option_is_jcl_arg(opt)) {
-            jcl = 1;
-            /* Put JCL commands onto JCL stack */
-            if (cmdvar->len)
-                dstrcatf(local_jclprepend, "%s%s\n", jclprefix, cmdvar->data);
-        }
-        else if (option_is_commandline_arg(opt)) {
-            /* Insert the processed argument in the command line
-            just before every occurrence of the spot marker. */
-            p = malloc(3);
-            snprintf(p, 3, "%%%c", opt->spot);
-            s = malloc(cmdvar->len +3);
-            snprintf(s, cmdvar->len +3, "%s%%%c", cmdvar->data, opt->spot);
-            dstrreplace(currentcmd, p, s);
-            free(p);
-            free(s);
-        }
-
-        /* Insert option into command line of CUPS raster driver */
-        if (strstr(currentcmd->data, "%Y")) {
-            if (isempty(userval))
-                continue;
-            s = malloc(strlen(opt->name) + strlen(userval) + 20);
-            sprintf(s, "%s=%s %%Y", opt->name, userval);
-            dstrreplace(currentcmd, "%Y", s);
-            free(s);
-        }
-    }
-
-    /* Tidy up after computing option statements for all of P, J, and C types: */
-
-    /* C type finishing */
-    /* Pluck out all of the %n's from the command line prototype */
-    s = strtok(letters, " ");
-    do {
-        dstrreplace(currentcmd, s, "");
-    } while ((s = strtok(NULL, " ")));
-
-    /* J type finishing */
-    /* Compute the proper stuff to say around the job */
-    if (jcl && !jobhasjcl) {
-        /* Stick the beginning job cruft on the front of the jcl stuff */
-        dstrprepend(local_jclprepend, jclbegin);
-
-        /* command to switch to the interpreter */
-        dstrcatf(local_jclprepend, "%s", jcltointerpreter);
-
-        /* Arrange for JCL RESET command at the end of job */
-        dstrcpy(jclappend, jclend);
-
-        dstrcpy(jclprepend, local_jclprepend->data);
-    }
-
-    free_dstr(cmdvar);
-    free_dstr(open);
-    free_dstr(close);
-    free_dstr(local_jclprepend);
-
-    return currentcmd->data;
-}
-
-
 int retval = EXIT_PRINTED;
 
 /*  Functions to let foomatic-rip fork to do several tasks in parallel.
@@ -1563,8 +1415,8 @@ void set_exit_engaged()
     retval = EXIT_ENGAGED;
 }
 
-/* Check whether we have a Ghostscript version with redirection of the
-   standard output of the PostScript programs via '-sstdout=%stderr' */
+/* Check whether we have a Ghostscript version with redirection of the standard
+ * output of the PostScript programs via '-sstdout=%stderr' */
 int test_gs_output_redirection()
 {
     char * gstestcommand = GS_PATH " -dQUIET -dPARANOIDSAFER -dNOPAUSE -dBATCH -dNOMEDIAATTRS "
@@ -1927,33 +1779,6 @@ int convkidfailed;
 int kid1finished;
 int kid2finished;
 int pfd_kid_message_conv[2];
-
-
-
-int locate_command(const char *progname)
-{
-    char *envpath;
-    char *path;
-    char filepath[PATH_MAX];
-
-    if (access(progname, X_OK) == 0)
-        return 1;
-
-    envpath = strdup(getenv("PATH"));
-    for (path = strtok(envpath, ":"); path; path = strtok(NULL, ":")) {
-        strlcpy(filepath, path, PATH_MAX);
-        strlcat(filepath, "/", PATH_MAX);
-        strlcat(filepath, progname, PATH_MAX);
-
-        if (access(filepath, X_OK) == 0) {
-            free(envpath);
-            return 1;
-        }
-    }
-
-    free(envpath);
-    return 0;
-}
 
 
 /*
@@ -2400,72 +2225,6 @@ void set_options_for_page(int optset, int page)
     }
 }
 
-/* if "comments" is set, add "%%BeginProlog...%%EndProlog" */
-void append_prolog_section(dstr_t *str, int optset, int comments)
-{
-    /* Start comment */
-    if (comments) {
-        _log("\"Prolog\" section is missing, inserting it.\n");
-        dstrcat(str, "%%BeginProlog\n");
-    }
-
-    /* Generate the option code (not necessary when CUPS is spooler) */
-    if (spooler != SPOOLER_CUPS) {
-        _log("Inserting option code into \"Prolog\" section.\n");
-        build_commandline(optset);
-        dstrcat(str, prologprepend->data);
-    }
-
-    /* End comment */
-    if (comments)
-        dstrcat(str, "%%EndProlog\n");
-}
-
-void append_setup_section(dstr_t *str, int optset, int comments)
-{
-    /* Start comment */
-    if (comments) {
-        _log("\"Setup\" section is missing, inserting it.\n");
-        dstrcat(str, "%%BeginSetup\n");
-    }
-
-    /* PostScript code to generate accounting messages for CUPS */
-    if (spooler == SPOOLER_CUPS) {
-        _log("Inserting PostScript code for CUPS' page accounting\n");
-        dstrcat(str, accounting_prolog);
-    }
-    /* Generate the option code (not necessary when CUPS is spooler) */
-    else {
-        _log("Inserting option code into \"Setup\" section.\n");
-        build_commandline(optset);
-        dstrcat(str, setupprepend->data);
-    }
-
-    /* End comment */
-    if (comments)
-        dstrcat(str, "%%EndSetup\n");
-}
-
-void append_page_setup_section(dstr_t *str, int optset, int comments)
-{
-    /* Start comment */
-    if (comments) {
-        _log("\"PageSetup\" section is missing, inserting it.\n");
-        dstrcat(str, "%%BeginPageSetup\n");
-    }
-
-    /* Generate the option code (not necessary when CUPS is spooler) */
-    _log("Inserting option code into \"PageSetup\" section.\n");
-    build_commandline(optset);
-    if (spooler == SPOOLER_CUPS)
-        dstrcat(str, cupspagesetupprepend->data);
-    else
-        dstrcat(str, pagesetupprepend->data);
-
-    /* End comment */
-    if (comments)
-        dstrcat(str, "%%EndPageSetup\n");
-}
 
 /* little helper function for print_file */
 #define LT_BEGIN_FEATURE 1
@@ -3753,10 +3512,6 @@ int main(int argc, char** argv)
 
     optstr = create_dstr();
     currentcmd = create_dstr();
-    prologprepend = create_dstr();
-    setupprepend = create_dstr();
-    pagesetupprepend = create_dstr();
-    cupspagesetupprepend = create_dstr();
     jclprepend = create_dstr();
     jclappend = create_dstr();
     postpipe = create_dstr();
@@ -4295,10 +4050,6 @@ int main(int argc, char** argv)
         fclose(logh);
     free(cwd);
 
-    free_dstr(prologprepend);
-    free_dstr(setupprepend);
-    free_dstr(pagesetupprepend);
-    free_dstr(cupspagesetupprepend);
     free_dstr(jclprepend);
     free_dstr(jclappend);
     if (backendoptions)
@@ -4308,3 +4059,4 @@ int main(int argc, char** argv)
 
     return retval;
 }
+

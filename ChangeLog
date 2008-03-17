@@ -1,3 +1,7 @@
+2008-03-17 Lars Uebernickel <larsuebernickel@gmx.de>
+	* foomaticrip.c, options.c: Moved buildcommandline() and
+	append_*_section() to options.c, where they belong.
+
 2008-03-16 Lars Uebernickel <larsuebernickel@gmx.de>
 	* foomaticrip.c: Started to move all process forking to process.c - to
 	  share it with the pdf handler. Furthermore, the functions in process.c
