@@ -3,6 +3,7 @@ extern "C" {
 #include "foomaticrip.h"
 #include "util.h"
 #include "options.h"
+#include "process.h"
 }
 
 #include <ctype.h>
@@ -32,64 +33,6 @@ void extract_command(size_t *start, size_t *end, const char *cmdline, const char
     }
 
     free(copy);
-}
-
-pid_t start_system_process(const char *cmd, int newstdin, int newstdout)
-{
-    pid_t pid;
-    int pfdin[2], pfdout[2];
-
-    if (newstdin > 0)
-        pipe(pfdin);
-    if (newstdout > 0)
-        pipe(pfdout);
-
-    pid = fork();
-    if (pid < 0) {
-        _log("Error: Could not fork()\n");
-        goto error;
-    }
-
-    if (pid == 0) {
-        /* Child */
-        if (newstdin > 0) {
-            close(pfdin[1]);
-            if (dup2(pfdin[0], newstdin) < 0) {
-                _log("Error: Could not dup stdin\n");
-                exit(EXIT_PRNERR_NORETRY_BAD_SETTINGS);
-            }
-        }
-        if (newstdout > 0) {
-            close(pfdout[0]);
-            if (dup2(pfdout[1], newstdout) < 0) {
-                _log("Error: Could not dup stdout\n");
-                exit(EXIT_PRNERR_NORETRY_BAD_SETTINGS);
-            }
-        }
-
-        execl(MODERN_SHELL, MODERN_SHELL, "-c", cmd, (char *)NULL);
-        _log("Error: Executing \"" MODERN_SHELL " -c %s\" failed (%s).\n", cmd, strerror(errno));
-        exit(EXIT_PRNERR_NORETRY_BAD_SETTINGS);
-    }
-
-    /* Parent */
-    if (newstdin > 0)
-        close(pfdin[0]);
-    if (newstdout > 0)
-        close(pfdout[1]);
-
-    return pid;
-
-error:
-    if (newstdin > 0) {
-        close(pfdin[0]);
-        close(pfdin[1]);
-    }
-    if (newstdout > 0) {
-        close(pfdout[0]);
-        close(pfdout[1]);
-    }
-    return -1;
 }
 
 pid_t rendererpid = 0;
@@ -175,7 +118,7 @@ int render_pages(const char *filename, int firstpage, int lastpage)
         wait_for_renderer();
         /* TODO evaluate result */
 
-    rendererpid = start_system_process(cmd->data, -1, -1);
+    rendererpid = start_system_process("renderer", cmd->data, NULL, NULL);
     if (rendererpid < 0) {
         _log("Could not start renderer process.\n");
         return 0;

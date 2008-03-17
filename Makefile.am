@@ -45,7 +45,10 @@ foomatic_rip_SOURCES = \
 	pdf.cc \
 	pdf.h \
 	util.c \
-	util.h
+	util.h \
+	process.h \
+	process.c
+
 
 foomatic_rip_LDADD = $(POPPLER_LIBS)
 

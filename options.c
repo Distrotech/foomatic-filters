@@ -330,6 +330,10 @@ int option_get_section(option_t *opt)
 static value_t * option_find_value(option_t *opt, int optionset)
 {
     value_t *val;
+
+    if (!opt)
+        return NULL;
+
     for (val = opt->valuelist; val; val = val->next) {
         if (val->optionset == optionset)
             return val;
@@ -512,31 +516,33 @@ static char ** paramvalues_from_string(option_t *opt, const char *str)
     float width, height;
     char unit[3];
 
-    /* PageSize can be set in special ways ... */
-    if (!strcmp(opt->name, "PageSize") && sscanf(str, "%fx%f%3s", &width, &height, unit) == 3) {
-        width = convert_to_points(width, unit);
-        height = convert_to_points(height, unit);
-        paramvalues = calloc(opt->param_count, sizeof(char*));
-        for (param = opt->paramlist, i = 0; param; param = param->next, i++) {
-            if (!strcasecmp(param->name, "width"))
-                paramvalues[i] = get_valid_param_string_float(opt, param, width);
-            else if (!strcasecmp(param->name, "height"))
-                paramvalues[i] = get_valid_param_string_float(opt, param, height);
-            else
-                paramvalues[i] = get_valid_param_string(opt, param, "0");
-            if (!paramvalues[i]) {
-                free_paramvalues(opt, paramvalues);
-                return NULL;
+    if (!strcmp(opt->name, "PageSize")) {
+        /* 'unit' is optional, if it is not given, 'pt' is assumed */
+        n = sscanf(str, "%fx%f%2s", &width, &height, unit);
+        if (n > 1) {
+            if (n == 3) {
+                width = convert_to_points(width, unit);
+                height = convert_to_points(height, unit);
             }
+            paramvalues = calloc(opt->param_count, sizeof(char*));
+            for (param = opt->paramlist, i = 0; param; param = param->next, i++) {
+                if (!strcasecmp(param->name, "width"))
+                    paramvalues[i] = get_valid_param_string_float(opt, param, width);
+                else if (!strcasecmp(param->name, "height"))
+                    paramvalues[i] = get_valid_param_string_float(opt, param, height);
+                else
+                    paramvalues[i] = get_valid_param_string(opt, param, "0");
+                if (!paramvalues[i]) {
+                    free_paramvalues(opt, paramvalues);
+                    return NULL;
+                }
+            }
+            return paramvalues;
         }
-        return paramvalues;
     }
 
     if (opt->param_count == 1) {
         paramvalues = malloc(sizeof(char*));
-
-        /* Cups sets a "Custom." in front of the single parameter
-           custom options */
         paramvalues[0] = get_valid_param_string(opt, opt->paramlist,
             startswith(str, "Custom.") ? &str[7] : str);
         if (!paramvalues[0]) {

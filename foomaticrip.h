@@ -34,18 +34,12 @@ gnu echo and put gecho here or something. */
 #endif
 
 
-#ifndef MODERN_SHELL
-#define MODERN_SHELL "/bin/bash"
-#endif
-
-
 /* Constants used by this filter
- *                             
+ *
  * Error codes, as some spooles behave different depending on the reason why
  * the RIP failed, we return an error code. As I have only found a table of
  * error codes for the PPR spooler. If our spooler is really PPR, these
- * definitions get overwritten by the ones of the PPR version currently in
- * use.
+ * definitions get overwritten by the ones of the PPR version currently in use.
  */
 #define EXIT_PRINTED 0                          /* file was printed normally */
 #define EXIT_PRNERR 1                           /* printer error occured */
@@ -62,9 +56,8 @@ gnu echo and put gecho here or something. */
 #define EXIT_INCAPABLE 50                       /* printer wants (lacks) features or resources */
 
 
-/* We don't know yet, which spooler will be used. If we don't detect
- * one.  we assume that we do spooler-less printing. Supported spoolers
- * are currently:
+/* We don't know yet, which spooler will be used. If we don't detect one.  we
+ * assume that we do spooler-less printing. Supported spoolers are currently:
  *
  *   cups    - CUPS - Common Unix Printing System
  *   solaris - Solaris LP (possibly some other SysV LP services as well)
@@ -96,5 +89,6 @@ void _log(const char* msg, ...);
 
 
 const char * build_commandline(int optionset);
+const char * get_modern_shell();
 
 #endif
