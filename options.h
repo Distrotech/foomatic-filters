@@ -119,6 +119,7 @@ int option_is_in_section(option_t *opt, int section);
 void options_init();
 void options_free();
 
+size_t option_count();
 option_t *find_option(const char *name);
 
 void read_ppd_file(const char *filename);
@@ -139,6 +140,7 @@ int optionset(const char * name);
 
 void optionset_copy_values(int src_optset, int dest_optset);
 int optionset_equal(int optset1, int optset2, int exceptPS);
+void optionset_delete_values(int optionset);
 
 void append_prolog_section(dstr_t *str, int optset, int comments);
 void append_setup_section(dstr_t *str, int optset, int comments);

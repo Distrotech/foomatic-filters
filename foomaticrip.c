@@ -3,6 +3,8 @@
 #include "util.h"
 #include "options.h"
 #include "pdf.h"
+#include "process.h"
+#include "spooler.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -19,140 +21,6 @@
 #include <signal.h>
 #include <fcntl.h>
 #include <pwd.h>
-
-
-/* Returns a static string */
-const char *spooler_name(int spooler)
-{
-    switch (spooler) {
-        case SPOOLER_CUPS: return "cups";
-        case SPOOLER_SOLARIS: return "solaris";
-        case SPOOLER_LPD: return "lpd";
-        case SPOOLER_LPRNG: return "lprng";
-        case SPOOLER_GNULPR: return "gnu lpr";
-        case SPOOLER_PPR: return "ppr";
-        case SPOOLER_PPR_INT: return "ppr interface";
-        case SPOOLER_CPS: return "cps";
-        case SPOOLER_PDQ: return "pdq";
-        case SPOOLER_DIRECT: return "direct";
-    };
-    return "<unknown>";
-}
-
-/*  This piece of PostScript code (initial idea 2001 by Michael
-    Allerhand (michael.allerhand at ed dot ac dot uk, vastly
-    improved by Till Kamppeter in 2002) lets GhostScript output
-    the page accounting information which CUPS needs on standard
-    error.
-    Redesign by Helge Blischke (2004-11-17):
-    - As the PostScript job itself may define BeginPage and/or EndPage
-    procedures, or the alternate pstops filter may have inserted
-    such procedures, we make sure that the accounting routine
-    will safely coexist with those. To achieve this, we force
-    - the accountint stuff to be inserted at the very end of the
-        PostScript job's setup section,
-    - the accounting stuff just using the return value of the
-        existing EndPage procedure, if any (and providing a default one
-        if not).
-    - As PostScript jobs may contain calls to setpagedevice "between"
-    pages, e.g. to change media type, do in-job stapling, etc.,
-    we cannot rely on the "showpage count since last pagedevice
-    activation" but instead count the physical pages by ourselves
-    (in a global dictionary).
-*/
-const char *accounting_prolog_code =
-    "[{\n"
-    "%% Code for writing CUPS accounting tags on standard error\n"
-    "\n"
-    "/cupsPSLevel2 % Determine whether we can do PostScript level 2 or newer\n"
-    "    systemdict/languagelevel 2 copy\n"
-    "    known{get exec}{pop pop 1}ifelse 2 ge\n"
-    "def\n"
-    "\n"
-    "cupsPSLevel2\n"
-    "{                    % in case of level 2 or higher\n"
-    "    currentglobal true setglobal    % define a dictioary foomaticDict\n"
-    "    globaldict begin        % in global VM and establish a\n"
-    "    /foomaticDict            % pages count key there\n"
-    "    <<\n"
-    "        /PhysPages 0\n"
-    "    >>def\n"
-    "    end\n"
-    "    setglobal\n"
-    "}if\n"
-    "\n"
-    "/cupsGetNumCopies { % Read the number of Copies requested for the current\n"
-    "            % page\n"
-    "    cupsPSLevel2\n"
-    "    {\n"
-    "    % PS Level 2+: Get number of copies from Page Device dictionary\n"
-    "    currentpagedevice /NumCopies get\n"
-    "    }\n"
-    "    {\n"
-    "    % PS Level 1: Number of copies not in Page Device dictionary\n"
-    "    null\n"
-    "    }\n"
-    "    ifelse\n"
-    "    % Check whether the number is defined, if it is \"null\" use #copies \n"
-    "    % instead\n"
-    "    dup null eq {\n"
-    "    pop #copies\n"
-    "    }\n"
-    "    if\n"
-    "    % Check whether the number is defined now, if it is still \"null\" use 1\n"
-    "    % instead\n"
-    "    dup null eq {\n"
-    "    pop 1\n"
-    "    } if\n"
-    "} bind def\n"
-    "\n"
-    "/cupsWrite { % write a string onto standard error\n"
-    "    (%stderr) (w) file\n"
-    "    exch writestring\n"
-    "} bind def\n"
-    "\n"
-    "/cupsFlush    % flush standard error to make it sort of unbuffered\n"
-    "{\n"
-    "    (%stderr)(w)file flushfile\n"
-    "}bind def\n"
-    "\n"
-    "cupsPSLevel2\n"
-    "{                % In language level 2, we try to do something reasonable\n"
-    "  <<\n"
-    "    /EndPage\n"
-    "    [                    % start the array that becomes the procedure\n"
-    "      currentpagedevice/EndPage 2 copy known\n"
-    "      {get}                    % get the existing EndPage procedure\n"
-    "      {pop pop {exch pop 2 ne}bind}ifelse    % there is none, define the default\n"
-    "      /exec load                % make sure it will be executed, whatever it is\n"
-    "      /dup load                    % duplicate the result value\n"
-    "      {                    % true: a sheet gets printed, do accounting\n"
-    "        currentglobal true setglobal        % switch to global VM ...\n"
-    "        foomaticDict begin            % ... and access our special dictionary\n"
-    "        PhysPages 1 add            % count the sheets printed (including this one)\n"
-    "        dup /PhysPages exch def        % and save the value\n"
-    "        end                    % leave our dict\n"
-    "        exch setglobal                % return to previous VM\n"
-    "        (PAGE: )cupsWrite             % assemble and print the accounting string ...\n"
-    "        16 string cvs cupsWrite            % ... the sheet count ...\n"
-    "        ( )cupsWrite                % ... a space ...\n"
-    "        cupsGetNumCopies             % ... the number of copies ...\n"
-    "        16 string cvs cupsWrite            % ...\n"
-    "        (\\n)cupsWrite                % ... a newline\n"
-    "        cupsFlush\n"
-    "      }/if load\n"
-    "                    % false: current page gets discarded; do nothing    \n"
-    "    ]cvx bind                % make the array executable and apply bind\n"
-    "  >>setpagedevice\n"
-    "}\n"
-    "{\n"
-    "    % In language level 1, we do no accounting currently, as there is no global VM\n"
-    "    % the contents of which are undesturbed by save and restore. \n"
-    "    % If we may be sure that showpage never gets called inside a page related save / restore pair\n"
-    "    % we might implement an hack with showpage similar to the one above.\n"
-    "}ifelse\n"
-    "\n"
-    "} stopped cleartomark\n";
 
 
 /* Logging */
@@ -191,22 +59,15 @@ void rip_die(int status, const char *msg, ...)
 }
 
 
+jobparams_t job;
+
 char cups_fileconverter [512];
-char ppdfile[256] = "";
-char printer[256] = "";
 char printer_model[128] = "";
-char jobid[128] = "";
-char jobuser[128] = "";
-char jobhost[128] = "";
-char jobtitle[128] = "";
-char copies[128] = "1";
 dstr_t *postpipe;  /* command into which the output of this filter should be piped */
 const char *accounting_prolog = NULL;
 char attrpath[256] = "";
 
 char modern_shell[64] = "/bin/bash";
-
-pid_t renderer_pid = 0;
 
 int spooler = SPOOLER_DIRECT;
 int do_docs = 0;
@@ -222,15 +83,10 @@ dstr_t *backendoptions = NULL;
 
 /* These variables were in 'dat' before */
 char colorprofile [128];
-char id[128];
-char driver[128];
 dstr_t *currentcmd;
 char cupsfilter[256];
 dstr_t *jclprepend;
 dstr_t *jclappend;
-
-
-dstr_t *optstr;
 
 char *cwd;
 
@@ -244,26 +100,15 @@ typedef struct {
 } timestrings_t;
 
 time_t curtime;
-timestrings_t curtime_strings;
 
-
-void fill_timestrings(timestrings_t *ts, time_t time)
-{
-    struct tm *t = localtime(&time);
-
-    sprintf(ts->year, "%04d", t->tm_year + 1900);
-    sprintf(ts->mon, "%02d", t->tm_mon + 1);
-    sprintf(ts->day, "%02d", t->tm_mday);
-    sprintf(ts->hour, "%02d", t->tm_hour);
-    sprintf(ts->min, "%02d", t->tm_min);
-    sprintf(ts->sec, "%02d", t->tm_sec);
-}
 
 void unhtmlify(char *dest, size_t size, const char *src)
 {
     char *pdest = dest;
     const char *psrc = src;
     const char *repl;
+    struct tm *t = localtime(&curtime);
+    char tmpstr[10];
 
     while (*psrc && pdest - dest < size) {
 
@@ -285,29 +130,41 @@ void unhtmlify(char *dest, size_t size, const char *src)
 
             /* Replace special entities by job data */
             else if (!prefixcmp(psrc, "job;"))
-                repl = jobid;
+                repl = job.id;
             else if (!prefixcmp(psrc, "user;"))
-                repl = jobuser;
+                repl = job.user;
             else if (!prefixcmp(psrc, "host;"))
-                repl = jobhost;
+                repl = job.host;
             else if (!prefixcmp(psrc, "title;"))
-                repl = jobtitle;
+                repl = job.title;
             else if (!prefixcmp(psrc, "copies;"))
-                repl = copies;
+                repl = job.copies;
             else if (!prefixcmp(psrc, "options;"))
-                repl = optstr->data;
-            else if (!prefixcmp(psrc, "year;"))
-                repl = curtime_strings.year;
-            else if (!prefixcmp(psrc, "month;"))
-                repl = curtime_strings.mon;
-            else if (!prefixcmp(psrc, "date;"))
-                repl = curtime_strings.day;
-            else if (!prefixcmp(psrc, "hour;"))
-                repl = curtime_strings.hour;
-            else if (!prefixcmp(psrc, "min;"))
-                repl = curtime_strings.min;
-            else if (!prefixcmp(psrc, "sec;"))
-                repl = curtime_strings.sec;
+                repl = job.optstr->data;
+            else if (!prefixcmp(psrc, "year;")) {
+                sprintf(tmpstr, "%04d", t->tm_year + 1900);
+                repl = tmpstr;
+            }
+            else if (!prefixcmp(psrc, "month;")) {
+                sprintf(tmpstr, "%02d", t->tm_mon + 1);
+                repl = tmpstr;
+            }
+            else if (!prefixcmp(psrc, "date;")) {
+                sprintf(tmpstr, "%02d", t->tm_mday);
+                repl = tmpstr;
+            }
+            else if (!prefixcmp(psrc, "hour;")) {
+                sprintf(tmpstr, "%02d", t->tm_hour);
+                repl = tmpstr;
+            }
+            else if (!prefixcmp(psrc, "min;")) {
+                sprintf(tmpstr, "%02d", t->tm_min);
+                repl = tmpstr;
+            }
+            else if (!prefixcmp(psrc, "sec;")) {
+                sprintf(tmpstr, "%02d", t->tm_sec);
+                repl = tmpstr;
+            }
 
             if (repl) {
                 strncpy(pdest, repl, size - (pdest - dest));
@@ -472,17 +329,15 @@ char * extract_next_option(char *str, char **pagerange, char **key, char **value
     return *p ? p : NULL;
 }
 
-/* processes optstr */
+/* processes job.optstr */
 void process_cmdline_options()
 {
     char *p, *nextopt, *pagerange, *key, *value;
     option_t *opt, *opt2;
     int optset;
     char tmp [256];
-    float width, height;
-    char unit[2];
 
-    nextopt = extract_next_option(optstr->data, &pagerange, &key, &value);
+    nextopt = extract_next_option(job.optstr->data, &pagerange, &key, &value);
     while (key) {
         if (value)
             _log("Pondering option '%s=%s'\n", key, value);
@@ -705,309 +560,6 @@ FILE * check_pdq_file(list_t *arglist)
     }
 
     return handle;
-}
-
-void init_ppr(list_t *arglist)
-{
-    size_t arg_count = list_item_count(arglist);
-    char ppr_printer [256];
-    char ppr_address [128];
-    char ppr_options [1024];
-    char ppr_jobbreak [128];
-    char ppr_feedback [128];
-    char ppr_codes [128];
-    char ppr_jobname [128];
-    char ppr_routing [128];
-    char ppr_for [128] = "";
-    char ppr_filetype [128] = "";
-    char ppr_filetoprint [128] = "";
-    FILE *ph;
-    char tmp[256];
-    char *p;
-
-
-    /* TODO read interface.sh and signal.sh for exit and signal codes respectively */
-
-    /* Check whether we run as a PPR interface (if not, we run as a PPR RIP)
-       PPR calls interfaces with many command line parameters,
-       where the forth and the sixth is a small integer
-       number. In addition, we have 8 (PPR <= 1.31), 10
-       (PPR>=1.32), 11 (PPR >= 1.50) command line parameters.
-       We also check whether the current working directory is a
-       PPR directory. */
-    if ((arg_count == 11 || arg_count == 10 || arg_count == 8) &&
-        atoi(arglist_get(arglist, 3)) < 100 && atoi(arglist_get(arglist, 5)) < 100)
-    {
-        /* get all command line parameters */
-        strncpy_omit(ppr_printer, arglist_get(arglist, 0), 256, omit_shellescapes);
-        strlcpy(ppr_address, arglist_get(arglist, 1), 128);
-        strncpy_omit(ppr_options, arglist_get(arglist, 2), 1024, omit_shellescapes);
-        strlcpy(ppr_jobbreak, arglist_get(arglist, 3), 128);
-        strlcpy(ppr_feedback, arglist_get(arglist, 4), 128);
-        strlcpy(ppr_codes, arglist_get(arglist, 5), 128);
-        strncpy_omit(ppr_jobname, arglist_get(arglist, 6), 128, omit_shellescapes);
-        strncpy_omit(ppr_routing, arglist_get(arglist, 7), 128, omit_shellescapes);
-        if (arg_count >= 8) {
-            strlcpy(ppr_for, arglist_get(arglist, 8), 128);
-            strlcpy(ppr_filetype, arglist_get(arglist, 9), 128);
-            if (arg_count >= 10)
-                strncpy_omit(ppr_filetoprint, arglist_get(arglist, 10), 128, omit_shellescapes);
-        }
-
-        /* Common job parameters */
-        strcpy(printer, ppr_printer);
-        strcpy(jobtitle, ppr_jobname);
-        if (isempty(jobtitle) && !isempty(ppr_filetoprint))
-            strcpy(jobtitle, ppr_filetoprint);
-        dstrcatf(optstr, " %s %s", ppr_options, ppr_routing);
-
-        /* Get the path of the PPD file from the queue configuration */
-        snprintf(tmp, 255, "LANG=en_US; ppad show %s | grep PPDFile", ppr_printer);
-        tmp[255] = '\0';
-        ph = popen(tmp, "r");
-        if (ph) {
-            fgets(tmp, 255, ph);
-            tmp[255] = '\0';
-            pclose(ph);
-
-            strncpy_omit(ppdfile, tmp, 255, omit_shellescapes);
-            if (ppdfile[0] == '/') {
-                strcpy(tmp, ppdfile);
-                strcpy(ppdfile, "../../share/ppr/PPDFiles/");
-                strncat(ppdfile, tmp, 200);
-            }
-            if ((p = strrchr(ppdfile, '\n')))
-                *p = '\0';
-        }
-        else {
-            ppdfile[0] = '\0';
-        }
-
-        /* We have PPR and run as an interface */
-        spooler = SPOOLER_PPR_INT;
-    }
-}
-
-void init_cups(list_t *arglist, dstr_t *filelist)
-{
-    char path [1024] = "";
-    char cups_jobid [128];
-    char cups_user [128];
-    char cups_jobtitle [128];
-    char cups_copies [128];
-    char cups_options [512];
-    char cups_filename [256];
-
-    if (getenv("CUPS_FONTPATH"))
-        strcpy(path, getenv("CUPS_FONTPATH"));
-    else if (getenv("CUPS_DATADIR")) {
-        strcpy(path, getenv("CUPS_DATADIR"));
-        strcat(path, "/fonts");
-    }
-    if (getenv("GS_LIB")) {
-        strcat(path, ":");
-        strcat(path, getenv("GS_LIB"));
-    }
-    setenv("GS_LIB", path, 1);
-
-    /* Get all command line parameters */
-    strncpy_omit(cups_jobid, arglist_get(arglist, 0), 128, omit_shellescapes);
-    strncpy_omit(cups_user, arglist_get(arglist, 1), 128, omit_shellescapes);
-    strncpy_omit(cups_jobtitle, arglist_get(arglist, 2), 128, omit_shellescapes);
-    strncpy_omit(cups_copies, arglist_get(arglist, 3), 128, omit_shellescapes);
-    strncpy_omit(cups_options, arglist_get(arglist, 4), 512, omit_shellescapes);
-
-    /* Common job parameters */
-    /* TODO why is this copied into the cups_* vars in the first place? */
-    strcpy(jobid, cups_jobid);
-    strcpy(jobtitle, cups_jobtitle);
-    strcpy(jobuser, cups_user);
-    strcpy(copies, cups_copies);
-    dstrcatf(optstr, " %s", cups_options);
-
-    /* Check for and handle inputfile vs stdin */
-    if (list_item_count(arglist) > 4) {
-        strncpy_omit(cups_filename, arglist_get(arglist, 5), 256, omit_shellescapes);
-        if (cups_filename[0] != '-') {
-            /* We get input from a file */
-            dstrcatf(filelist, "%s ", cups_filename);
-            _log("Getting input from file %s\n", cups_filename);
-        }
-    }
-
-    accounting_prolog = ps_accounting ? accounting_prolog_code : NULL;
-
-    /* On which queue are we printing?
-       CUPS gives the PPD file the same name as the printer queue,
-       so we can get the queue name from the name of the PPD file. */
-    file_basename(printer, ppdfile, 256);
-}
-
-void init_solaris(list_t *arglist, dstr_t *filelist)
-{
-    char *str;
-    int len;
-    listitem_t *i;
-
-    /* Get all command line parameters */
-    strncpy_omit(jobtitle, arglist_get(arglist, 2), 128, omit_shellescapes);
-
-    len = strlen(arglist_get(arglist, 4));
-    str = malloc(len +1);
-    strncpy_omit(str, arglist_get(arglist, 4), len, omit_shellescapes);
-    dstrcatf(optstr, " %s", str);
-    free(str);
-
-    for (i = arglist->first; i; i = i->next)
-        dstrcatf(filelist, "%s ", (char*)i->data);
-}
-
-/* search 'configfile' for 'key', copy value into dest, return success */
-int configfile_find_option(const char *configfile, const char *key, char *dest, size_t destsize)
-{
-    FILE *fh;
-    char line [1024];
-    char *p;
-
-    dest[0] = '\0';
-
-    if (!(fh = fopen(configfile, "r")))
-        return 0;
-
-    while (fgets(line, 1024, fh)) {
-        if (!prefixcmp(line, "default")) {
-            p = strchr(line, ':');
-            if (p) {
-                strncpy_omit(dest, p, destsize, omit_whitespace);
-                if (dest[0])
-                    break;
-            }
-        }
-    }
-    fclose(fh);
-    return dest[0] != '\0';
-}
-
-/* tries to find a default printer name in various config files and copies the
- * result into the global var 'printer'. Returns success */
-int find_default_printer(const char *user_default_path)
-{
-    char configfile [1024];
-    char *key = "default";
-
-    if (configfile_find_option("./.directconfig", key, printer, 256))
-        return 1;
-    if (configfile_find_option("./directconfig", key, printer, 256))
-        return 1;
-    if (configfile_find_option("./.config", key, printer, 256))
-        return 1;
-    strlcpy(configfile, user_default_path, 1024);
-    strlcat(configfile, "/direct/.config", 1024);
-    if (configfile_find_option(configfile, key, printer, 256))
-        return 1;
-    strlcpy(configfile, user_default_path, 1024);
-    strlcat(configfile, "/direct.conf", 1024);
-    if (configfile_find_option(configfile, key, printer, 256))
-        return 1;
-    if (configfile_find_option(CONFIG_PATH "/direct/.config", key, printer, 256))
-        return 1;
-    if (configfile_find_option(CONFIG_PATH "/direct.conf", key, printer, 256))
-        return 1;
-
-    return 0;
-}
-
-/* used by init_direct_cps_pdq to find a ppd file */
-int find_ppdfile(const char *user_default_path)
-{
-    /* Search also common spooler-specific locations, this way a printer
-       configured under a certain spooler can also be used without spooler */
-
-    strcpy(ppdfile, printer);
-    if (access(ppdfile, R_OK) == 0)
-        return 1;
-
-    /* CPS can have the PPD in the spool directory */
-    if (spooler == SPOOLER_CPS) {
-        snprintf(ppdfile, 256, "/var/spool/lpd/%s/%s.ppd", printer, printer);
-        if (access(ppdfile, R_OK) == 0)
-            return 1;
-        snprintf(ppdfile, 256, "/var/local/spool/lpd/%s/%s.ppd", printer, printer);
-        if (access(ppdfile, R_OK) == 0)
-            return 1;
-        snprintf(ppdfile, 256, "/var/local/lpd/%s/%s.ppd", printer, printer);
-        if (access(ppdfile, R_OK) == 0)
-            return 1;
-        snprintf(ppdfile, 256, "/var/spool/lpd/%s.ppd", printer);
-        if (access(ppdfile, R_OK) == 0)
-            return 1;
-        snprintf(ppdfile, 256, "/var/local/spool/lpd/%s.ppd", printer);
-        if (access(ppdfile, R_OK) == 0)
-            return 1;
-        snprintf(ppdfile, 256, "/var/local/lpd/%s.ppd", printer);
-        if (access(ppdfile, R_OK) == 0)
-            return 1;
-    }
-    snprintf(ppdfile, 256, "%s.ppd", printer); /* current dir */
-    if (access(ppdfile, R_OK) == 0)
-        return 1;
-    snprintf(ppdfile, 256, "%s/%s.ppd", user_default_path, printer); /* user dir */
-    if (access(ppdfile, R_OK) == 0)
-        return 1;
-    snprintf(ppdfile, 256, "%s/direct/%s.ppd", CONFIG_PATH, printer); /* system dir */
-    if (access(ppdfile, R_OK) == 0)
-        return 1;
-    snprintf(ppdfile, 256, "%s/%s.ppd", CONFIG_PATH, printer); /* system dir */
-    if (access(ppdfile, R_OK) == 0)
-        return 1;
-    snprintf(ppdfile, 256, "/etc/cups/ppd/%s.ppd", printer); /* CUPS config dir */
-    if (access(ppdfile, R_OK) == 0)
-        return 1;
-    snprintf(ppdfile, 256, "/usr/local/etc/cups/ppd/%s.ppd", printer); /* CUPS config dir */
-    if (access(ppdfile, R_OK) == 0)
-        return 1;
-    snprintf(ppdfile, 256, "/usr/share/ppr/PPDFiles/%s.ppd", printer); /* PPR PPDs */
-    if (access(ppdfile, R_OK) == 0)
-        return 1;
-    snprintf(ppdfile, 256, "/usr/local/share/ppr/PPDFiles/%s.ppd", printer); /* PPR PPDs */
-    if (access(ppdfile, R_OK) == 0)
-        return 1;
-
-    /* nothing found */
-    ppdfile[0] = '\0';
-    return 0;
-}
-
-void init_direct_cps_pdq(list_t *arglist, dstr_t *filelist, const char *user_default_path)
-{
-    char tmp [1024];
-    listitem_t *i;
-
-    /* Which files do we want to print? */
-    for (i = arglist->first; i; i = i->next) {
-        strncpy_omit(tmp, (char*)i->data, 1024, omit_shellescapes);
-        dstrcatf(filelist, "%s ", tmp);
-    }
-
-    if (ppdfile[0] == '\0') {
-        if (printer[0] == '\0') {
-            /* No printer definition file selected, check whether we have a
-               default printer defined */
-            find_default_printer(user_default_path);
-        }
-
-        /* Neither in a config file nor on the command line a printer was selected */
-        if (!printer[0]) {
-            _log("No printer definition (option \"-P <name>\") specified!\n");
-            exit(EXIT_PRNERR_NORETRY_BAD_SETTINGS);
-        }
-
-        /* Search for the PPD file */
-        if (!find_ppdfile(user_default_path)) {
-            _log("There is no readable PPD file for the printer %s, is it configured?\n");
-            exit(EXIT_PRNERR_NORETRY_BAD_SETTINGS);
-        }
-    }
 }
 
 
@@ -1247,8 +799,8 @@ void print_pdq_driver(FILE *pdqfile, int optset)
     }
     else {
         /* Make sure that the PPD file is entered with an absolute path */
-        make_absolute_path(ppdfile, 256);
-        dstrcatf(cmdline, " --ppd=%s", ppdfile);
+        make_absolute_path(job.ppdfile, 256);
+        dstrcatf(cmdline, " --ppd=%s", job.ppdfile);
     }
 
     for (opt = optionlist; opt; opt = opt->next) {
@@ -1328,7 +880,7 @@ void print_pdq_driver(FILE *pdqfile, int optset)
         "%s" /* psfilter */
         "  }\n"
         "}\n",
-        tmp->data, /* cleaned printer_model */ (unsigned int)curtime, ppdfile, printer_model,
+        tmp->data, /* cleaned printer_model */ (unsigned int)curtime, job.ppdfile, printer_model,
         driveropts->data, setcustompagesize->data, psfilter->data);
 
 
@@ -1490,7 +1042,7 @@ void massage_gs_commandline(dstr_t *cmd)
     dstrreplace(cmd, "echo", ECHO); /* TODO search for \wecho\w */
 }
 
-void exec_kid4()
+int exec_kid4()
 {
     int fileh;
     char jclstr[64];
@@ -1633,23 +1185,23 @@ void exec_kid4()
     close(STDIN_FILENO);
     if (close(fileh) != 0) {
         _log("error closing postpipe\n");
-        exit(EXIT_PRNERR_NORETRY_BAD_SETTINGS);
+        return EXIT_PRNERR_NORETRY_BAD_SETTINGS;
     }
 
     /* Handle signals of the backend interface */
     if (retval != EXIT_PRINTED) {
-        exit(retval);
+        return retval;
     }
-
-    /* Successful exit, inform main process */
-    _log("kid4 finished\n");
-    exit(EXIT_PRINTED);
 
     free_dstr(jclheader);
     free_dstr(dtmp);
+
+    /* Successful exit, inform main process */
+    _log("kid4 finished\n");
+    return EXIT_PRINTED;
 }
 
-void exec_kid3()
+int exec_kid3()
 {
     dstr_t *commandline = create_dstr();
     int kid4, kid4in;
@@ -1657,7 +1209,7 @@ void exec_kid3()
 
     kid4 = start_process("kid4", exec_kid4, &kid4in, NULL);
     if (kid4 < 0)
-        exit(EXIT_PRNERR_NORETRY_BAD_SETTINGS);
+        return EXIT_PRNERR_NORETRY_BAD_SETTINGS;
 
     dstrcpy(commandline, currentcmd->data);
     massage_gs_commandline(commandline);
@@ -1666,12 +1218,12 @@ void exec_kid3()
     if (dup2(kid4in, STDOUT_FILENO) < 0) {
         _log("kid3: Could not dup stdout to kid4\n");
         close(kid4in);
-        exit(EXIT_PRNERR_NORETRY_BAD_SETTINGS);
+        return EXIT_PRNERR_NORETRY_BAD_SETTINGS;
     }
     if (debug && dup2(fileno(logh), STDERR_FILENO) < 0) {
         _log("Couldn't dup logh to STDERR\n");
         close(kid4in);
-        exit(EXIT_PRNERR_NORETRY_BAD_SETTINGS);
+        return EXIT_PRNERR_NORETRY_BAD_SETTINGS;
     }
 
     /* In debug mode save the data supposed to be fed into the
@@ -1694,34 +1246,35 @@ void exec_kid3()
                 /* wait for postpipe/output child */
                 wait_for_process(kid4);
                 _log("kid3 finished\n");
-                exit(EXIT_PRINTED);
+                return EXIT_PRINTED;
             case 1:
                 _log("Possible error on renderer command line or PostScript error. Check options.");
-                exit(EXIT_JOBERR);
+                return EXIT_JOBERR;
             case 139:
                 _log("The renderer may have dumped core.");
-                exit(EXIT_JOBERR);
+                return EXIT_JOBERR;
             case 141:
                 _log("A filter used in addition to the renderer itself may have failed.");
-                exit(EXIT_PRNERR);
+                return EXIT_PRNERR;
             case 243:
             case 255:  /* PostScript error? */
-                exit(EXIT_JOBERR);
+                return EXIT_JOBERR;
             default:  /* Unknown error */
-                exit(EXIT_PRNERR);
+                return EXIT_PRNERR;
         }
     }
     else if (WIFSIGNALED(status)) {
         _log("renderer received signal: %d\n", WTERMSIG(status));
         switch (WTERMSIG(status)) {
             case SIGUSR1:
-                exit(EXIT_PRNERR);
+                return EXIT_PRNERR;
             case SIGUSR2:
-                exit(EXIT_PRNERR_NORETRY);
+                return EXIT_PRNERR_NORETRY;
             case SIGTTIN:
-                exit(EXIT_ENGAGED);
+                return EXIT_ENGAGED;
         }
     }
+    return EXIT_PRINTED;
 }
 
 /* This function runs the renderer command line (and if defined also
@@ -1797,7 +1350,7 @@ char * fileconverter_from_template(const char *fileconverter,
             jobtitle ? strlen(jobtitle) : 0 +1);
     res[0] = '\0';
 
-    while (templstart = strstr(last, "@@")) {
+    while ((templstart = strstr(last, "@@"))) {
         strncat(res, last, templstart - last);
         templstart += 2;
         templname = strstr(templstart, "@@");
@@ -1835,11 +1388,8 @@ char * fileconverter_from_template(const char *fileconverter,
 */
 void get_fileconverter_handle(const char *already_read, int *fd, pid_t *pid)
 {
-    int i, status;
+    int status;
     char tmp[1024];
-    const char *p, *p2, *lastp;
-    option_t *opt;
-    const char *val;
     ssize_t count;
     pid_t kid1, kid2;
     int pfd_kid1[2];
@@ -1861,9 +1411,9 @@ void get_fileconverter_handle(const char *already_read, int *fd, pid_t *pid)
     }
 
     if (do_docs)
-        snprintf(jobtitle, 128, "Documentation for the %s", printer_model);
+        snprintf(job.title, 128, "Documentation for the %s", printer_model);
 
-    fileconv = fileconverter_from_template(fileconverter, pagesize, jobtitle);
+    fileconv = fileconverter_from_template(fileconverter, pagesize, job.title);
 
 
     /*  Apply "pstops" when having used a file converter under CUPS, so
@@ -2462,11 +2012,7 @@ void print_ps_file()
 
     int ignoreline;
 
-    jobhasjcl = 0;
-
     int ooo110 = 0;         /* Flag to work around an application bug */
-
-    dstr_t *tmp = create_dstr();
 
     int currentpage = 0;   /* The page which we are currently printing */
 
@@ -2487,6 +2033,10 @@ void print_ps_file()
 
     pid_t rendererpid = 0;
     int rendererhandle = -1;
+
+    dstr_t *tmp = create_dstr();
+    jobhasjcl = 0;
+
 
 
     /* We do not parse the PostScript to find Foomatic options, we check
@@ -3435,6 +2985,7 @@ int guess_file_type(const char *begin, size_t len, int *startpos)
         return PS_FILE;
     else if (!memcmp(p, "%PDF-1.", 7))
         return PDF_FILE;
+    return UNKNOWN_FILE;
 }
 
 int print_file(const char *filename)
@@ -3442,8 +2993,7 @@ int print_file(const char *filename)
     FILE *file;
     char buf[8192];
     int type;
-    char tmpfile[PATH_MAX];
-    int startpos, res;
+    int startpos;
 
     if (!strcasecmp(filename, "<STDIN>"))
         file = stdin;
@@ -3451,7 +3001,7 @@ int print_file(const char *filename)
         file = fopen(filename, "r");
         if (!file) {
             _log("Could not open \"%s\" for reading\n", filename);
-            return 1;
+            return 0;
         }
     }
 
@@ -3467,8 +3017,7 @@ int print_file(const char *filename)
             break;
 
         case PDF_FILE:
-            res = print_pdf(file, filename, startpos);
-            return res;
+            return print_pdf(file, filename, startpos);
 
         case PS_FILE:
             /* If we do not print standard input, open the file to print */
@@ -3485,6 +3034,7 @@ int print_file(const char *filename)
             break;
     }
     fclose(file);
+    return 1;
 }
 
 void signal_terminate(int signal)
@@ -3494,7 +3044,7 @@ void signal_terminate(int signal)
 
 int main(int argc, char** argv)
 {
-    int i, j;
+    int i;
     int verbose = 0, quiet = 0, showdocs = 0;
     const char* str;
     char *p, *filename;
@@ -3510,7 +3060,7 @@ int main(int argc, char** argv)
 
     list_t * arglist = list_create_from_array(argc -1, (void**)&argv[1]);
 
-    optstr = create_dstr();
+    job.optstr = create_dstr();
     currentcmd = create_dstr();
     jclprepend = create_dstr();
     jclappend = create_dstr();
@@ -3518,12 +3068,8 @@ int main(int argc, char** argv)
 
     options_init();
 
-    signal(SIGTERM, signal_terminate);
-
-
-    /* set the time once to keep output consistent */
     curtime = time(NULL);
-    fill_timestrings(&curtime_strings, curtime);
+    signal(SIGTERM, signal_terminate);
 
 
     strlcpy(programdir, argv[0], 256);
@@ -3552,11 +3098,11 @@ int main(int argc, char** argv)
         cwd = malloc(i);
     } while (!getcwd(cwd, i));
 
-    gethostname(jobhost, 128);
+    gethostname(job.host, 128);
     passwd = getpwuid(getuid());
     if (passwd)
-        strlcpy(jobuser, passwd->pw_name, 128);
-    snprintf(jobtitle, 128, "%s@%s", jobuser, jobhost);
+        strlcpy(job.user, passwd->pw_name, 128);
+    snprintf(job.title, 128, "%s@%s", job.user, job.host);
 
     /* Path for personal Foomatic configuration */
     strlcpy(user_default_path, getenv("HOME"), 256);
@@ -3609,15 +3155,15 @@ int main(int argc, char** argv)
     }
 
     if (getenv("PPD")) {
-        strncpy_omit(ppdfile, getenv("PPD"), 256, omit_specialchars);
+        strncpy_omit(job.ppdfile, getenv("PPD"), 256, omit_specialchars);
         spooler = SPOOLER_CUPS;
     }
 
     if (getenv("SPOOLER_KEY")) {
         spooler = SPOOLER_SOLARIS;
         /* set the printer name from the ppd file name */
-        strncpy_omit(ppdfile, getenv("PPD"), 256, omit_specialchars);
-        file_basename(printer, ppdfile, 256);
+        strncpy_omit(job.ppdfile, getenv("PPD"), 256, omit_specialchars);
+        file_basename(job.printer, job.ppdfile, 256);
         /* TODO read attribute file*/
     }
 
@@ -3628,13 +3174,13 @@ int main(int argc, char** argv)
         /* PPR 1.5 allows the user to specify options for the PPR RIP with the
            "--ripopts" option on the "ppr" command line. They are provided to
            the RIP via the "PPR_RIPOPTS" environment variable. */
-        dstrcatf(optstr, "%s ", getenv("PPR_RIPOPTS"));
+        dstrcatf(job.optstr, "%s ", getenv("PPR_RIPOPTS"));
         spooler = SPOOLER_PPR;
     }
 
     if (getenv("LPOPTS")) { /* "LPOPTS": Option settings for some LPD implementations (ex: GNUlpr) */
         spooler = SPOOLER_GNULPR;
-        dstrcatf(optstr, "%s ", getenv("LPOPTS"));
+        dstrcatf(job.optstr, "%s ", getenv("LPOPTS"));
     }
 
     /* Check for LPRng first so we do not pick up bogus ppd files by the -ppd option */
@@ -3651,7 +3197,7 @@ int main(int argc, char** argv)
         str += 8;
         if (str) {
             while (isspace(*str)) str++;
-            p = ppdfile;
+            p = job.ppdfile;
             while (*str != '\0' && !isspace(*str) && *str != '\n') {
                 if (isprint(*str) && strchr(shellescapes, *str) == NULL)
                     *p++ = *str;
@@ -3664,12 +3210,12 @@ int main(int argc, char** argv)
        allow duplicates, and use the last specified one */
     if (spooler != SPOOLER_LPRNG) {
         while ((str = arglist_get_value(arglist, "-p"))) {
-            strncpy_omit(ppdfile, str, 256, omit_shellescapes);
+            strncpy_omit(job.ppdfile, str, 256, omit_shellescapes);
             arglist_remove(arglist, "-p");
         }
     }
     while ((str = arglist_get_value(arglist, "--ppd"))) {
-        strncpy_omit(ppdfile, str, 256, omit_shellescapes);
+        strncpy_omit(job.ppdfile, str, 256, omit_shellescapes);
         arglist_remove(arglist, "--ppd");
     }
 
@@ -3680,16 +3226,16 @@ int main(int argc, char** argv)
     if ((str = arglist_get_value(arglist, "-h"))) {
         if (spooler != SPOOLER_GNULPR && spooler != SPOOLER_LPRNG)
             spooler = SPOOLER_LPD;
-        strncpy(jobhost, str, 127);
-        jobhost[127] = '\0';
+        strncpy(job.host, str, 127);
+        job.host[127] = '\0';
         arglist_remove(arglist, "-h");
     }
     if ((str = arglist_get_value(arglist, "-n"))) {
         if (spooler != SPOOLER_GNULPR && spooler != SPOOLER_LPRNG)
             spooler = SPOOLER_LPD;
 
-        strncpy(jobuser, str, 127);
-        jobuser[127] = '\0';
+        strncpy(job.user, str, 127);
+        job.user[127] = '\0';
         arglist_remove(arglist, "-n");
     }
     if (arglist_remove(arglist, "-w") ||
@@ -3704,14 +3250,14 @@ int main(int argc, char** argv)
     /* LPRng delivers the option settings via the "-Z" argument */
     if ((str = arglist_get_value(arglist, "-Z"))) {
         spooler = SPOOLER_LPRNG;
-        dstrcatf(optstr, "%s ", str);
+        dstrcatf(job.optstr, "%s ", str);
         arglist_remove(arglist, "-Z");
     }
     /* Job title and options for stock LPD */
     if ((str = arglist_get_value(arglist, "-j")) || (str = arglist_get_value(arglist, "-J"))) {
-        strncpy_omit(jobtitle, str, 128, omit_shellescapes);
+        strncpy_omit(job.title, str, 128, omit_shellescapes);
         if (spooler == SPOOLER_LPD)
-             dstrcatf(optstr, "%s ", jobtitle);
+             dstrcatf(job.optstr, "%s ", job.title);
          if (!arglist_remove(arglist, "-j"))
             arglist_remove(arglist, "-J");
     }
@@ -3722,7 +3268,7 @@ int main(int argc, char** argv)
     /* Options for spooler-less printing, CPS, or PDQ */
     while ((str = arglist_get_value(arglist, "-o"))) {
         strncpy_omit(tmp, str, 1024, omit_shellescapes);
-        dstrcatf(optstr, "%s ", tmp);
+        dstrcatf(job.optstr, "%s ", tmp);
         arglist_remove(arglist, "-o");
         /* If we don't print as PPR RIP or as CPS filter, we print
            without spooler (we check for PDQ later) */
@@ -3732,13 +3278,13 @@ int main(int argc, char** argv)
 
     /* Printer for spooler-less printing or PDQ */
     if ((str = arglist_get_value(arglist, "-d"))) {
-        strncpy_omit(printer, str, 256, omit_shellescapes);
+        strncpy_omit(job.printer, str, 256, omit_shellescapes);
         arglist_remove(arglist, "-d");
     }
 
     /* Printer for spooler-less printing, PDQ, or LPRng */
     if ((str = arglist_get_value(arglist, "-P"))) {
-        strncpy_omit(printer, argv[i +1], 256, omit_shellescapes);
+        strncpy_omit(job.printer, argv[i +1], 256, omit_shellescapes);
         arglist_remove(arglist, "-P");
     }
 
@@ -3754,11 +3300,11 @@ int main(int argc, char** argv)
     /* spooler specific initialization */
     switch (spooler) {
         case SPOOLER_PPR:
-            init_ppr(arglist);
+            init_ppr(arglist, &job);
             break;
 
         case SPOOLER_CUPS:
-            init_cups(arglist, filelist);
+            init_cups(arglist, filelist, &job);
             break;
 
         case SPOOLER_LPD:
@@ -3766,13 +3312,13 @@ int main(int argc, char** argv)
         case SPOOLER_GNULPR:
             /* Get PPD file name as the last command line argument */
             if (arglist->last)
-                strncpy_omit(ppdfile, (char*)arglist->last->data, 256, omit_shellescapes);
+                strncpy_omit(job.ppdfile, (char*)arglist->last->data, 256, omit_shellescapes);
             break;
 
         case SPOOLER_DIRECT:
         case SPOOLER_CPS:
         case SPOOLER_PDQ:
-            init_direct_cps_pdq(arglist, filelist, user_default_path);
+            init_direct_cps_pdq(arglist, filelist, user_default_path, &job);
             break;
     }
 
@@ -3824,13 +3370,13 @@ int main(int argc, char** argv)
     /* PPD File */
     /* Load the PPD file and build a data structure for the renderer's
        command line and the options */
-    if (!(ppdfh = fopen(ppdfile, "r"))) {
-        _log("error opening %s.\n", ppdfile);
-        _log("Unable to open PPD file %s\n", ppdfile);
+    if (!(ppdfh = fopen(job.ppdfile, "r"))) {
+        _log("error opening %s.\n", job.ppdfile);
+        _log("Unable to open PPD file %s\n", job.ppdfile);
         exit(EXIT_PRNERR_NORETRY_BAD_SETTINGS);
     }
 
-    read_ppd_file(ppdfile);
+    read_ppd_file(job.ppdfile);
 
     /* We do not need to parse the PostScript job when we don't have
        any options. If we have options, we must check whether the
@@ -3891,7 +3437,7 @@ int main(int argc, char** argv)
             snprintf(cmd, 1024, "%s | %s", pstoraster, cupsfilter);
 
             /* Set environment variables */
-            setenv("PPD", ppdfile, 1);
+            setenv("PPD", job.ppdfile, 1);
         }
     }
 
@@ -3917,14 +3463,14 @@ int main(int argc, char** argv)
          "PPD file: %s\n"
          "ATTR file: %s\n"
          "Printer model: %s\n",
-        spooler_name(spooler), printer, get_modern_shell(), ppdfile, attrpath, printer_model);
+        spooler_name(spooler), job.printer, get_modern_shell(), job.ppdfile, attrpath, printer_model);
     /* Print the options string only in debug mode, Mac OS X adds very many
        options so that CUPS cannot handle the output of the option string
        in its log files. If CUPS encounters a line with more than 1024 characters
        sent into its log files, it aborts the job with an error.*/
     if (debug || spooler != SPOOLER_CUPS)
-        _log("Options: %s\n", optstr->data);
-    _log("Job title: %s\n", jobtitle);
+        _log("Options: %s\n", job.optstr->data);
+    _log("Job title: %s\n", job.title);
     _log("File(s) to be printed:\n");
     _log("%s\n\n", filelist->data);
     if (getenv("GS_LIB"))
@@ -4044,7 +3590,7 @@ int main(int argc, char** argv)
     if (genpdqfile && genpdqfile != stdout)
         fclose(genpdqfile);
     free_dstr(filelist);
-    free_dstr(optstr);
+    free_dstr(job.optstr);
     options_free();
     if (logh && logh != stderr)
         fclose(logh);

@@ -166,7 +166,6 @@ static void free_param(param_t *param)
 
 static void free_value(value_t *val)
 {
-    int i;
     if (val->value)
         free(val->value);
     free(val);
@@ -373,25 +372,19 @@ static value_t * option_assure_value(option_t *opt, int optionset)
     return val;
 }
 
-
-static param_t * option_find_param(option_t *opt, const char *name)
-{
-    param_t *param;
-    for (param = opt->paramlist; param; param = param->next) {
-        if (!strcasecmp(param->name, name))
-            return param;
-    }
-    return NULL;
-}
-
 static param_t * option_find_param_index(option_t *opt, const char *name, int *idx)
 {
     param_t *param;
-    for (param = opt->paramlist, *idx = 0; param; param = param->next, *idx += 1) {
-        if (!strcasecmp(param->name, name))
+    int i;
+    for (param = opt->paramlist, i = 0; param; param = param->next, i += 1) {
+        if (!strcasecmp(param->name, name)) {
+            if (idx)
+                *idx = i;
             return param;
+        }
     }
-    *idx = -1;
+    if (idx)
+        *idx = -1;
     return 0;
 }
 
@@ -705,8 +698,8 @@ const char * option_get_value(option_t *opt, int optionset)
     return val ? val->value : NULL;
 }
 
-/* Returns non-zero if the foomatic prototype should be used for that optionset,
-   otherwise the custom_command will be used */
+/* Returns non-zero if the foomatic prototype should be used for that
+ * optionset, otherwise the custom_command will be used */
 int option_use_foomatic_prototype(option_t *opt)
 {
     param_t *param;
@@ -724,6 +717,7 @@ int option_use_foomatic_prototype(option_t *opt)
     if (param->allowedchars || param->allowedregexp)
         /* Foomatic specific extensions, use proto */
         return 1;
+    return 0;
 }
 
 void build_foomatic_custom_command(dstr_t *cmd, option_t *opt, const char *values)
@@ -738,7 +732,6 @@ void build_cups_custom_ps_command(dstr_t *cmd, option_t *opt, const char *values
 {
     param_t *param;
     int i;
-    char orderstr[8];
     char **paramvalues = paramvalues_from_string(opt, values);
 
     for (param = opt->paramlist, i = 0; param; param = param->next, i++) {
@@ -802,6 +795,7 @@ int composite_get_command(dstr_t *cmd, option_t *opt, int optionset, int section
     }
     free(copy);
     free_dstr(depcmd);
+    return cmd->len != 0;
 }
 
 int option_is_in_section(option_t *opt, int section)
@@ -817,7 +811,6 @@ int option_get_command(dstr_t *cmd, option_t *opt, int optionset, int section)
 {
     const char *valstr;
     choice_t *choice = NULL;
-    param_t *param = NULL;
 
     dstrclear(cmd);
 
@@ -1538,17 +1531,12 @@ void read_ppd_file(const char *filename)
 /* build a renderer command line, based on the given option set */
 const char * build_commandline(int optset)
 {
-    option_t *opt, *o;
-    value_t *val;
-    char driverval [256];
+    option_t *opt;
     const char *userval;
-    char tmp [256];
-    char *s, *p, *key, *value;
+    char *s, *p;
     dstr_t *cmdvar = create_dstr();
     dstr_t *open = create_dstr();
     dstr_t *close = create_dstr();
-    float width, height;
-    char unit[3];
     char letters[] = "%A %B %C %D %E %F %G %H %I %J %K %L %M %W %X %Y %Z";
     int jcl = 0;
 

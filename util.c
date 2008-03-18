@@ -289,7 +289,6 @@ void unhexify(char *dest, size_t size, const char *src)
 {
     char *pdest = dest;
     const char *psrc = src;
-    long int n;
     char cstr[3];
 
     cstr[2] = '\0';

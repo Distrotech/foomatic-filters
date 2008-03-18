@@ -2,6 +2,8 @@
 #ifndef foomatic_h
 #define foomatic_h
 
+#include <stddef.h>
+
 #define RIP_VERSION "4.0"
 
 /* Location of the configuration file "filter.conf" this file can be
@@ -89,6 +91,7 @@ extern int spooler;
 
 void _log(const char* msg, ...);
 
+void unhtmlify(char *dest, size_t size, const char *src);
 const char * get_modern_shell();
 
 extern struct dstr *currentcmd;
@@ -96,6 +99,19 @@ extern struct dstr *jclappend;
 extern struct dstr *jclprepend;
 extern int jobhasjcl;
 extern const char *accounting_prolog;
+
+
+typedef struct {
+    char printer[256];
+    char id[128];
+    char user[128];
+    char host[128];
+    char title[128];
+    char ppdfile[256];
+    char copies[128];
+    struct dstr *optstr;
+} jobparams_t;
+
 
 #endif
 
