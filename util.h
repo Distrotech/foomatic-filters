@@ -87,7 +87,7 @@ void unhexify(char *dest, size_t size, const char *src);
 
 
 /* Dynamic string */
-typedef struct {
+typedef struct dstr {
     char *data;
     size_t len;
     size_t alloc;

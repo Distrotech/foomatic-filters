@@ -2,6 +2,8 @@
 #ifndef foomatic_h
 #define foomatic_h
 
+#include <stddef.h>
+
 #define RIP_VERSION "4.0"
 
 /* Location of the configuration file "filter.conf" this file can be
@@ -34,18 +36,12 @@ gnu echo and put gecho here or something. */
 #endif
 
 
-#ifndef MODERN_SHELL
-#define MODERN_SHELL "/bin/bash"
-#endif
-
-
 /* Constants used by this filter
- *                             
+ *
  * Error codes, as some spooles behave different depending on the reason why
  * the RIP failed, we return an error code. As I have only found a table of
  * error codes for the PPR spooler. If our spooler is really PPR, these
- * definitions get overwritten by the ones of the PPR version currently in
- * use.
+ * definitions get overwritten by the ones of the PPR version currently in use.
  */
 #define EXIT_PRINTED 0                          /* file was printed normally */
 #define EXIT_PRNERR 1                           /* printer error occured */
@@ -62,9 +58,7 @@ gnu echo and put gecho here or something. */
 #define EXIT_INCAPABLE 50                       /* printer wants (lacks) features or resources */
 
 
-/* We don't know yet, which spooler will be used. If we don't detect
- * one.  we assume that we do spooler-less printing. Supported spoolers
- * are currently:
+/* Supported spoolers are currently:
  *
  *   cups    - CUPS - Common Unix Printing System
  *   solaris - Solaris LP (possibly some other SysV LP services as well)
@@ -88,13 +82,36 @@ gnu echo and put gecho here or something. */
 #define SPOOLER_PDQ       9
 #define SPOOLER_DIRECT    10
 
+/* The spooler from which foomatic-rip was called. set in main() */
+extern int spooler;
+
 
 #define PATH_MAX 1024
 
 
 void _log(const char* msg, ...);
 
+void unhtmlify(char *dest, size_t size, const char *src);
+const char * get_modern_shell();
 
-const char * build_commandline(int optionset);
+extern struct dstr *currentcmd;
+extern struct dstr *jclappend;
+extern struct dstr *jclprepend;
+extern int jobhasjcl;
+extern const char *accounting_prolog;
+
+
+typedef struct {
+    char printer[256];
+    char id[128];
+    char user[128];
+    char host[128];
+    char title[128];
+    char ppdfile[256];
+    char copies[128];
+    struct dstr *optstr;
+} jobparams_t;
+
 
 #endif
+

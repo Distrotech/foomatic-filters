@@ -1,3 +1,22 @@
+2008-03-17 Lars Uebernickel <larsuebernickel@gmx.de>
+	* foomaticrip.c, options.c: Moved buildcommandline() and
+	append_*_section() to options.c, where they belong.
+	* foomaticrip.c, spooler.c: Moved some spooler specific stuff to spooler.c
+	to clean up foomaticrip.c some more.
+
+2008-03-16 Lars Uebernickel <larsuebernickel@gmx.de>
+	* foomaticrip.c: Started to move all process forking to process.c - to
+	  share it with the pdf handler. Furthermore, the functions in process.c
+	  will keep track of all forked processes and kill them when foomatic-rip
+	  reveives a SIGTERM.
+
+2008-03-08 Lars Uebernickel <larsuebernickel@gmx.de>
+	* options.c: Accept custom page sizes without a unit (assume pt)
+
+2008-03-04 Lars Uebernickel <larsuebernickel@gmx.de>
+	* foomatic-rip.c, options.c: Use default values for custom options with
+	  wrong parameters (e.g. PageSize=Custom) - Ubuntu bug #196687
+
 2008-03-03 Lars Uebernickel <larsuebernickel@gmx.de>
 	* foomatic-rip.c: Fixed minor bug in option parsing
 	* pdf.cc/pdf.h: Beginning of pdf printing support. Printing is done

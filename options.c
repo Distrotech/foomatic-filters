@@ -35,6 +35,11 @@ char jclprefix[256] = "@PJL ";
 int jclprefixset = 0;
 
 
+dstr_t *prologprepend;
+dstr_t *setupprepend;
+dstr_t *pagesetupprepend;
+
+
 
 option_t *optionlist = NULL;
 option_t *optionlist_sorted_by_order = NULL;
@@ -134,6 +139,10 @@ void options_init()
     optionset_alloc = 8;
     optionset_count = 0;
     optionsets = calloc(optionset_alloc, sizeof(char *));
+
+    prologprepend = create_dstr();
+    setupprepend = create_dstr();
+    pagesetupprepend = create_dstr();
 }
 
 static void free_param(param_t *param)
@@ -142,12 +151,12 @@ static void free_param(param_t *param)
         regfree(param->allowedchars);
         free(param->allowedchars);
     }
-    
+
     if (param->allowedregexp) {
-        regfree(param->allowedregexp);    
+        regfree(param->allowedregexp);
         free(param->allowedregexp);
     }
-    
+
     free(param);
 }
 
@@ -157,7 +166,6 @@ static void free_param(param_t *param)
 
 static void free_value(value_t *val)
 {
-    int i;
     if (val->value)
         free(val->value);
     free(val);
@@ -215,6 +223,10 @@ void options_free()
 
     if (postpipe)
         free_dstr(postpipe);
+
+    free_dstr(prologprepend);
+    free_dstr(setupprepend);
+    free_dstr(pagesetupprepend);
 }
 
 size_t option_count()
@@ -295,10 +307,10 @@ int option_has_name(option_t *opt, const char *name)
 {
     if (!strcmp(opt->name, name))
         return 1;
-    
+
     if (!strcmp(opt->name, "PageSize") && !strcmp(name, "PageRegion"))
         return 1;
-    
+
     return 0;
 }
 
@@ -330,6 +342,10 @@ int option_get_section(option_t *opt)
 static value_t * option_find_value(option_t *opt, int optionset)
 {
     value_t *val;
+
+    if (!opt)
+        return NULL;
+
     for (val = opt->valuelist; val; val = val->next) {
         if (val->optionset == optionset)
             return val;
@@ -356,25 +372,19 @@ static value_t * option_assure_value(option_t *opt, int optionset)
     return val;
 }
 
-
-static param_t * option_find_param(option_t *opt, const char *name)
-{
-    param_t *param;
-    for (param = opt->paramlist; param; param = param->next) {
-        if (!strcasecmp(param->name, name))
-            return param;
-    }
-    return NULL;
-}
-
 static param_t * option_find_param_index(option_t *opt, const char *name, int *idx)
 {
     param_t *param;
-    for (param = opt->paramlist, *idx = 0; param; param = param->next, *idx++) {
-        if (!strcasecmp(param->name, name))
+    int i;
+    for (param = opt->paramlist, i = 0; param; param = param->next, i += 1) {
+        if (!strcasecmp(param->name, name)) {
+            if (idx)
+                *idx = i;
             return param;
+        }
     }
-    *idx = -1;
+    if (idx)
+        *idx = -1;
     return 0;
 }
 
@@ -512,31 +522,33 @@ static char ** paramvalues_from_string(option_t *opt, const char *str)
     float width, height;
     char unit[3];
 
-    /* PageSize can be set in special ways ... */
-    if (!strcmp(opt->name, "PageSize") && sscanf(str, "%fx%f%3s", &width, &height, unit) == 3) {
-        width = convert_to_points(width, unit);
-        height = convert_to_points(height, unit);
-        paramvalues = calloc(opt->param_count, sizeof(char*));
-        for (param = opt->paramlist, i = 0; param; param = param->next, i++) {
-            if (!strcasecmp(param->name, "width"))
-                paramvalues[i] = get_valid_param_string_float(opt, param, width);
-            else if (!strcasecmp(param->name, "height"))
-                paramvalues[i] = get_valid_param_string_float(opt, param, height);
-            else
-                paramvalues[i] = get_valid_param_string(opt, param, "0");
-            if (!paramvalues[i]) {
-                free_paramvalues(opt, paramvalues);
-                return NULL;
+    if (!strcmp(opt->name, "PageSize")) {
+        /* 'unit' is optional, if it is not given, 'pt' is assumed */
+        n = sscanf(str, "%fx%f%2s", &width, &height, unit);
+        if (n > 1) {
+            if (n == 3) {
+                width = convert_to_points(width, unit);
+                height = convert_to_points(height, unit);
             }
+            paramvalues = calloc(opt->param_count, sizeof(char*));
+            for (param = opt->paramlist, i = 0; param; param = param->next, i++) {
+                if (!strcasecmp(param->name, "width"))
+                    paramvalues[i] = get_valid_param_string_float(opt, param, width);
+                else if (!strcasecmp(param->name, "height"))
+                    paramvalues[i] = get_valid_param_string_float(opt, param, height);
+                else
+                    paramvalues[i] = get_valid_param_string(opt, param, "0");
+                if (!paramvalues[i]) {
+                    free_paramvalues(opt, paramvalues);
+                    return NULL;
+                }
+            }
+            return paramvalues;
         }
-        return paramvalues;
     }
 
     if (opt->param_count == 1) {
         paramvalues = malloc(sizeof(char*));
-
-        /* Cups sets a "Custom." in front of the single parameter
-           custom options */
         paramvalues[0] = get_valid_param_string(opt, opt->paramlist,
             startswith(str, "Custom.") ? &str[7] : str);
         if (!paramvalues[0]) {
@@ -615,7 +627,7 @@ char * get_valid_value_string(option_t *opt, const char *value)
     char *res;
     choice_t *choice;
     char **paramvalues;
-    
+
     if (!value)
         return NULL;
 
@@ -636,12 +648,12 @@ char * get_valid_value_string(option_t *opt, const char *value)
             return NULL;
         }
     }
-    
+
     /* Check if "value" is a predefined choice */
     if ((choice = option_find_choice(opt, value)))
         return strdup(choice->value);
 
-    
+
     if (opt->type == TYPE_ENUM) {
         if (!strcasecmp(value, "none"))
             return strdup("None");
@@ -665,7 +677,7 @@ char * get_valid_value_string(option_t *opt, const char *value)
             }
         }
     }
-    
+
     /* Custom value */
     if (opt->paramlist) {
         paramvalues = paramvalues_from_string(opt, value);
@@ -686,8 +698,8 @@ const char * option_get_value(option_t *opt, int optionset)
     return val ? val->value : NULL;
 }
 
-/* Returns non-zero if the foomatic prototype should be used for that optionset,
-   otherwise the custom_command will be used */
+/* Returns non-zero if the foomatic prototype should be used for that
+ * optionset, otherwise the custom_command will be used */
 int option_use_foomatic_prototype(option_t *opt)
 {
     param_t *param;
@@ -705,6 +717,7 @@ int option_use_foomatic_prototype(option_t *opt)
     if (param->allowedchars || param->allowedregexp)
         /* Foomatic specific extensions, use proto */
         return 1;
+    return 0;
 }
 
 void build_foomatic_custom_command(dstr_t *cmd, option_t *opt, const char *values)
@@ -719,7 +732,6 @@ void build_cups_custom_ps_command(dstr_t *cmd, option_t *opt, const char *values
 {
     param_t *param;
     int i;
-    char orderstr[8];
     char **paramvalues = paramvalues_from_string(opt, values);
 
     for (param = opt->paramlist, i = 0; param; param = param->next, i++) {
@@ -783,6 +795,7 @@ int composite_get_command(dstr_t *cmd, option_t *opt, int optionset, int section
     }
     free(copy);
     free_dstr(depcmd);
+    return cmd->len != 0;
 }
 
 int option_is_in_section(option_t *opt, int section)
@@ -798,7 +811,6 @@ int option_get_command(dstr_t *cmd, option_t *opt, int optionset, int section)
 {
     const char *valstr;
     choice_t *choice = NULL;
-    param_t *param = NULL;
 
     dstrclear(cmd);
 
@@ -811,14 +823,14 @@ int option_get_command(dstr_t *cmd, option_t *opt, int optionset, int section)
     valstr = option_get_value(opt, optionset);
     if (!valstr)
         return 0;
-    
+
     /* If the value is set to a predefined choice */
     choice = option_find_choice(opt, valstr);
     if (choice) {
         dstrcpy(cmd, choice->command);
         return 1;
     }
-    
+
     if (opt->type == TYPE_STRING && !strcasecmp(valstr, "None")) {
         /* TODO Is "none" always mapped to the empty string? */
         return 1;
@@ -844,7 +856,7 @@ void composite_set_values(option_t *opt, int optionset, const char *values)
     char *copy, *cur, *p;
     option_t *dep;
     value_t *val;
-    
+
     copy = strdup(values);
     for (cur = strtok(copy, " \t"); cur; cur = strtok(NULL, " \t")) {
         if ((p = strchr(cur, '='))) {
@@ -878,22 +890,23 @@ void composite_set_values(option_t *opt, int optionset, const char *values)
 int option_set_value(option_t *opt, int optionset, const char *value)
 {
     value_t *val = option_assure_value(opt, optionset);
+    char *newvalue;
     choice_t *choice;
 
-    free(val->value); /* delete old value */
-
-    if (!(val->value = get_valid_value_string(opt, value)))
+    newvalue = get_valid_value_string(opt, value);
+    if (!newvalue)
         return 0;
-        
+
+    free(val->value);
+    val->value = newvalue;
+
     if (option_is_composite(opt)) {
         /* set dependent values */
         choice = option_find_choice(opt, value);
         if (choice && !isempty(choice->command))
             composite_set_values(opt, optionset, choice->command);
     }
-
-        
-    return val->value != NULL;
+    return 1;
 }
 
 int option_accepts_value(option_t *opt, const char *value)
@@ -1140,7 +1153,7 @@ param_t * option_assure_foomatic_param(option_t *opt)
     strcpy(param->name, "Custom");
     param->order = 0;
     param->type = opt->type;
-    
+
     opt->paramlist = param;
     opt->param_count = 1;
     return param;
@@ -1298,9 +1311,9 @@ void read_ppd_file(const char *filename)
             else if (value->data[0] == '\"' && !strchr(value->data +1, '\"'))
                 dstrcat(value, "\n"); /* keep newlines in quoted string*/
             /* not quoted, or quotes already closed */
-            else 
+            else
                 break;
-            
+
             fgets(line, 256, fh);
             dstrcat(value, line);
             dstrremovenewline(value);
@@ -1432,16 +1445,16 @@ void read_ppd_file(const char *filename)
             opt->section = section_from_string(text);
             option_set_order(opt, order);
         }
-        
+
         /* Default options are not yet validated (not all options/choices
            have been read yet) */
         else if (!prefixcmp(key, "Default")) {
             /* Default<option>: <value> */
-            
+
             /* TODO *DefaultColorSpace is a keyword and doesn't need to be extraced, does it? */
             if (!strcmp(key, "DefaultColorSpace"))
                 continue;
-            
+
             opt = assure_option(&key[7]);
             val = option_assure_value(opt, optionset("default"));
             free(val->value);
@@ -1513,5 +1526,202 @@ void read_ppd_file(const char *filename)
                defined in the PPD file */
             option_set_value(opt, optionset("default"), opt->choicelist->value);
     }
+}
+
+/* build a renderer command line, based on the given option set */
+const char * build_commandline(int optset)
+{
+    option_t *opt;
+    const char *userval;
+    char *s, *p;
+    dstr_t *cmdvar = create_dstr();
+    dstr_t *open = create_dstr();
+    dstr_t *close = create_dstr();
+    char letters[] = "%A %B %C %D %E %F %G %H %I %J %K %L %M %W %X %Y %Z";
+    int jcl = 0;
+
+    dstr_t *local_jclprepend = create_dstr();
+
+    dstrclear(prologprepend);
+    dstrclear(setupprepend);
+    dstrclear(pagesetupprepend);
+
+    dstrcpy(currentcmd, cmd);
+
+
+    for (opt = optionlist_sorted_by_order; opt; opt = opt->next_by_order) {
+        if (option_is_composite(opt))
+            continue;
+
+        userval = option_get_value(opt, optset);
+        option_get_command(cmdvar, opt, optset, -1);
+
+        /* Insert the built snippet at the correct place */
+        if (option_is_ps_command(opt)) {
+            /* Place this Postscript command onto the prepend queue
+               for the appropriate section. */
+            if (cmdvar->len) {
+                dstrcpyf(open, "[{\n%%%%BeginFeature: *%s ", opt->name);
+                if (opt->type == TYPE_BOOL)
+                    dstrcatf(open, is_true_string(userval) ? "True\n" : "False\n");
+                else
+                    dstrcatf(open, "%s\n", userval);
+                dstrcpyf(close, "\n%%%%EndFeature\n} stopped cleartomark\n");
+
+                switch (option_get_section(opt)) {
+                    case SECTION_PROLOG:
+                        dstrcatf(prologprepend, "%s%s%s", open->data, cmdvar->data, close->data);
+                        break;
+
+                    case SECTION_ANYSETUP:
+                        if (optset != optionset("currentpage"))
+                            dstrcatf(setupprepend, "%s%s%s", open->data, cmdvar->data, close->data);
+                        else if (strcmp(option_get_value(opt, optionset("header")), userval) != 0)
+                            dstrcatf(pagesetupprepend, "%s%s%s", open->data, cmdvar->data, close->data);
+                        break;
+
+                    case SECTION_DOCUMENTSETUP:
+                        dstrcatf(setupprepend, "%s%s%s", open->data, cmdvar->data, close->data);
+                        break;
+
+                    case SECTION_PAGESETUP:
+                        dstrcatf(pagesetupprepend, "%s%s%s", open->data, cmdvar->data, close->data);
+                        break;
+
+                    case SECTION_JCLSETUP:          /* PCL/JCL argument */
+                        s = malloc(cmdvar->len +1);
+                        unhexify(s, cmdvar->len +1, cmdvar->data);
+                        dstrcatf(local_jclprepend, "%s", s);
+                        free(s);
+                        break;
+
+                    default:
+                        dstrcatf(setupprepend, "%s%s%s", open->data, cmdvar->data, close->data);
+                }
+            }
+        }
+        else if (option_is_jcl_arg(opt)) {
+            jcl = 1;
+            /* Put JCL commands onto JCL stack */
+            if (cmdvar->len)
+                dstrcatf(local_jclprepend, "%s%s\n", jclprefix, cmdvar->data);
+        }
+        else if (option_is_commandline_arg(opt)) {
+            /* Insert the processed argument in the command line
+            just before every occurrence of the spot marker. */
+            p = malloc(3);
+            snprintf(p, 3, "%%%c", opt->spot);
+            s = malloc(cmdvar->len +3);
+            snprintf(s, cmdvar->len +3, "%s%%%c", cmdvar->data, opt->spot);
+            dstrreplace(currentcmd, p, s);
+            free(p);
+            free(s);
+        }
+
+        /* Insert option into command line of CUPS raster driver */
+        if (strstr(currentcmd->data, "%Y")) {
+            if (isempty(userval))
+                continue;
+            s = malloc(strlen(opt->name) + strlen(userval) + 20);
+            sprintf(s, "%s=%s %%Y", opt->name, userval);
+            dstrreplace(currentcmd, "%Y", s);
+            free(s);
+        }
+    }
+
+    /* Tidy up after computing option statements for all of P, J, and C types: */
+
+    /* C type finishing */
+    /* Pluck out all of the %n's from the command line prototype */
+    s = strtok(letters, " ");
+    do {
+        dstrreplace(currentcmd, s, "");
+    } while ((s = strtok(NULL, " ")));
+
+    /* J type finishing */
+    /* Compute the proper stuff to say around the job */
+    if (jcl && !jobhasjcl) {
+        /* Stick the beginning job cruft on the front of the jcl stuff */
+        dstrprepend(local_jclprepend, jclbegin);
+
+        /* command to switch to the interpreter */
+        dstrcatf(local_jclprepend, "%s", jcltointerpreter);
+
+        /* Arrange for JCL RESET command at the end of job */
+        dstrcpy(jclappend, jclend);
+
+        dstrcpy(jclprepend, local_jclprepend->data);
+    }
+
+    free_dstr(cmdvar);
+    free_dstr(open);
+    free_dstr(close);
+    free_dstr(local_jclprepend);
+
+    return currentcmd->data;
+}
+
+/* if "comments" is set, add "%%BeginProlog...%%EndProlog" */
+void append_prolog_section(dstr_t *str, int optset, int comments)
+{
+    /* Start comment */
+    if (comments) {
+        _log("\"Prolog\" section is missing, inserting it.\n");
+        dstrcat(str, "%%BeginProlog\n");
+    }
+
+    /* Generate the option code (not necessary when CUPS is spooler) */
+    if (spooler != SPOOLER_CUPS) {
+        _log("Inserting option code into \"Prolog\" section.\n");
+        build_commandline(optset);
+        dstrcat(str, prologprepend->data);
+    }
+
+    /* End comment */
+    if (comments)
+        dstrcat(str, "%%EndProlog\n");
+}
+
+void append_setup_section(dstr_t *str, int optset, int comments)
+{
+    /* Start comment */
+    if (comments) {
+        _log("\"Setup\" section is missing, inserting it.\n");
+        dstrcat(str, "%%BeginSetup\n");
+    }
+
+    /* PostScript code to generate accounting messages for CUPS */
+    if (spooler == SPOOLER_CUPS) {
+        _log("Inserting PostScript code for CUPS' page accounting\n");
+        dstrcat(str, accounting_prolog);
+    }
+    /* Generate the option code (not necessary when CUPS is spooler) */
+    else {
+        _log("Inserting option code into \"Setup\" section.\n");
+        build_commandline(optset);
+        dstrcat(str, setupprepend->data);
+    }
+
+    /* End comment */
+    if (comments)
+        dstrcat(str, "%%EndSetup\n");
+}
+
+void append_page_setup_section(dstr_t *str, int optset, int comments)
+{
+    /* Start comment */
+    if (comments) {
+        _log("\"PageSetup\" section is missing, inserting it.\n");
+        dstrcat(str, "%%BeginPageSetup\n");
+    }
+
+    /* Generate the option code (not necessary when CUPS is spooler) */
+    _log("Inserting option code into \"PageSetup\" section.\n");
+    build_commandline(optset);
+    dstrcat(str, pagesetupprepend->data);
+
+    /* End comment */
+    if (comments)
+        dstrcat(str, "%%EndPageSetup\n");
 }
 
