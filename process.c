@@ -10,80 +10,90 @@
 int kidgeneration = 0;
 
 struct process {
-    char name[32];
+    char name[64];
     pid_t pid;
     int isgroup;
-
-    struct process *next;
 };
 
-struct process *proclist = NULL;
+#define MAX_CHILDS 4
+struct process procs[MAX_CHILDS] = {
+    { "", -1, 0 },
+    { "", -1, 0 },
+    { "", -1, 0 },
+    { "", -1, 0 }
+};
 
-void add_proc(const char *name, int pid, int isgroup)
+void add_process(const char *name, int pid, int isgroup)
 {
-    struct process *proc = malloc(sizeof(struct process));
-    strlcpy(proc->name, name, 32);
-    proc->pid = pid;
-    proc->isgroup = isgroup;
+    int i;
+    for (i = 0; i < MAX_CHILDS; i++) {
+        if (procs[i].pid == -1) {
+            strlcpy(procs[i].name, name, 64);
+            procs[i].pid = pid;
+            procs[i].isgroup = isgroup;
+            return;
+        }
+    }
+    _log("Didn't think there would be that many child processes... Exiting.\n");
+    exit(EXIT_PRNERR_NORETRY_BAD_SETTINGS);
+}
 
-    proc->next = proclist;
-    proclist = proc;
+int find_process(int pid)
+{
+    int i;
+    for (i = 0; i < MAX_CHILDS; i++)
+        if (procs[i].pid == pid)
+            return i;
+    return -1;
 }
 
 void clear_proc_list()
 {
-    struct process *proc = proclist;
-    while (proc) {
-        proc = proclist->next;
-        free(proclist);
-        proclist = proc;
-    }
+    int i;
+    for (i = 0; i < MAX_CHILDS; i++)
+        procs[i].pid = -1;
 }
 
-struct process * take_process(int pid)
+void kill_all_processes()
 {
-    struct process *proc = proclist;
-    struct process *prev = NULL;
+    int i;
 
-    while (proc) {
-        if (proc->pid == pid) {
-            if (prev)
-                prev->next = proc->next;
-            else
-                proclist = proc->next;
-            return proc;
-        }
-        prev = proc;
-        proc = proc->next;
+    for (i = 0; i < MAX_CHILDS; i++) {
+        if (procs[i].pid == -1)
+            continue;
+        _log("Killing %s\n", procs[i].name);
+        kill(procs[i].isgroup ? -procs[i].pid : procs[i].pid, 15);
+        sleep(1 << (3 - kidgeneration));
+        kill(procs[i].isgroup ? -procs[i].pid : procs[i].pid, 9);
     }
-    return NULL;
+    clear_proc_list();
 }
 
-static int _start_process(const char *name, int (*proc_func)(), void *arg, int *fdin, int *fdout, int createprocessgroup)
+static int _start_process(const char *name,
+                          int (*proc_func)(FILE *, FILE *, void *),
+                          void *user_arg, FILE **pipe_in, FILE **pipe_out,
+                          int createprocessgroup)
 {
     pid_t pid;
     int pfdin[2], pfdout[2];
     int ret;
+    FILE *in, *out;
 
-    if (fdin) {
+    if (pipe_in)
         pipe(pfdin);
-        *fdin = pfdin[1];
-    }
-    if (fdout) {
+    if (pipe_out)
         pipe(pfdout);
-        *fdout = pfdout[0];
-    }
 
     _log("Starting process \"%s\" (generation %d)\n", name, kidgeneration +1);
 
     pid = fork();
     if (pid < 0) {
-        _log("Could not fork for %s\n", name);
-        if (fdin) {
+        _log("Could not fork for process %d\n", name);
+        if (pipe_in) {
             close(pfdin[0]);
             close(pfdin[1]);
         }
-        if (fdout) {
+        if (pipe_out) {
             close(pfdout[0]);
             close(pfdout[1]);
         }
@@ -91,20 +101,19 @@ static int _start_process(const char *name, int (*proc_func)(), void *arg, int *
     }
 
     if (pid == 0) { /* Child */
-        if (fdin) {
+        if (pipe_in) {
             close(pfdin[1]);
-            if (dup2(pfdin[0], STDIN_FILENO) < 0) {
-                _log("%s: Could not dup stdin\n", name);
-                exit(EXIT_PRNERR_NORETRY_BAD_SETTINGS);
-            }
+            in = fdopen(pfdin[0], "r");
         }
-        if (fdout) {
+        else
+            in = NULL;
+
+        if (pipe_out) {
             close(pfdout[0]);
-            if (dup2(pfdout[1], STDOUT_FILENO) < 0) {
-                _log("%s: Could not dup stdout\n", name);
-                exit(EXIT_PRNERR_NORETRY_BAD_SETTINGS);
-            }
+            out = fdopen(pfdout[1], "w");
         }
+        else
+            out = NULL;
 
         if (createprocessgroup)
             setpgid(0, 0);
@@ -114,80 +123,83 @@ static int _start_process(const char *name, int (*proc_func)(), void *arg, int *
         /* The subprocess list is only valid for the parent. Clear it. */
         clear_proc_list();
 
-        if (arg)
-            ret = proc_func(arg);
-        else
-            ret = proc_func();
+        ret = proc_func(in, out, user_arg);
         exit(ret);
     }
 
     /* Parent */
-    if (fdin)
+    if (pipe_in) {
         close(pfdin[0]);
-    if (fdout)
+        *pipe_in = fdopen(pfdin[1], "w");
+        if (!*pipe_in)
+            _log("fdopen: %s\n", strerror(errno));
+    }
+    if (pipe_out) {
         close(pfdout[1]);
+        *pipe_out = fdopen(pfdout[0], "r");
+        if (!*pipe_out)
+            _log("fdopen: %s\n", strerror(errno));
+    }
 
     /* Add the child process to the list of open processes (to be able to kill
      * them in case of a signal. */
-    add_proc(name, pid, createprocessgroup);
+    add_process(name, pid, createprocessgroup);
 
     return pid;
 }
 
-int exec_command(const char *cmd)
+int exec_command(FILE *in, FILE *out, void *cmd)
 {
-    execl(get_modern_shell(), get_modern_shell(), "-c", cmd, (char *)NULL);
+    if (in && dup2(fileno(in), fileno(stdin)) < 0) {
+        _log("%s: Could not dup stdin\n", (const char *)cmd);
+        exit(EXIT_PRNERR_NORETRY_BAD_SETTINGS);
+    }
+    if (out && dup2(fileno(out), fileno(stdout)) < 0) {
+        _log("%s: Could not dup stdout\n", (const char *)cmd);
+        exit(EXIT_PRNERR_NORETRY_BAD_SETTINGS);
+    }
 
-    _log("Error: Executing \"%s -c %s\" failed (%s).\n", get_modern_shell(), cmd, strerror(errno));
+    execl(get_modern_shell(), get_modern_shell(), "-c", (const char *)cmd, (char *)NULL);
+
+    _log("Error: Executing \"%s -c %s\" failed (%s).\n", get_modern_shell(), (const char *)cmd, strerror(errno));
     return EXIT_PRNERR_NORETRY_BAD_SETTINGS;
 }
 
-int start_system_process(const char *name, const char *command, int *fdin, int *fdout)
+int start_system_process(const char *name, const char *command, FILE **fdin, FILE **fdout)
 {
     return _start_process(name, exec_command, (void*)command, fdin, fdout, 1);
 }
 
-int start_process(const char *name, int (*proc_func)(), int *fdin, int *fdout)
+int start_process(const char *name, int (*proc_func)(FILE *, FILE *, void *), FILE **fdin, FILE **fdout)
 {
     return _start_process(name, proc_func, NULL, fdin, fdout, 0);
 }
 
 int wait_for_process(int pid)
 {
-    struct process *proc;
+    int i;
     int status;
 
-    proc = take_process(pid);
-    if (!proc) {
+    i = find_process(pid);
+    if (i < 0) {
         _log("No such process \"%d\"", pid);
         return -1;
     }
 
-    waitpid(proc->pid, &status, 0);
+    waitpid(procs[i].pid, &status, 0);
     if (WIFEXITED(status))
-        _log("%s exited with status %d\n", proc->name, WEXITSTATUS(status));
+        _log("%s exited with status %d\n", procs[i].name, WEXITSTATUS(status));
     else if (WIFSIGNALED(status))
-        _log("%s received signal %d\n", proc->name, WTERMSIG(status));
+        _log("%s received signal %d\n", procs[i].name, WTERMSIG(status));
+
+    /* remove from process list */
+    procs[i].pid = -1;
     return status;
 }
 
-void kill_all_processes()
+int run_system_process(const char *name, const char *command)
 {
-    struct process *proc = proclist;
-
-    while (proc) {
-        _log("Killing %s\n", proc->name);
-        kill(proc->isgroup ? -proc->pid : proc->pid, 15);
-        sleep(1 << (3 - kidgeneration));
-        kill(proc->isgroup ? -proc->pid : proc->pid, 9);
-        proc = proc->next;
-    }
-    clear_proc_list();
-}
-
-int run_system_process(const char *command)
-{
-    int pid = start_system_process(command, command, NULL, NULL);
+    int pid = start_system_process(name, command, NULL, NULL);
     return wait_for_process(pid);
 }
 

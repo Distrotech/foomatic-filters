@@ -2,7 +2,6 @@
 #ifndef util_h
 #define util_h
 
-/* TODO write replacements for strcasecmp() etc. for non-gnu systems */
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
 #endif

@@ -14,12 +14,10 @@
 #include <ctype.h>
 #include <stdarg.h>
 #include <assert.h>
-#include <time.h>
 #include <unistd.h>
 #include <sys/wait.h>
 #include <math.h>
 #include <signal.h>
-#include <fcntl.h>
 #include <pwd.h>
 
 
@@ -59,7 +57,13 @@ void rip_die(int status, const char *msg, ...)
 }
 
 
-jobparams_t job;
+jobparams_t  *job = NULL;
+
+jobparams_t * get_current_job()
+{
+    assert(job);
+    return job;
+}
 
 char cups_fileconverter [512];
 char printer_model[128] = "";
@@ -89,100 +93,6 @@ dstr_t *jclprepend;
 dstr_t *jclappend;
 
 char *cwd;
-
-typedef struct {
-    char year[5];
-    char mon[3];
-    char day[3];
-    char hour[3];
-    char min[3];
-    char sec[3];
-} timestrings_t;
-
-time_t curtime;
-
-
-void unhtmlify(char *dest, size_t size, const char *src)
-{
-    char *pdest = dest;
-    const char *psrc = src;
-    const char *repl;
-    struct tm *t = localtime(&curtime);
-    char tmpstr[10];
-
-    while (*psrc && pdest - dest < size) {
-
-        if (*psrc == '&') {
-            psrc++;
-            repl = NULL;
-
-            /* Replace HTML/XML entities by the original characters */
-            if (!prefixcmp(psrc, "apos;"))
-                repl = "\'";
-            else if (!prefixcmp(psrc, "quot;"))
-                repl = "\"";
-            else if (!prefixcmp(psrc, "gt;"))
-                repl = ">";
-            else if (!prefixcmp(psrc, "lt;"))
-                repl = "<";
-            else if (!prefixcmp(psrc, "amp;"))
-                repl = "&";
-
-            /* Replace special entities by job data */
-            else if (!prefixcmp(psrc, "job;"))
-                repl = job.id;
-            else if (!prefixcmp(psrc, "user;"))
-                repl = job.user;
-            else if (!prefixcmp(psrc, "host;"))
-                repl = job.host;
-            else if (!prefixcmp(psrc, "title;"))
-                repl = job.title;
-            else if (!prefixcmp(psrc, "copies;"))
-                repl = job.copies;
-            else if (!prefixcmp(psrc, "options;"))
-                repl = job.optstr->data;
-            else if (!prefixcmp(psrc, "year;")) {
-                sprintf(tmpstr, "%04d", t->tm_year + 1900);
-                repl = tmpstr;
-            }
-            else if (!prefixcmp(psrc, "month;")) {
-                sprintf(tmpstr, "%02d", t->tm_mon + 1);
-                repl = tmpstr;
-            }
-            else if (!prefixcmp(psrc, "date;")) {
-                sprintf(tmpstr, "%02d", t->tm_mday);
-                repl = tmpstr;
-            }
-            else if (!prefixcmp(psrc, "hour;")) {
-                sprintf(tmpstr, "%02d", t->tm_hour);
-                repl = tmpstr;
-            }
-            else if (!prefixcmp(psrc, "min;")) {
-                sprintf(tmpstr, "%02d", t->tm_min);
-                repl = tmpstr;
-            }
-            else if (!prefixcmp(psrc, "sec;")) {
-                sprintf(tmpstr, "%02d", t->tm_sec);
-                repl = tmpstr;
-            }
-
-            if (repl) {
-                strncpy(pdest, repl, size - (pdest - dest));
-                pdest += strlen(repl);
-                psrc = strchr(psrc, ';') +1;
-            }
-            else {
-                psrc = strchr(psrc, ';') +1;
-            }
-        }
-        else {
-            *pdest = *psrc;
-            pdest++;
-            psrc++;
-        }
-    }
-    *pdest = '\0';
-}
 
 
 int debug;                   /* Set debug to 1 to enable the debug logfile for this filter; it will
@@ -329,7 +239,7 @@ char * extract_next_option(char *str, char **pagerange, char **key, char **value
     return *p ? p : NULL;
 }
 
-/* processes job.optstr */
+/* processes job->optstr */
 void process_cmdline_options()
 {
     char *p, *nextopt, *pagerange, *key, *value;
@@ -337,7 +247,7 @@ void process_cmdline_options()
     int optset;
     char tmp [256];
 
-    nextopt = extract_next_option(job.optstr->data, &pagerange, &key, &value);
+    nextopt = extract_next_option(job->optstr->data, &pagerange, &key, &value);
     while (key) {
         if (value)
             _log("Pondering option '%s=%s'\n", key, value);
@@ -522,10 +432,8 @@ FILE * check_pdq_file(list_t *arglist)
     if (p) {
         strncpy_omit(filename, p +1, 256, omit_shellescapes);
         handle = fopen(filename, append ? "a" : "w");
-        if (!handle) {
-            _log("Cannot write PDQ driver declaration file.\n");
-            exit(EXIT_PRNERR_NORETRY_BAD_SETTINGS);
-        }
+        if (!handle)
+            rip_die(EXIT_PRNERR_NORETRY_BAD_SETTINGS, "Cannot write PDQ driver declaration file.\n");
     }
     else if (!append)
         handle = stdout;
@@ -551,7 +459,7 @@ FILE * check_pdq_file(list_t *arglist)
                 "  filter_exec {\n"
                 "    ln -s $INPUT $OUTPUT\n"
                 "  }\n"
-                "}", (unsigned int)curtime);
+                "}", (unsigned int)job->time);
         if (handle != stdout) {
             fclose(handle);
             handle = NULL;
@@ -799,8 +707,8 @@ void print_pdq_driver(FILE *pdqfile, int optset)
     }
     else {
         /* Make sure that the PPD file is entered with an absolute path */
-        make_absolute_path(job.ppdfile, 256);
-        dstrcatf(cmdline, " --ppd=%s", job.ppdfile);
+        make_absolute_path(job->ppdfile, 256);
+        dstrcatf(cmdline, " --ppd=%s", job->ppdfile);
     }
 
     for (opt = optionlist; opt; opt = opt->next) {
@@ -880,7 +788,7 @@ void print_pdq_driver(FILE *pdqfile, int optset)
         "%s" /* psfilter */
         "  }\n"
         "}\n",
-        tmp->data, /* cleaned printer_model */ (unsigned int)curtime, job.ppdfile, printer_model,
+        tmp->data, /* cleaned printer_model */ (unsigned int)job->time, job->ppdfile, printer_model,
         driveropts->data, setcustompagesize->data, psfilter->data);
 
 
@@ -893,6 +801,7 @@ void print_pdq_driver(FILE *pdqfile, int optset)
 #endif
 
 /* returns status - see wait(2) */
+/* TODO deprecate */
 int modern_system(const char *cmd)
 {
     pid_t pid;
@@ -1042,9 +951,9 @@ void massage_gs_commandline(dstr_t *cmd)
     dstrreplace(cmd, "echo", ECHO); /* TODO search for \wecho\w */
 }
 
-int exec_kid4()
+int exec_kid4(FILE *in, FILE *out, void *user_args)
 {
-    int fileh;
+    FILE *fileh;
     char jclstr[64];
     dstr_t *jclheader = create_dstr(); /* JCL header read from renderer output */
     int driverjcl;
@@ -1054,30 +963,23 @@ int exec_kid4()
     int insert, commandfound;
     dstr_t *dtmp = create_dstr();
     size_t n;
+    dstr_t *jclline = create_dstr();
 
     dstrcpy(jclprepend_copy, jclprepend->data);
 
-
-    /* trailing task on the pipe; we write jcl stuff */
-
-    /* Do we have a $postpipe, if yes, launch the command(s) and
-       point our output into it/them */
-    /* TODO */
-#if 0
+    /* Do we have a $postpipe, if yes, launch the command(s) and point our
+     * output into it/them */
     if (postpipe->len) {
-        if ((fileh = open(postpipe->data, O_WRONLY)) == -1) {
-            close(pfd_kid4[0]);
-            snprintf(tmp, 256, "4 %d\n", EXIT_PRNERR_NORETRY_BAD_SETTINGS);
-            write(pfd_kid_message[1], tmp, strlen(tmp));
-            close(pfd_kid_message[0]);
-            close(pfd_kid_message[1]);
-            _log("cannot execute postpipe %s\n", postpipe->data);
-            exit(EXIT_PRNERR_NORETRY_BAD_SETTINGS);
-        }
+        /* Postpipe might contain a '|' in the beginning */
+        for (p = postpipe->data; *p && isspace(*p); p++);
+        if (*p && *p == '|')
+            p += 1;
+
+        if (start_system_process("postpipe", p, &fileh, NULL) < 0)
+            rip_die(EXIT_PRNERR_NORETRY_BAD_SETTINGS, "Cannot execute postpipe %s\n", postpipe->data);
     }
     else
-#endif
-        fileh = STDOUT_FILENO;
+        fileh = stdout;
 
     /* Debug output */
     _log("JCL: %s <job data> %s\n\n", jclprepend->data, jclappend->data);
@@ -1092,7 +994,12 @@ int exec_kid4()
             strncpy_tochar(jclstr, jclprepend->data, 64, " \t\r\n");
             /* read from the renderer output until the first non-JCL line
              * appears */
-            /* TODO tbd */
+
+            while (fgetdstr(jclline, in)) {
+                dstrcat(jclheader, jclline->data);
+                if (!strstr(jclline->data, jclstr))
+                    break;
+            }
 
             /* If we had read at least two lines, at least one is a JCL header,
              * so do the merging */
@@ -1143,7 +1050,7 @@ int exec_kid4()
                              * something like the "@PJL ENTER LANGUAGE=..."
                              * line which has to be in the end, but it also
                              * contains the "<esc>%-12345X" which has to be in
-                             * the beginning of the job. So we split the line
+                             * the beginning of the job-> So we split the line
                              * right before the $jclstr and append our command
                              * to the end of the first part and let the second
                              * part be a second JCL line. */
@@ -1158,54 +1065,55 @@ int exec_kid4()
                 }
 
                 /* Now pass on the merged JCL header */
-                write(fileh, jclheader->data, jclheader->len);
+                fwrite(jclheader->data, jclheader->len, 1, fileh);
             }
             else {
                 /* The driver didn't create a JCL header, simply
                    prepend ours and then pass on the line which we
                    already have read */
-                write(fileh, jclprepend->data, jclprepend->len);
-                write(fileh, jclheader->data, jclheader->len);
+                fwrite(jclprepend->data, jclprepend->len, 1, fileh);
+                fwrite(jclheader->data, jclheader->len, 1, fileh);
             }
         }
         else {
             /* No merging of JCL header possible, simply prepend it */
-            write(fileh, jclprepend->data, jclprepend->len);
+            fwrite(jclprepend->data, jclprepend->len, 1, fileh);
         }
     }
 
     /* The rest of the job data */
-    while ((n = read(STDIN_FILENO, tmp, 1024)) > 0)
-        write(fileh, tmp, n);
+    while ((n = fread(tmp, 1, 1024, in)) > 0)
+        fwrite(tmp, n, 1, fileh);
 
     /* A JCL trailer */
     if (line_count(jclprepend->data) > 1 && !driverjcl)
-        write(fileh, jclappend->data, jclappend->len);
+        fwrite(jclappend->data, jclappend->len, 1, fileh);
 
-    close(STDIN_FILENO);
-    if (close(fileh) != 0) {
+    fclose(stdin);
+    if (fclose(fileh) != 0) {
         _log("error closing postpipe\n");
         return EXIT_PRNERR_NORETRY_BAD_SETTINGS;
     }
 
     /* Handle signals of the backend interface */
-    if (retval != EXIT_PRINTED) {
+    if (retval != EXIT_PRINTED)
         return retval;
-    }
 
     free_dstr(jclheader);
     free_dstr(dtmp);
+    free_dstr(jclline);
 
     /* Successful exit, inform main process */
     _log("kid4 finished\n");
     return EXIT_PRINTED;
 }
 
-int exec_kid3()
+int exec_kid3(FILE *in, FILE *out, void *user_args)
 {
     dstr_t *commandline = create_dstr();
-    int kid4, kid4in;
-    int status, ret;
+    int kid4;
+    FILE *kid4in;
+    int status;
 
     kid4 = start_process("kid4", exec_kid4, &kid4in, NULL);
     if (kid4 < 0)
@@ -1215,33 +1123,39 @@ int exec_kid3()
     massage_gs_commandline(commandline);
     _log("renderer command: %s\n", commandline->data);
 
-    if (dup2(kid4in, STDOUT_FILENO) < 0) {
-        _log("kid3: Could not dup stdout to kid4\n");
-        close(kid4in);
+    if (dup2(fileno(in), fileno(stdin)) < 0) {
+        _log("kid3: Could not dup stdin\n");
+        fclose(kid4in);
         return EXIT_PRNERR_NORETRY_BAD_SETTINGS;
     }
-    if (debug && dup2(fileno(logh), STDERR_FILENO) < 0) {
+    if (dup2(fileno(kid4in), fileno(stdout)) < 0) {
+        _log("kid3: Could not dup stdout to kid4\n");
+        fclose(kid4in);
+        return EXIT_PRNERR_NORETRY_BAD_SETTINGS;
+    }
+    if (debug && dup2(fileno(logh), fileno(stderr)) < 0) {
         _log("Couldn't dup logh to STDERR\n");
-        close(kid4in);
+        fclose(kid4in);
         return EXIT_PRNERR_NORETRY_BAD_SETTINGS;
     }
 
-    /* In debug mode save the data supposed to be fed into the
-    renderer also into a file */
+    /* In debug mode save the data supposed to be fed into the renderer also
+     * into a file */
     if (debug) {
         dstrprepend(commandline, "tee -a " LOG_FILE ".ps | ( ");
         dstrcat(commandline, ")");
     }
 
     /* Actually run the thing */
-    status = run_system_process(commandline->data);
-    close(kid4in);
-    close(STDOUT_FILENO);
+    status = run_system_process("renderer", commandline->data);
+    fclose(in);
+    fclose(kid4in);
+    fclose(stdin);
+    fclose(stdout);
     free_dstr(commandline);
 
     if (WIFEXITED(status)) {
-        _log("renderer return value: %d\n", WEXITSTATUS(status));
-        switch (WEXITSTATUS(ret)) {
+        switch (WEXITSTATUS(status)) {
             case 0:  /* Success! */
                 /* wait for postpipe/output child */
                 wait_for_process(kid4);
@@ -1279,10 +1193,10 @@ int exec_kid3()
 
 /* This function runs the renderer command line (and if defined also
 the postpipe) and returns a file handle for stuffing in the PostScript data. */
-void get_renderer_handle(const dstr_t *prepend, int *fd, pid_t *pid)
+void get_renderer_handle(const dstr_t *prepend, FILE **fd, pid_t *pid)
 {
     pid_t kid3;
-    int kid3in;
+    FILE *kid3in;
 
     /* Catch signals */
     retval = EXIT_PRINTED;
@@ -1296,11 +1210,11 @@ void get_renderer_handle(const dstr_t *prepend, int *fd, pid_t *pid)
     _log("\nStarting renderer\n");
     kid3 = start_process("kid3", exec_kid3, &kid3in, NULL);
     if (kid3 < 0)
-        exit(EXIT_PRNERR_NORETRY_BAD_SETTINGS);
+        rip_die(EXIT_PRNERR_NORETRY_BAD_SETTINGS, "Cannot fork for kid3\n");
 
     /* Feed the PostScript header and the FIFO contents */
     if (prepend)
-        write(kid3in, prepend->data, prepend->len);
+        fwrite(prepend->data, prepend->len, 1, kid3in);
 
     /* We are the parent, return glob to the file handle */
     *fd = kid3in;
@@ -1308,23 +1222,17 @@ void get_renderer_handle(const dstr_t *prepend, int *fd, pid_t *pid)
 }
 
 /* Close the renderer process and wait until all kid processes finish */
-int close_renderer_handle(int rendererhandle, pid_t rendererpid)
+int close_renderer_handle(FILE *rendererhandle, pid_t rendererpid)
 {
-    int status, retval;
-
+    int status;
     _log("\nClosing renderer\n");
-    close(rendererhandle);
+    fclose(rendererhandle);
 
-    waitpid(rendererpid, NULL, 0);
-    if (WIFEXITED(status)) {
-        retval = WEXITSTATUS(status);
-        _log("Renderer exited with status %d\n", retval);
-    }
-    else if (WIFSIGNALED(status)) {
-        _log("Renderer caught signal %d\n", WTERMSIG(status));
-        retval = EXIT_PRNERR_NORETRY_BAD_SETTINGS;
-    }
-    return retval;
+    status = wait_for_process(rendererpid);
+    if (WIFEXITED(status))
+        return WEXITSTATUS(status);
+    else
+        return EXIT_PRNERR_NORETRY_BAD_SETTINGS;
 }
 
 
@@ -1411,9 +1319,9 @@ void get_fileconverter_handle(const char *already_read, int *fd, pid_t *pid)
     }
 
     if (do_docs)
-        snprintf(job.title, 128, "Documentation for the %s", printer_model);
+        snprintf(job->title, 128, "Documentation for the %s", printer_model);
 
-    fileconv = fileconverter_from_template(fileconverter, pagesize, job.title);
+    fileconv = fileconverter_from_template(fileconverter, pagesize, job->title);
 
 
     /*  Apply "pstops" when having used a file converter under CUPS, so
@@ -1437,10 +1345,8 @@ void get_fileconverter_handle(const char *already_read, int *fd, pid_t *pid)
 
     pipe(pfd_kid1);
     kid1 = fork();
-    if (kid1 < 0) {
-        _log("cannot fork for kid1!\n");
-        exit(EXIT_PRNERR_NORETRY_BAD_SETTINGS);
-    }
+    if (kid1 < 0)
+        rip_die(EXIT_PRNERR_NORETRY_BAD_SETTINGS, "Cannot fork for kid1!\n");
 
     if (kid1) { /* parent */
         close(pfd_kid1[1]);
@@ -1455,14 +1361,13 @@ void get_fileconverter_handle(const char *already_read, int *fd, pid_t *pid)
         pipe(pfd_kid2);
         kid2 = fork();
         if (kid2 < 0) {
-            _log("cannot fork for kid2!\n");
             close(pfd_kid1[1]);
             close(pfd_kid2[0]);
             close(pfd_kid2[1]);
             close(pfd_kid_message_conv[0]);
             snprintf(tmp, 256, "1 %d\n", EXIT_PRNERR_NORETRY_BAD_SETTINGS);
             write(pfd_kid_message_conv[1], (const void*)tmp, strlen(tmp));
-            exit(EXIT_PRNERR_NORETRY_BAD_SETTINGS);
+            rip_die(EXIT_PRNERR_NORETRY_BAD_SETTINGS, "cannot fork for kid2!\n");
         }
 
         if (kid2) { /* parent, child of primary task; we are |fileconverter| */
@@ -1477,8 +1382,7 @@ void get_fileconverter_handle(const char *already_read, int *fd, pid_t *pid)
                 close(pfd_kid_message_conv[0]);
                 snprintf(tmp, 256, "1 %d\n", EXIT_PRNERR_NORETRY_BAD_SETTINGS);
                 write(pfd_kid_message_conv[1], (const void*)tmp, strlen(tmp));
-                _log("Couldn't close STDIN in kid2\n");
-                exit(EXIT_PRNERR_NORETRY_BAD_SETTINGS);
+                rip_die(EXIT_PRNERR_NORETRY_BAD_SETTINGS, "Couldn't close STDIN in kid2\n");
             }
 
             if (dup2(pfd_kid2[0], STDIN_FILENO) == -1) {
@@ -1487,8 +1391,7 @@ void get_fileconverter_handle(const char *already_read, int *fd, pid_t *pid)
                 close(pfd_kid_message_conv[0]);
                 snprintf(tmp, 256, "1 %d\n", EXIT_PRNERR_NORETRY_BAD_SETTINGS);
                 write(pfd_kid_message_conv[1], (const void*)tmp, strlen(tmp));
-                _log("Couldn't dup KID2_IN\n");
-                exit(EXIT_PRNERR_NORETRY_BAD_SETTINGS);
+                rip_die(EXIT_PRNERR_NORETRY_BAD_SETTINGS, "Couldn't dup KID2_IN\n");
             }
 
             if (close(STDOUT_FILENO) == -1) {
@@ -1497,8 +1400,7 @@ void get_fileconverter_handle(const char *already_read, int *fd, pid_t *pid)
                 close(pfd_kid_message_conv[0]);
                 snprintf(tmp, 256, "1 %d\n", EXIT_PRNERR_NORETRY_BAD_SETTINGS);
                 write(pfd_kid_message_conv[1], (const void*)tmp, strlen(tmp));
-                _log("Couldn't close STDOUT in kid2\n");
-                exit(EXIT_PRNERR_NORETRY_BAD_SETTINGS);
+                rip_die(EXIT_PRNERR_NORETRY_BAD_SETTINGS, "Couldn't close STDOUT in kid2\n");
             }
 
             if (dup2(pfd_kid1[1], STDOUT_FILENO) == -1) {
@@ -1507,8 +1409,7 @@ void get_fileconverter_handle(const char *already_read, int *fd, pid_t *pid)
                 close(pfd_kid_message_conv[0]);
                 snprintf(tmp, 256, "1 %d\n", EXIT_PRNERR_NORETRY_BAD_SETTINGS);
                 write(pfd_kid_message_conv[1], (const void*)tmp, strlen(tmp));
-                _log("Couldn't dup KID1\n");
-                exit(EXIT_PRNERR_NORETRY_BAD_SETTINGS);
+                rip_die(EXIT_PRNERR_NORETRY_BAD_SETTINGS, "Couldn't dup KID1\n");
             }
 
             if (debug) {
@@ -1518,8 +1419,7 @@ void get_fileconverter_handle(const char *already_read, int *fd, pid_t *pid)
                     close(pfd_kid_message_conv[0]);
                     snprintf(tmp, 256, "1 %d\n", EXIT_PRNERR_NORETRY_BAD_SETTINGS);
                     write(pfd_kid_message_conv[1], (const void*)tmp, strlen(tmp));
-                    _log("Couldn't dup logh to stderr\n");
-                    exit(EXIT_PRNERR_NORETRY_BAD_SETTINGS);
+                    rip_die(EXIT_PRNERR_NORETRY_BAD_SETTINGS, "Couldn't dup logh to stderr\n");
                 }
             }
 
@@ -1551,7 +1451,7 @@ void get_fileconverter_handle(const char *already_read, int *fd, pid_t *pid)
                     write(pfd_kid_message_conv[1], (const void *)tmp, strlen(tmp));
                     close(pfd_kid_message_conv[0]);
                     close(pfd_kid_message_conv[1]);
-                    exit(retval);
+                    rip_die(retval, "");
                 }
 
                 /* Evaluate fileconverter result */
@@ -1569,9 +1469,8 @@ void get_fileconverter_handle(const char *already_read, int *fd, pid_t *pid)
                     write(pfd_kid_message_conv[1], (const void *)tmp, strlen(tmp));
                     close(pfd_kid_message_conv[0]);
                     close(pfd_kid_message_conv[1]);
-                    _log("The file converter command line returned an "
+                    rip_die(EXIT_PRNERR, "The file converter command line returned an "
                             "unrecognized error code %d.\n", WEXITSTATUS(status));
-                    exit(EXIT_PRNERR);
                 }
             }
 
@@ -1610,8 +1509,7 @@ void get_fileconverter_handle(const char *already_read, int *fd, pid_t *pid)
                 write(pfd_kid_message_conv[1], (const void *)tmp, strlen(tmp));
                 close(pfd_kid_message_conv[0]);
                 close(pfd_kid_message_conv[1]);
-                _log("error closing STDIN\n");
-                exit(EXIT_PRNERR_NORETRY_BAD_SETTINGS);
+                rip_die(EXIT_PRNERR_NORETRY_BAD_SETTINGS, "error closing STDIN\n");
             }
             close(pfd_kid2[1]);
             _log("tail process done reading data from STDIN\n");
@@ -2032,7 +1930,7 @@ void print_ps_file()
     double width, height;
 
     pid_t rendererpid = 0;
-    int rendererhandle = -1;
+    FILE *rendererhandle = NULL;
 
     dstr_t *tmp = create_dstr();
     jobhasjcl = 0;
@@ -2086,25 +1984,17 @@ void print_ps_file()
                         /* Start the file conversion filter */
                         if (!fileconverter_pid) {
                             get_fileconverter_handle(tmp->data, &fileconverter_handle, &fileconverter_pid);
-                            if (retval != EXIT_PRINTED) {
-                                _log("Error opening file converter\n");
-                                exit(retval);
-                            }
+                            if (retval != EXIT_PRINTED)
+                                rip_die(retval, "Error opening file converter\n");
                         }
-                        else {
-                            _log("File conversion filter probably crashed\n");
-                            exit(EXIT_JOBERR);
-                        }
+                        else
+                            rip_die(EXIT_JOBERR, "File conversion filter probably crashed\n");
 
                         /* Read the further data from the file converter and not from STDIN */
-                        if (close(STDIN_FILENO) == -1 && errno != ESPIPE) {
-                            _log("Couldn't close STDIN\n");
-                            exit(EXIT_PRNERR_NORETRY_BAD_SETTINGS);
-                        }
-                        if (dup2(STDIN_FILENO, fileconverter_handle) == -1) {
-                            _log("Couldn't dup fileconverter_handle\n");
-                            exit(EXIT_PRNERR_NORETRY_BAD_SETTINGS);
-                        }
+                        if (close(STDIN_FILENO) == -1 && errno != ESPIPE)
+                            rip_die(EXIT_PRNERR_NORETRY_BAD_SETTINGS, "Couldn't close STDIN\n");
+                        if (dup2(STDIN_FILENO, fileconverter_handle) == -1)
+                            rip_die(EXIT_PRNERR_NORETRY_BAD_SETTINGS, "Couldn't dup fileconverter_handle\n");
                     }
                 }
                 else {
@@ -2730,10 +2620,8 @@ void print_ps_file()
                         if (rendererpid && !optionset_equal(optionset("currentpage"), optionset("previouspage"), 0)) {
                             _log("Command line/JCL options changed, restarting renderer\n");
                             retval = close_renderer_handle(rendererhandle, rendererpid);
-                            if (retval != EXIT_PRINTED) {
-                                _log("Error closing renderer\n");
-                                exit(retval);
-                            }
+                            if (retval != EXIT_PRINTED)
+                                rip_die(retval, "Error closing renderer\n");
                             rendererpid = 0;
                         }
                     }
@@ -2744,24 +2632,22 @@ void print_ps_file()
                         dstrcpy(tmp, psheader->data);
                         dstrcat(tmp, psfifo->data);
                         get_renderer_handle(tmp, &rendererhandle, &rendererpid);
-                        if (retval != EXIT_PRINTED) {
-                            _log("Error opening renderer\n");
-                            exit(retval);
-                        }
+                        if (retval != EXIT_PRINTED)
+                            rip_die(retval, "Error opening renderer\n");
                         /* psfifo is sent out, flush it */
                         dstrclear(psfifo);
                     }
 
                     if (!isempty(psfifo->data)) {
                         /* Send psfifo to renderer */
-                        write(rendererhandle, psfifo->data, psfifo->len);
+                        fwrite(psfifo->data, psfifo->len, 1, rendererhandle);
                         /* flush psfifo */
                         dstrclear(psfifo);
                     }
 
                     /* Send line to renderer */
                     if (!printprevpage) {
-                        write(rendererhandle, line->data, line->len);
+                        fwrite(line->data, line->len, 1, rendererhandle);
 
                         while (fgetdstr(line, stdin) > 0) {
                             if (startswith(line->data, "%%")) {
@@ -2771,7 +2657,7 @@ void print_ps_file()
                                 break;
                             }
                             else {
-                                write(rendererhandle, line->data, line->len);
+                                fwrite(line->data, line->len, 1, rendererhandle);
                                 linect++;
                             }
                         }
@@ -2817,27 +2703,19 @@ void print_ps_file()
                 /* Start the file conversion filter */
                 if (!fileconverter_pid) {
                     get_fileconverter_handle(tmp->data, &fileconverter_handle, &fileconverter_pid);
-                    if (retval != EXIT_PRINTED) {
-                        _log("Error opening file converter\n");
-                        exit(retval);
-                    }
+                    if (retval != EXIT_PRINTED)
+                        rip_die(retval, "Error opening file converter\n");
                 }
-                else {
-                    _log("File conversion filter probably crashed\n");
-                    exit(EXIT_JOBERR);
-                }
+                else
+                    rip_die(EXIT_JOBERR, "File conversion filter probably crashed\n");
 
                 /* Read the further data from the file converter and
                 not from STDIN */
-                if (close(STDIN_FILENO) != 0) {
-                    _log("Couldn't close STDIN\n");
-                    exit(EXIT_PRNERR_NORETRY_BAD_SETTINGS);
-                }
+                if (close(STDIN_FILENO) != 0)
+                    rip_die(EXIT_PRNERR_NORETRY_BAD_SETTINGS, "Couldn't close STDIN\n");
 
-                if (dup2(fileconverter_handle, STDIN_FILENO) == -1) {
-                    _log("Couldn't dup fileconverterhandle\n");
-                    exit(EXIT_PRNERR_NORETRY_BAD_SETTINGS);
-                }
+                if (dup2(fileconverter_handle, STDIN_FILENO) == -1)
+                    rip_die(EXIT_PRNERR_NORETRY_BAD_SETTINGS, "Couldn't dup fileconverterhandle\n");
 
                 /* Now we have new (converted) stuff in STDIN, so
                 continue in the loop */
@@ -2890,10 +2768,8 @@ void print_ps_file()
         if (rendererpid > 0 && !optionset_equal(optionset("currentpage"), optionset("previouspage"), 0)) {
             _log("Command line/JCL options changed, restarting renderer\n");
             retval = close_renderer_handle(rendererhandle, rendererpid);
-            if (retval != EXIT_PRINTED) {
-                _log("Error closing renderer\n");
-                exit(retval);
-            }
+            if (retval != EXIT_PRINTED)
+                rip_die(retval, "Error closing renderer\n");
             rendererpid = 0;
         }
 
@@ -2901,24 +2777,22 @@ void print_ps_file()
             dstrcpy(tmp, psheader->data);
             dstrcat(tmp, psfifo->data);
             get_renderer_handle(tmp, &rendererhandle, &rendererpid);
-            if (retval != EXIT_PRINTED) {
-                _log("Error opening renderer\n");
-                exit(retval);
-            }
+            if (retval != EXIT_PRINTED)
+                rip_die(retval, "Error opening renderer\n");
             /* We have sent psfifo now */
             dstrclear(psfifo);
         }
 
         if (psfifo->len) {
             /* Send psfifo to the renderer */
-            write(rendererhandle, psfifo->data, psfifo->len);
+            fwrite(psfifo->data, psfifo->len, 1, rendererhandle);
             dstrclear(psfifo);
         }
 
         /* Print the rest of the input data */
         if (more_stuff) {
             while (fgetdstr(tmp, stdin))
-                write(rendererhandle, tmp->data, tmp->len);
+                fwrite(tmp->data, tmp->len, 1, rendererhandle);
         }
     }
 
@@ -2933,20 +2807,16 @@ void print_ps_file()
     /* Close the renderer */
     if (rendererpid) {
         retval = close_renderer_handle(rendererhandle, rendererpid);
-        if (retval != EXIT_PRINTED) {
-            _log("Error closing renderer\n");
-            exit(retval);
-        }
+        if (retval != EXIT_PRINTED)
+            rip_die(retval, "Error closing renderer\n");
         rendererpid = 0;
     }
 
     /* Close the file converter (if it was used) */
     if (fileconverter_pid) {
         retval = close_fileconverter_handle(fileconverter_handle, fileconverter_pid);
-        if (retval != EXIT_PRINTED) {
-            _log("Error closing file converter\n");
-            exit(retval);
-        }
+        if (retval != EXIT_PRINTED)
+            rip_die(retval, "Error closing file converter\n");
         fileconverter_pid = 0;
     }
 
@@ -3012,6 +2882,7 @@ int print_file(const char *filename)
         write_output(buf, startpos);
     }
 
+    /* TODO printing from stdin doesn't work in all cases!*/
     switch (type) {
         case UNKNOWN_FILE:
             break;
@@ -3020,13 +2891,10 @@ int print_file(const char *filename)
             return print_pdf(file, filename, startpos);
 
         case PS_FILE:
-            /* If we do not print standard input, open the file to print */
             if (file != stdin) {
-                fclose(file); /* make print_ps_file() use the open filehandle */
-
-                freopen(filename, "r", stdin);
-                if (!stdin) {
-                    _log("Cannot open %s, skipping.\n", filename);
+                rewind(file);
+                if (dup2(fileno(file), fileno(stdin)) < 0) {
+                    _log("%s: Could not dup stdin.\n", filename);
                     return 1;
                 }
             }
@@ -3040,6 +2908,29 @@ int print_file(const char *filename)
 void signal_terminate(int signal)
 {
     rip_die(EXIT_PRINTED, "Caught termination signal: Job canceled\n");
+}
+
+jobparams_t * create_job()
+{
+    jobparams_t *job = malloc(sizeof(jobparams_t));
+    struct passwd *passwd;
+
+    job->optstr = create_dstr();
+    job->time = time(NULL);
+    strcpy(job->copies, "1");
+    snprintf(job->title, 128, "%s@%s", job->user, job->host);
+    gethostname(job->host, 128);
+    passwd = getpwuid(getuid());
+    if (passwd)
+        strlcpy(job->user, passwd->pw_name, 128);
+
+    return job;
+}
+
+void free_job(jobparams_t *job)
+{
+    free_dstr(job->optstr);
+    free(job);
 }
 
 int main(int argc, char** argv)
@@ -3056,11 +2947,11 @@ int main(int argc, char** argv)
     char user_default_path [256];
     dstr_t *filelist = create_dstr();
     char programdir[256];
-    struct passwd *passwd;
 
     list_t * arglist = list_create_from_array(argc -1, (void**)&argv[1]);
 
-    job.optstr = create_dstr();
+    job = create_job();
+
     currentcmd = create_dstr();
     jclprepend = create_dstr();
     jclappend = create_dstr();
@@ -3068,7 +2959,6 @@ int main(int argc, char** argv)
 
     options_init();
 
-    curtime = time(NULL);
     signal(SIGTERM, signal_terminate);
 
 
@@ -3098,11 +2988,6 @@ int main(int argc, char** argv)
         cwd = malloc(i);
     } while (!getcwd(cwd, i));
 
-    gethostname(job.host, 128);
-    passwd = getpwuid(getuid());
-    if (passwd)
-        strlcpy(job.user, passwd->pw_name, 128);
-    snprintf(job.title, 128, "%s@%s", job.user, job.host);
 
     /* Path for personal Foomatic configuration */
     strlcpy(user_default_path, getenv("HOME"), 256);
@@ -3155,15 +3040,15 @@ int main(int argc, char** argv)
     }
 
     if (getenv("PPD")) {
-        strncpy_omit(job.ppdfile, getenv("PPD"), 256, omit_specialchars);
+        strncpy_omit(job->ppdfile, getenv("PPD"), 256, omit_specialchars);
         spooler = SPOOLER_CUPS;
     }
 
     if (getenv("SPOOLER_KEY")) {
         spooler = SPOOLER_SOLARIS;
         /* set the printer name from the ppd file name */
-        strncpy_omit(job.ppdfile, getenv("PPD"), 256, omit_specialchars);
-        file_basename(job.printer, job.ppdfile, 256);
+        strncpy_omit(job->ppdfile, getenv("PPD"), 256, omit_specialchars);
+        file_basename(job->printer, job->ppdfile, 256);
         /* TODO read attribute file*/
     }
 
@@ -3174,13 +3059,13 @@ int main(int argc, char** argv)
         /* PPR 1.5 allows the user to specify options for the PPR RIP with the
            "--ripopts" option on the "ppr" command line. They are provided to
            the RIP via the "PPR_RIPOPTS" environment variable. */
-        dstrcatf(job.optstr, "%s ", getenv("PPR_RIPOPTS"));
+        dstrcatf(job->optstr, "%s ", getenv("PPR_RIPOPTS"));
         spooler = SPOOLER_PPR;
     }
 
     if (getenv("LPOPTS")) { /* "LPOPTS": Option settings for some LPD implementations (ex: GNUlpr) */
         spooler = SPOOLER_GNULPR;
-        dstrcatf(job.optstr, "%s ", getenv("LPOPTS"));
+        dstrcatf(job->optstr, "%s ", getenv("LPOPTS"));
     }
 
     /* Check for LPRng first so we do not pick up bogus ppd files by the -ppd option */
@@ -3197,7 +3082,7 @@ int main(int argc, char** argv)
         str += 8;
         if (str) {
             while (isspace(*str)) str++;
-            p = job.ppdfile;
+            p = job->ppdfile;
             while (*str != '\0' && !isspace(*str) && *str != '\n') {
                 if (isprint(*str) && strchr(shellescapes, *str) == NULL)
                     *p++ = *str;
@@ -3210,12 +3095,12 @@ int main(int argc, char** argv)
        allow duplicates, and use the last specified one */
     if (spooler != SPOOLER_LPRNG) {
         while ((str = arglist_get_value(arglist, "-p"))) {
-            strncpy_omit(job.ppdfile, str, 256, omit_shellescapes);
+            strncpy_omit(job->ppdfile, str, 256, omit_shellescapes);
             arglist_remove(arglist, "-p");
         }
     }
     while ((str = arglist_get_value(arglist, "--ppd"))) {
-        strncpy_omit(job.ppdfile, str, 256, omit_shellescapes);
+        strncpy_omit(job->ppdfile, str, 256, omit_shellescapes);
         arglist_remove(arglist, "--ppd");
     }
 
@@ -3226,16 +3111,16 @@ int main(int argc, char** argv)
     if ((str = arglist_get_value(arglist, "-h"))) {
         if (spooler != SPOOLER_GNULPR && spooler != SPOOLER_LPRNG)
             spooler = SPOOLER_LPD;
-        strncpy(job.host, str, 127);
-        job.host[127] = '\0';
+        strncpy(job->host, str, 127);
+        job->host[127] = '\0';
         arglist_remove(arglist, "-h");
     }
     if ((str = arglist_get_value(arglist, "-n"))) {
         if (spooler != SPOOLER_GNULPR && spooler != SPOOLER_LPRNG)
             spooler = SPOOLER_LPD;
 
-        strncpy(job.user, str, 127);
-        job.user[127] = '\0';
+        strncpy(job->user, str, 127);
+        job->user[127] = '\0';
         arglist_remove(arglist, "-n");
     }
     if (arglist_remove(arglist, "-w") ||
@@ -3250,14 +3135,14 @@ int main(int argc, char** argv)
     /* LPRng delivers the option settings via the "-Z" argument */
     if ((str = arglist_get_value(arglist, "-Z"))) {
         spooler = SPOOLER_LPRNG;
-        dstrcatf(job.optstr, "%s ", str);
+        dstrcatf(job->optstr, "%s ", str);
         arglist_remove(arglist, "-Z");
     }
     /* Job title and options for stock LPD */
     if ((str = arglist_get_value(arglist, "-j")) || (str = arglist_get_value(arglist, "-J"))) {
-        strncpy_omit(job.title, str, 128, omit_shellescapes);
+        strncpy_omit(job->title, str, 128, omit_shellescapes);
         if (spooler == SPOOLER_LPD)
-             dstrcatf(job.optstr, "%s ", job.title);
+             dstrcatf(job->optstr, "%s ", job->title);
          if (!arglist_remove(arglist, "-j"))
             arglist_remove(arglist, "-J");
     }
@@ -3268,7 +3153,7 @@ int main(int argc, char** argv)
     /* Options for spooler-less printing, CPS, or PDQ */
     while ((str = arglist_get_value(arglist, "-o"))) {
         strncpy_omit(tmp, str, 1024, omit_shellescapes);
-        dstrcatf(job.optstr, "%s ", tmp);
+        dstrcatf(job->optstr, "%s ", tmp);
         arglist_remove(arglist, "-o");
         /* If we don't print as PPR RIP or as CPS filter, we print
            without spooler (we check for PDQ later) */
@@ -3278,13 +3163,13 @@ int main(int argc, char** argv)
 
     /* Printer for spooler-less printing or PDQ */
     if ((str = arglist_get_value(arglist, "-d"))) {
-        strncpy_omit(job.printer, str, 256, omit_shellescapes);
+        strncpy_omit(job->printer, str, 256, omit_shellescapes);
         arglist_remove(arglist, "-d");
     }
 
     /* Printer for spooler-less printing, PDQ, or LPRng */
     if ((str = arglist_get_value(arglist, "-P"))) {
-        strncpy_omit(job.printer, argv[i +1], 256, omit_shellescapes);
+        strncpy_omit(job->printer, argv[i +1], 256, omit_shellescapes);
         arglist_remove(arglist, "-P");
     }
 
@@ -3300,11 +3185,11 @@ int main(int argc, char** argv)
     /* spooler specific initialization */
     switch (spooler) {
         case SPOOLER_PPR:
-            init_ppr(arglist, &job);
+            init_ppr(arglist, job);
             break;
 
         case SPOOLER_CUPS:
-            init_cups(arglist, filelist, &job);
+            init_cups(arglist, filelist, job);
             break;
 
         case SPOOLER_LPD:
@@ -3312,13 +3197,13 @@ int main(int argc, char** argv)
         case SPOOLER_GNULPR:
             /* Get PPD file name as the last command line argument */
             if (arglist->last)
-                strncpy_omit(job.ppdfile, (char*)arglist->last->data, 256, omit_shellescapes);
+                strncpy_omit(job->ppdfile, (char*)arglist->last->data, 256, omit_shellescapes);
             break;
 
         case SPOOLER_DIRECT:
         case SPOOLER_CPS:
         case SPOOLER_PDQ:
-            init_direct_cps_pdq(arglist, filelist, user_default_path, &job);
+            init_direct_cps_pdq(arglist, filelist, user_default_path, job);
             break;
     }
 
@@ -3332,10 +3217,8 @@ int main(int argc, char** argv)
     p = strtok(filelist->data, " ");
     while (p) {
         if (strcmp(p, "<STDIN>") != 0) {
-            if (p[0] == '-') {
-                _log("Invalid argument: %s", p);
-                exit(EXIT_PRNERR_NORETRY_BAD_SETTINGS);
-            }
+            if (p[0] == '-')
+                rip_die(EXIT_PRNERR_NORETRY_BAD_SETTINGS, "Invalid argument: %s", p);
             else if (access(p, R_OK) != 0) {
                 _log("File %s does not exist/is not readable\n", p);
             strclr(p);
@@ -3370,13 +3253,10 @@ int main(int argc, char** argv)
     /* PPD File */
     /* Load the PPD file and build a data structure for the renderer's
        command line and the options */
-    if (!(ppdfh = fopen(job.ppdfile, "r"))) {
-        _log("error opening %s.\n", job.ppdfile);
-        _log("Unable to open PPD file %s\n", job.ppdfile);
-        exit(EXIT_PRNERR_NORETRY_BAD_SETTINGS);
-    }
+    if (!(ppdfh = fopen(job->ppdfile, "r")))
+        rip_die(EXIT_PRNERR_NORETRY_BAD_SETTINGS, "Unable to open PPD file %s\n", job->ppdfile);
 
-    read_ppd_file(job.ppdfile);
+    read_ppd_file(job->ppdfile);
 
     /* We do not need to parse the PostScript job when we don't have
        any options. If we have options, we must check whether the
@@ -3437,7 +3317,7 @@ int main(int argc, char** argv)
             snprintf(cmd, 1024, "%s | %s", pstoraster, cupsfilter);
 
             /* Set environment variables */
-            setenv("PPD", job.ppdfile, 1);
+            setenv("PPD", job->ppdfile, 1);
         }
     }
 
@@ -3463,14 +3343,14 @@ int main(int argc, char** argv)
          "PPD file: %s\n"
          "ATTR file: %s\n"
          "Printer model: %s\n",
-        spooler_name(spooler), job.printer, get_modern_shell(), job.ppdfile, attrpath, printer_model);
+        spooler_name(spooler), job->printer, get_modern_shell(), job->ppdfile, attrpath, printer_model);
     /* Print the options string only in debug mode, Mac OS X adds very many
        options so that CUPS cannot handle the output of the option string
        in its log files. If CUPS encounters a line with more than 1024 characters
        sent into its log files, it aborts the job with an error.*/
     if (debug || spooler != SPOOLER_CUPS)
-        _log("Options: %s\n", job.optstr->data);
-    _log("Job title: %s\n", job.title);
+        _log("Options: %s\n", job->optstr->data);
+    _log("Job title: %s\n", job->title);
     _log("File(s) to be printed:\n");
     _log("%s\n\n", filelist->data);
     if (getenv("GS_LIB"))
@@ -3490,17 +3370,15 @@ int main(int argc, char** argv)
 
     if (spooler == SPOOLER_PPR_INT) {
         snprintf(tmp, 1024, "interfaces/%s", backend);
-        if (access(tmp, X_OK) != 0) {
-            _log("The backend interface %s/interfaces/%s does not exist/"
-                 "is not executable!\n", cwd, backend);
-            exit(EXIT_PRNERR_NORETRY_BAD_SETTINGS);
-        }
+        if (access(tmp, X_OK) != 0)
+            rip_die(EXIT_PRNERR_NORETRY_BAD_SETTINGS, "The backend interface "
+                    "%s/interfaces/%s does not exist/ is not executable!\n",
+                    cwd, backend);
 
         /* foomatic-rip cannot use foomatic-rip as backend */
-        if (!strcmp(backend, "foomatic-rip")) {
-            _log("\"foomatic-rip\" cannot use itself as backend interface!\n");
-            exit(EXIT_PRNERR_NORETRY_BAD_SETTINGS);
-        }
+        if (!strcmp(backend, "foomatic-rip"))
+            rip_die(EXIT_PRNERR_NORETRY_BAD_SETTINGS, "\"foomatic-rip\" cannot "
+                    "use itself as backend interface!\n");
 
         /* Put the backend interface into the postpipe */
         /* TODO
@@ -3586,11 +3464,11 @@ int main(int argc, char** argv)
 
 
     /* Cleanup */
+    free_job(job);
     free_dstr(currentcmd);
     if (genpdqfile && genpdqfile != stdout)
         fclose(genpdqfile);
     free_dstr(filelist);
-    free_dstr(job.optstr);
     options_free();
     if (logh && logh != stderr)
         fclose(logh);
