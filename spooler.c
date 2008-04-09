@@ -229,6 +229,7 @@ void init_cups(list_t *arglist, dstr_t *filelist, jobparams_t *job)
     char cups_copies [128];
     char cups_options [512];
     char cups_filename [256];
+    char texttopspath[PATH_MAX];
 
     if (getenv("CUPS_FONTPATH"))
         strcpy(path, getenv("CUPS_FONTPATH"));
@@ -250,7 +251,6 @@ void init_cups(list_t *arglist, dstr_t *filelist, jobparams_t *job)
     strncpy_omit(cups_options, arglist_get(arglist, 4), 512, omit_shellescapes);
 
     /* Common job parameters */
-    /* TODO why is this copied into the cups_* vars in the first place? */
     strcpy(job->id, cups_jobid);
     strcpy(job->title, cups_jobtitle);
     strcpy(job->user, cups_user);
@@ -273,6 +273,23 @@ void init_cups(list_t *arglist, dstr_t *filelist, jobparams_t *job)
        CUPS gives the PPD file the same name as the printer queue,
        so we can get the queue name from the name of the PPD file. */
     file_basename(job->printer, job->ppdfile, 256);
+
+    /* Use cups' texttops if no fileconverter is set
+     * Apply "pstops" when having used a file converter under CUPS, so CUPS
+     * can stuff the default settings into the PostScript output of the file
+     * converter (so all CUPS settings get also applied when one prints the
+     * documentation pages (all other files we get already converted to
+     * PostScript by CUPS). */
+    if (isempty(fileconverter)) {
+        if (find_in_path("texttops", cupsfilterpath, texttopspath)) {
+            snprintf(fileconverter, PATH_MAX, "%s/texttops '%s' '%s' '%s' '%s' "
+                    "page-top=36 page-bottom=36 page-left=36 page-right=36 "
+                    "nolandscape cpi=12 lpi=7 columns=1 wrap %s'"
+                    "| %s/pstops  '%s' '%s' '%s' '%s' '%s'",
+                    texttopspath, cups_jobid, cups_user, cups_jobtitle, cups_copies, cups_options,
+                    texttopspath, cups_jobid, cups_user, cups_jobtitle, cups_copies, cups_options);
+        }
+    }
 }
 
 void init_solaris(list_t *arglist, dstr_t *filelist, jobparams_t *job)
@@ -410,10 +427,14 @@ int find_default_printer(const char *user_default_path, jobparams_t *job)
     return 0;
 }
 
-void init_direct_cps_pdq(list_t *arglist, dstr_t *filelist, const char *user_default_path, jobparams_t *job)
+void init_direct_cps_pdq(list_t *arglist, dstr_t *filelist, jobparams_t *job)
 {
     char tmp [1024];
     listitem_t *i;
+    char user_default_path [PATH_MAX];
+
+    strlcpy(user_default_path, getenv("HOME"), 256);
+    strlcat(user_default_path, "/.foomatic/", 256);
 
     /* Which files do we want to print? */
     for (i = arglist->first; i; i = i->next) {

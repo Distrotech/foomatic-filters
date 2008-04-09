@@ -5,6 +5,8 @@
 #include "pdf.h"
 #include "process.h"
 #include "spooler.h"
+#include "renderer.h"
+#include "fileconverter.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -14,12 +16,10 @@
 #include <ctype.h>
 #include <stdarg.h>
 #include <assert.h>
-#include <time.h>
 #include <unistd.h>
 #include <sys/wait.h>
 #include <math.h>
 #include <signal.h>
-#include <fcntl.h>
 #include <pwd.h>
 
 
@@ -42,6 +42,15 @@ void _log(const char* msg, ...)
     va_end(ap);
 }
 
+int redirect_log_to_stderr()
+{
+    if (dup2(fileno(logh), fileno(stderr)) < 0) {
+        _log("Could not dup logh to stderr\n");
+        return 0;
+    }
+    return 1;
+}
+
 void rip_die(int status, const char *msg, ...)
 {
     va_list ap;
@@ -59,15 +68,26 @@ void rip_die(int status, const char *msg, ...)
 }
 
 
-jobparams_t job;
+jobparams_t  *job = NULL;
 
-char cups_fileconverter [512];
-char printer_model[128] = "";
+jobparams_t * get_current_job()
+{
+    assert(job);
+    return job;
+}
+
+
 dstr_t *postpipe;  /* command into which the output of this filter should be piped */
+
+const char * get_postpipe()
+{
+    return postpipe->data;
+}
+
+char printer_model[128] = "";
 const char *accounting_prolog = NULL;
 char attrpath[256] = "";
 
-char modern_shell[64] = "/bin/bash";
 
 int spooler = SPOOLER_DIRECT;
 int do_docs = 0;
@@ -88,155 +108,42 @@ char cupsfilter[256];
 dstr_t *jclprepend;
 dstr_t *jclappend;
 
-char *cwd;
+/* Set debug to 1 to enable the debug logfile for this filter; it will appear
+ * as defined by LOG_FILE. It will contain status from this filter, plus the
+ * renderer's stderr output. You can also add a line "debug: 1" to your
+ * /etc/foomatic/filter.conf to get all your Foomatic filters into debug mode.
+ * WARNING: This logfile is a security hole; do not use in production. */
+int debug = 0;
 
-typedef struct {
-    char year[5];
-    char mon[3];
-    char day[3];
-    char hour[3];
-    char min[3];
-    char sec[3];
-} timestrings_t;
+/* What path to use for filter programs and such. Your printer driver must be
+ * in the path, as must be the renderer, $enscriptcommand, and possibly other
+ * stuff. The default path is often fine on Linux, but may not be on other
+ * systems. */
+char execpath [PATH_MAX] = "";
 
-time_t curtime;
+/* CUPS raster drivers are searched here */
+char cupsfilterpath[PATH_MAX] = "/usr/local/lib/cups/filter:"
+                                "/usr/local/libexec/cups/filter:"
+                                "/opt/cups/filter:"
+                                "/usr/lib/cups/filter";
 
+char modern_shell[64] = "/bin/bash";
 
-void unhtmlify(char *dest, size_t size, const char *src)
+void config_set_option(const char *key, const char *value)
 {
-    char *pdest = dest;
-    const char *psrc = src;
-    const char *repl;
-    struct tm *t = localtime(&curtime);
-    char tmpstr[10];
-
-    while (*psrc && pdest - dest < size) {
-
-        if (*psrc == '&') {
-            psrc++;
-            repl = NULL;
-
-            /* Replace HTML/XML entities by the original characters */
-            if (!prefixcmp(psrc, "apos;"))
-                repl = "\'";
-            else if (!prefixcmp(psrc, "quot;"))
-                repl = "\"";
-            else if (!prefixcmp(psrc, "gt;"))
-                repl = ">";
-            else if (!prefixcmp(psrc, "lt;"))
-                repl = "<";
-            else if (!prefixcmp(psrc, "amp;"))
-                repl = "&";
-
-            /* Replace special entities by job data */
-            else if (!prefixcmp(psrc, "job;"))
-                repl = job.id;
-            else if (!prefixcmp(psrc, "user;"))
-                repl = job.user;
-            else if (!prefixcmp(psrc, "host;"))
-                repl = job.host;
-            else if (!prefixcmp(psrc, "title;"))
-                repl = job.title;
-            else if (!prefixcmp(psrc, "copies;"))
-                repl = job.copies;
-            else if (!prefixcmp(psrc, "options;"))
-                repl = job.optstr->data;
-            else if (!prefixcmp(psrc, "year;")) {
-                sprintf(tmpstr, "%04d", t->tm_year + 1900);
-                repl = tmpstr;
-            }
-            else if (!prefixcmp(psrc, "month;")) {
-                sprintf(tmpstr, "%02d", t->tm_mon + 1);
-                repl = tmpstr;
-            }
-            else if (!prefixcmp(psrc, "date;")) {
-                sprintf(tmpstr, "%02d", t->tm_mday);
-                repl = tmpstr;
-            }
-            else if (!prefixcmp(psrc, "hour;")) {
-                sprintf(tmpstr, "%02d", t->tm_hour);
-                repl = tmpstr;
-            }
-            else if (!prefixcmp(psrc, "min;")) {
-                sprintf(tmpstr, "%02d", t->tm_min);
-                repl = tmpstr;
-            }
-            else if (!prefixcmp(psrc, "sec;")) {
-                sprintf(tmpstr, "%02d", t->tm_sec);
-                repl = tmpstr;
-            }
-
-            if (repl) {
-                strncpy(pdest, repl, size - (pdest - dest));
-                pdest += strlen(repl);
-                psrc = strchr(psrc, ';') +1;
-            }
-            else {
-                psrc = strchr(psrc, ';') +1;
-            }
-        }
-        else {
-            *pdest = *psrc;
-            pdest++;
-            psrc++;
-        }
-    }
-    *pdest = '\0';
-}
-
-
-int debug;                   /* Set debug to 1 to enable the debug logfile for this filter; it will
-                                appear as defined by LOG_FILE. It will contain status from this
-                                filter, plus the renderer's stderr output. You can also add a line
-                                "debug: 1" to your /etc/foomatic/filter.conf to get all your
-                                Foomatic filters into debug mode.
-                                WARNING: This logfile is a security hole; do not use in production. */
-
-char execpath [128];         /* What path to use for filter programs and such. Your printer driver
-                                must be in the path, as must be the renderer, $enscriptcommand, and
-                                possibly other stuff. The default path is often fine on Linux, but
-                                may not be on other systems. */
-
-char cupsfilterpath[256];    /* CUPS raster drivers are searched here */
-
-
-#define FILECONVERTER_NONE      "echo \"Cannot convert file to PostScript!\" 1>&2"
-#define FILECONVERTER_A2PS      "a2ps -1 @@--medium=@@PAGESIZE@@ @@--center-title=@@JOBTITLE@@ -o -"
-#define FILECONVERTER_ENSCRIPT  "enscript -G @@-M @@PAGESIZE@@ @@-b \"Page $%|@@JOBTITLE@@ --margins=36:36:36:36 --mark-wrapped-lines=arrow --word-wrap -p-"
-#define FILECONVERTER_MPAGE     "mpage -o -1 @@-b @@PAGESIZE@@ @@-H -h @@JOBTITLE@@ -m36l36b36t36r -f -P- -"
-
-char fileconverter[PATH_MAX] = FILECONVERTER_NONE;
-
-
-void set_config_option(const char *key, const char *value)
-{
-    if (strcmp(key, "debug") == 0) {
+    if (strcmp(key, "debug") == 0)
         debug = atoi(value);
-    }
-    else if (strcmp(key, "execpath") == 0) {
-        strncpy(execpath, value, 127);
-        execpath[127] = '\0';
-    }
-    else if (strcmp(key, "cupsfilterpath") == 0) {
-        strncpy(cupsfilterpath, value, 255);
-        execpath[255] = '\0';
-    }
-    else if (strcmp(key, "preferred_shell") == 0) {
+    else if (strcmp(key, "execpath") == 0)
+        strlcpy(execpath, value, PATH_MAX);
+    else if (strcmp(key, "cupsfilterpath") == 0)
+        strlcpy(cupsfilterpath, value, PATH_MAX);
+    else if (strcmp(key, "preferred_shell") == 0)
         strlcpy(modern_shell, value, 32);
-    }
-    else if (strcmp(key, "textfilter") == 0) {
-        if (strcmp(value, "a2ps") == 0)
-            strlcpy(fileconverter, FILECONVERTER_A2PS, PATH_MAX);
-        else if (strcmp(value, "enscript") == 0)
-            strlcpy(fileconverter, FILECONVERTER_ENSCRIPT, PATH_MAX);
-        else if (strcmp(value, "mpage") == 0)
-            strlcpy(fileconverter, FILECONVERTER_MPAGE, PATH_MAX);
-        else
-            strlcpy(fileconverter, value, PATH_MAX);
-    }
+    else if (strcmp(key, "textfilter") == 0)
+        set_fileconverter(value);
 }
 
-void read_config_file(const char *filename)
+void config_from_file(const char *filename)
 {
     FILE *fh;
     char line[256];
@@ -251,7 +158,7 @@ void read_config_file(const char *filename)
         if (key == NULL || key[0] == '#')
             continue;
         value = strtok(NULL, " :\t\r\n#");
-        set_config_option(key, value);
+        config_set_option(key, value);
     }
     fclose(fh);
 }
@@ -329,7 +236,7 @@ char * extract_next_option(char *str, char **pagerange, char **key, char **value
     return *p ? p : NULL;
 }
 
-/* processes job.optstr */
+/* processes job->optstr */
 void process_cmdline_options()
 {
     char *p, *nextopt, *pagerange, *key, *value;
@@ -337,7 +244,7 @@ void process_cmdline_options()
     int optset;
     char tmp [256];
 
-    nextopt = extract_next_option(job.optstr->data, &pagerange, &key, &value);
+    nextopt = extract_next_option(job->optstr->data, &pagerange, &key, &value);
     while (key) {
         if (value)
             _log("Pondering option '%s=%s'\n", key, value);
@@ -522,10 +429,8 @@ FILE * check_pdq_file(list_t *arglist)
     if (p) {
         strncpy_omit(filename, p +1, 256, omit_shellescapes);
         handle = fopen(filename, append ? "a" : "w");
-        if (!handle) {
-            _log("Cannot write PDQ driver declaration file.\n");
-            exit(EXIT_PRNERR_NORETRY_BAD_SETTINGS);
-        }
+        if (!handle)
+            rip_die(EXIT_PRNERR_NORETRY_BAD_SETTINGS, "Cannot write PDQ driver declaration file.\n");
     }
     else if (!append)
         handle = stdout;
@@ -551,7 +456,7 @@ FILE * check_pdq_file(list_t *arglist)
                 "  filter_exec {\n"
                 "    ln -s $INPUT $OUTPUT\n"
                 "  }\n"
-                "}", (unsigned int)curtime);
+                "}", (unsigned int)job->time);
         if (handle != stdout) {
             fclose(handle);
             handle = NULL;
@@ -799,8 +704,8 @@ void print_pdq_driver(FILE *pdqfile, int optset)
     }
     else {
         /* Make sure that the PPD file is entered with an absolute path */
-        make_absolute_path(job.ppdfile, 256);
-        dstrcatf(cmdline, " --ppd=%s", job.ppdfile);
+        make_absolute_path(job->ppdfile, 256);
+        dstrcatf(cmdline, " --ppd=%s", job->ppdfile);
     }
 
     for (opt = optionlist; opt; opt = opt->next) {
@@ -880,7 +785,7 @@ void print_pdq_driver(FILE *pdqfile, int optset)
         "%s" /* psfilter */
         "  }\n"
         "}\n",
-        tmp->data, /* cleaned printer_model */ (unsigned int)curtime, job.ppdfile, printer_model,
+        tmp->data, /* cleaned printer_model */ (unsigned int)job->time, job->ppdfile, printer_model,
         driveropts->data, setcustompagesize->data, psfilter->data);
 
 
@@ -893,6 +798,7 @@ void print_pdq_driver(FILE *pdqfile, int optset)
 #endif
 
 /* returns status - see wait(2) */
+/* TODO deprecate */
 int modern_system(const char *cmd)
 {
     pid_t pid;
@@ -914,8 +820,6 @@ int modern_system(const char *cmd)
         return status;
     }
 }
-
-int retval = EXIT_PRINTED;
 
 /*  Functions to let foomatic-rip fork to do several tasks in parallel.
 
@@ -951,726 +855,12 @@ filtering (listed in the order of the data flow):
          and send all that either to STDOUT or pipe it into the
          command line defined with $postpipe. */
 
-/* Signal handling routines */
-void set_exit_prnerr()
-{
-    retval = EXIT_PRNERR;
-}
-
-void set_exit_prnerr_noretry()
-{
-    retval = EXIT_PRNERR_NORETRY;
-}
-
-void set_exit_engaged()
-{
-    retval = EXIT_ENGAGED;
-}
-
-/* Check whether we have a Ghostscript version with redirection of the standard
- * output of the PostScript programs via '-sstdout=%stderr' */
-int test_gs_output_redirection()
-{
-    char * gstestcommand = GS_PATH " -dQUIET -dPARANOIDSAFER -dNOPAUSE -dBATCH -dNOMEDIAATTRS "
-        "-sDEVICE=pswrite -sstdout=%stderr -sOutputFile=/dev/null -c '(hello\n) print flush' 2>&1";
-    char output[10] = "";
-
-    FILE *pd = popen(gstestcommand, "r");
-    if (!pd) {
-        _log("Failed to execute ghostscript!\n");
-        return 0;
-    }
-
-    fread(output, 1, 1024, pd);
-    pclose(pd);
-
-    if (startswith(output, "hello"))
-        return 1;
-
-    return 0;
-}
-
-/* Massage arguments to make ghostscript execute properly as a filter, with
-   output on stdout and errors on stderr etc.
-   (This function does what foomatic-gswrapper used to do) */
-void massage_gs_commandline(dstr_t *cmd)
-{
-    int gswithoutputredirection = test_gs_output_redirection();
-
-    /* TODO Handle commandlines in which the 'gs' command is part of a pipe */
-    if (!startswith(cmd->data, "gs"))
-        return;
-
-    /* If Ghostscript does not support redirecting the standard output
-       of the PostScript program to standard error with
-       '-sstdout=%stderr', sen the job output data to fd 3; errors
-       will be on 2(stderr) and job ps program interpreter output on
-       1(stdout). */
-    if (gswithoutputredirection)
-        dstrreplace(cmd, "-sOutputFile=- ", "-sOutputFile=%stdout");
-    else
-        dstrreplace(cmd, "-sOutputFile=- ", "-sOutputFile=/dev/fd/3");
-
-    /* Use always buffered input. This works around a Ghostscript
-       bug which prevents printing encrypted PDF files with Adobe
-       Reader 8.1.1 and Ghostscript built as shared library
-       (Ghostscript bug #689577, Ubuntu bug #172264) */
-    dstrreplace(cmd, " - ", " -_ ");
-    dstrreplace(cmd, " /dev/fd/0 ", " -_ ");
-
-    /* Turn *off* -q (quiet!); now that stderr is useful! :) */
-    dstrreplace(cmd, " -q ", "");
-
-    /* Escape any quotes, and then quote everything just to be sure...
-       Escaping a single quote inside single quotes is a bit complex as the shell
-       takes everything literal there. So we have to assemble it by concatinating
-       different quoted strings.
-       Finally we get e.g.: 'x'"'"'y' or ''"'"'xy' or 'xy'"'"'' or ... */
-    /* dstrreplace(cmd, "'", "'\"'\"'"); TODO tbd */
-
-
-    dstrremove(cmd, 0, 2);     /* Remove 'gs' */
-    if (gswithoutputredirection)
-        dstrprepend(cmd, " -sstdout=%stderr ");
-    else
-        dstrcat(cmd, " 3>&1 1>&2");
-    dstrprepend(cmd, GS_PATH);
-
-    /* If the renderer command line contains the "echo" command, replace the
-     * "echo" by the user-chosen $myecho (important for non-GNU systems where
-     * GNU echo is in a special path */
-    dstrreplace(cmd, "echo", ECHO); /* TODO search for \wecho\w */
-}
-
-int exec_kid4()
-{
-    int fileh;
-    char jclstr[64];
-    dstr_t *jclheader = create_dstr(); /* JCL header read from renderer output */
-    int driverjcl;
-    dstr_t *jclprepend_copy = create_dstr();
-    char *p, *line;
-    char tmp[1024];
-    int insert, commandfound;
-    dstr_t *dtmp = create_dstr();
-    size_t n;
-
-    dstrcpy(jclprepend_copy, jclprepend->data);
-
-
-    /* trailing task on the pipe; we write jcl stuff */
-
-    /* Do we have a $postpipe, if yes, launch the command(s) and
-       point our output into it/them */
-    /* TODO */
-#if 0
-    if (postpipe->len) {
-        if ((fileh = open(postpipe->data, O_WRONLY)) == -1) {
-            close(pfd_kid4[0]);
-            snprintf(tmp, 256, "4 %d\n", EXIT_PRNERR_NORETRY_BAD_SETTINGS);
-            write(pfd_kid_message[1], tmp, strlen(tmp));
-            close(pfd_kid_message[0]);
-            close(pfd_kid_message[1]);
-            _log("cannot execute postpipe %s\n", postpipe->data);
-            exit(EXIT_PRNERR_NORETRY_BAD_SETTINGS);
-        }
-    }
-    else
-#endif
-        fileh = STDOUT_FILENO;
-
-    /* Debug output */
-    _log("JCL: %s <job data> %s\n\n", jclprepend->data, jclappend->data);
-
-    /* wrap the JCL around the job data, if there are any options specified...
-     * Should the driver already have inserted JCL commands we merge our JCL
-     * header with the one from the driver */
-    if (line_count(jclprepend->data) > 1) {
-        /* Determine magic string of JCL in use (usually "@PJL") For that we
-         * take the first part of the second JCL line up to the first space */
-        if (jclprepend->len && !isspace(jclprepend->data[0])) {
-            strncpy_tochar(jclstr, jclprepend->data, 64, " \t\r\n");
-            /* read from the renderer output until the first non-JCL line
-             * appears */
-            /* TODO tbd */
-
-            /* If we had read at least two lines, at least one is a JCL header,
-             * so do the merging */
-            if (line_count(jclheader->data) > 1) {
-                driverjcl = 1;
-                /* Discard the first and the last entry of the @jclprepend
-                 * array, we only need the option settings to merge them in */
-                dstrremove(jclprepend_copy, 0, line_start(jclprepend_copy->data, 1));
-                jclprepend_copy->data[
-                    line_start(jclprepend_copy->data, line_count(jclprepend_copy->data) -1)] = '\0';
-
-                /* Line after which we insert new JCL commands in the JCL
-                 * header of the job */
-                insert = 1;
-
-                /* Go through every JCL command in jclprepend */
-                for (line = strtok(jclprepend_copy->data, "\r\n"); line; line = strtok(NULL, "\r\n")) {
-                    /* Search the command in the JCL header from the driver. As
-                     * search term use only the string from the beginning of
-                     * the line to the "=", so the command will also be found
-                     * when it has another value */
-                    strncpy_tochar(tmp, line, 256, "="); /* command */
-                    commandfound = 0;
-                    dstrclear(dtmp);
-                    p = jclheader->data;
-                    while (p) {
-                        if (startswith(p, tmp)) {
-                            dstrcatf(dtmp, "%s\n", line);
-                            commandfound = 1;
-                        }
-                        else
-                            dstrcatline(dtmp, p);
-                        if ((p = strchr(p, '\n')))
-                            p++;
-                    }
-                    dstrcpy(jclheader, dtmp->data);
-                    if (!commandfound) {
-                        /* If the command is not found. insert it */
-                        if (line_count(jclheader->data) > 2) {
-                            /* jclheader has more than one line, insert the new
-                             * command beginning right after the first line and
-                             * continuing after the previous inserted command */
-                            dstrinsert(jclheader, line_start(jclheader->data, insert), line);
-                            insert++;
-                        }
-                        else {
-                            /* If we have only one line of JCL it is probably
-                             * something like the "@PJL ENTER LANGUAGE=..."
-                             * line which has to be in the end, but it also
-                             * contains the "<esc>%-12345X" which has to be in
-                             * the beginning of the job. So we split the line
-                             * right before the $jclstr and append our command
-                             * to the end of the first part and let the second
-                             * part be a second JCL line. */
-                            p = strstr(jclheader->data, jclstr);
-                            if (p) {
-                                dstrncpy(dtmp, jclheader->data, p - jclheader->data);
-                                dstrcatf(dtmp, "%s%s", line, p);
-                                dstrcpy(jclheader, dtmp->data);
-                            }
-                        }
-                    }
-                }
-
-                /* Now pass on the merged JCL header */
-                write(fileh, jclheader->data, jclheader->len);
-            }
-            else {
-                /* The driver didn't create a JCL header, simply
-                   prepend ours and then pass on the line which we
-                   already have read */
-                write(fileh, jclprepend->data, jclprepend->len);
-                write(fileh, jclheader->data, jclheader->len);
-            }
-        }
-        else {
-            /* No merging of JCL header possible, simply prepend it */
-            write(fileh, jclprepend->data, jclprepend->len);
-        }
-    }
-
-    /* The rest of the job data */
-    while ((n = read(STDIN_FILENO, tmp, 1024)) > 0)
-        write(fileh, tmp, n);
-
-    /* A JCL trailer */
-    if (line_count(jclprepend->data) > 1 && !driverjcl)
-        write(fileh, jclappend->data, jclappend->len);
-
-    close(STDIN_FILENO);
-    if (close(fileh) != 0) {
-        _log("error closing postpipe\n");
-        return EXIT_PRNERR_NORETRY_BAD_SETTINGS;
-    }
-
-    /* Handle signals of the backend interface */
-    if (retval != EXIT_PRINTED) {
-        return retval;
-    }
-
-    free_dstr(jclheader);
-    free_dstr(dtmp);
-
-    /* Successful exit, inform main process */
-    _log("kid4 finished\n");
-    return EXIT_PRINTED;
-}
-
-int exec_kid3()
-{
-    dstr_t *commandline = create_dstr();
-    int kid4, kid4in;
-    int status, ret;
-
-    kid4 = start_process("kid4", exec_kid4, &kid4in, NULL);
-    if (kid4 < 0)
-        return EXIT_PRNERR_NORETRY_BAD_SETTINGS;
-
-    dstrcpy(commandline, currentcmd->data);
-    massage_gs_commandline(commandline);
-    _log("renderer command: %s\n", commandline->data);
-
-    if (dup2(kid4in, STDOUT_FILENO) < 0) {
-        _log("kid3: Could not dup stdout to kid4\n");
-        close(kid4in);
-        return EXIT_PRNERR_NORETRY_BAD_SETTINGS;
-    }
-    if (debug && dup2(fileno(logh), STDERR_FILENO) < 0) {
-        _log("Couldn't dup logh to STDERR\n");
-        close(kid4in);
-        return EXIT_PRNERR_NORETRY_BAD_SETTINGS;
-    }
-
-    /* In debug mode save the data supposed to be fed into the
-    renderer also into a file */
-    if (debug) {
-        dstrprepend(commandline, "tee -a " LOG_FILE ".ps | ( ");
-        dstrcat(commandline, ")");
-    }
-
-    /* Actually run the thing */
-    status = run_system_process(commandline->data);
-    close(kid4in);
-    close(STDOUT_FILENO);
-    free_dstr(commandline);
-
-    if (WIFEXITED(status)) {
-        _log("renderer return value: %d\n", WEXITSTATUS(status));
-        switch (WEXITSTATUS(ret)) {
-            case 0:  /* Success! */
-                /* wait for postpipe/output child */
-                wait_for_process(kid4);
-                _log("kid3 finished\n");
-                return EXIT_PRINTED;
-            case 1:
-                _log("Possible error on renderer command line or PostScript error. Check options.");
-                return EXIT_JOBERR;
-            case 139:
-                _log("The renderer may have dumped core.");
-                return EXIT_JOBERR;
-            case 141:
-                _log("A filter used in addition to the renderer itself may have failed.");
-                return EXIT_PRNERR;
-            case 243:
-            case 255:  /* PostScript error? */
-                return EXIT_JOBERR;
-            default:  /* Unknown error */
-                return EXIT_PRNERR;
-        }
-    }
-    else if (WIFSIGNALED(status)) {
-        _log("renderer received signal: %d\n", WTERMSIG(status));
-        switch (WTERMSIG(status)) {
-            case SIGUSR1:
-                return EXIT_PRNERR;
-            case SIGUSR2:
-                return EXIT_PRNERR_NORETRY;
-            case SIGTTIN:
-                return EXIT_ENGAGED;
-        }
-    }
-    return EXIT_PRINTED;
-}
-
-/* This function runs the renderer command line (and if defined also
-the postpipe) and returns a file handle for stuffing in the PostScript data. */
-void get_renderer_handle(const dstr_t *prepend, int *fd, pid_t *pid)
-{
-    pid_t kid3;
-    int kid3in;
-
-    /* Catch signals */
-    retval = EXIT_PRINTED;
-    signal(SIGUSR1, set_exit_prnerr);
-    signal(SIGUSR2, set_exit_prnerr_noretry);
-    signal(SIGTTIN, set_exit_engaged);
-
-    /* Build the command line and get the JCL commands */
-    build_commandline(optionset("currentpage"));
-
-    _log("\nStarting renderer\n");
-    kid3 = start_process("kid3", exec_kid3, &kid3in, NULL);
-    if (kid3 < 0)
-        exit(EXIT_PRNERR_NORETRY_BAD_SETTINGS);
-
-    /* Feed the PostScript header and the FIFO contents */
-    if (prepend)
-        write(kid3in, prepend->data, prepend->len);
-
-    /* We are the parent, return glob to the file handle */
-    *fd = kid3in;
-    *pid = kid3;
-}
-
-/* Close the renderer process and wait until all kid processes finish */
-int close_renderer_handle(int rendererhandle, pid_t rendererpid)
-{
-    int status, retval;
-
-    _log("\nClosing renderer\n");
-    close(rendererhandle);
-
-    waitpid(rendererpid, NULL, 0);
-    if (WIFEXITED(status)) {
-        retval = WEXITSTATUS(status);
-        _log("Renderer exited with status %d\n", retval);
-    }
-    else if (WIFSIGNALED(status)) {
-        _log("Renderer caught signal %d\n", WTERMSIG(status));
-        retval = EXIT_PRNERR_NORETRY_BAD_SETTINGS;
-    }
-    return retval;
-}
-
-
 int convkidfailed;
 int kid1finished;
 int kid2finished;
 int pfd_kid_message_conv[2];
 
 
-/*
- * Replace @@...@@PAGESIZE@@ and @@...@@JOBTITLE@@ with 'pagesize' and
- * 'jobtitle' (if they are are not NULL). Returns a newly malloced string.
- */
-char * fileconverter_from_template(const char *fileconverter,
-        const char *pagesize, const char *jobtitle)
-{
-    char *templstart, *templname;
-    const char *last = fileconverter;
-    char *res;
-
-    res = malloc(strlen(fileconverter) + 
-            pagesize ? strlen(pagesize) : 0 + 
-            jobtitle ? strlen(jobtitle) : 0 +1);
-    res[0] = '\0';
-
-    while ((templstart = strstr(last, "@@"))) {
-        strncat(res, last, templstart - last);
-        templstart += 2;
-        templname = strstr(templstart, "@@");
-        if (!templname)
-            break;
-        if (startswith(templname, "@@PAGESIZE@@") && pagesize) {
-            strncat(res, templstart, templname - templstart);
-            strcat(res, pagesize);
-            last = templname + 12;
-        }
-        else if (startswith(templname, "@@JOBTITLE@@") && jobtitle) {
-            strncat(res, templstart, templname - templstart);
-            strcat(res, jobtitle);
-            while (templstart != templname) {
-                if (*templstart == '\"') {
-                    strcat(res, "\"");
-                    break;
-                }
-                templstart++;
-            }
-            last = templname + 12;
-        }
-        else
-            last += strlen(res);
-    }
-    strncat(res, last, fileconverter + strlen(fileconverter) - last);
-
-    return res;
-}
-
-/*  This function is only used when the input data is not
-    PostScript. Then it runs a filter which converts non-PostScript files into
-    PostScript. The user can choose which filter he wants to use. The filter
-    command line is provided by 'fileconverter'.
-*/
-void get_fileconverter_handle(const char *already_read, int *fd, pid_t *pid)
-{
-    int status;
-    char tmp[1024];
-    ssize_t count;
-    pid_t kid1, kid2;
-    int pfd_kid1[2];
-    int pfd_kid2[2];
-    const char *pagesize;
-    char *fileconv;
-
-    _log("\nStarting converter for non-PostScript files\n");
-
-
-    pagesize = option_get_value(find_option("PageSize"), optionset("header"));
-    /* Use wider margins so that the pages come out completely on
-       every printer model (especially HP inkjets) */
-    if (pagesize && startswith(fileconverter, "a2ps")) {
-        if (!strcasecmp(pagesize, "letter"))
-            pagesize = "Letterdj";
-        else if (!strcasecmp(pagesize, "a4"))
-            pagesize = "A4dj";
-    }
-
-    if (do_docs)
-        snprintf(job.title, 128, "Documentation for the %s", printer_model);
-
-    fileconv = fileconverter_from_template(fileconverter, pagesize, job.title);
-
-
-    /*  Apply "pstops" when having used a file converter under CUPS, so
-        CUPS can stuff the default settings into the PostScript output
-        of the file converter (so all CUPS settings get also applied when
-        one prints the documentation pages (all other files we get
-        already converted to PostScript by CUPS). */
-    if (spooler == SPOOLER_CUPS) {
-        /* TODO */
-        /* $fileconverter .=
-                " | ${programdir}pstops '$rargs[0]' '$rargs[1]' '$rargs[2]' " .
-                "'$rargs[3]' '$rargs[4]'"; */
-    }
-
-    /* Set up a pipe for the kids to pass their exit stat to the main process */
-    pipe(pfd_kid_message_conv);
-
-    convkidfailed = 0;
-    kid1finished = 0;
-    kid2finished = 0;
-
-    pipe(pfd_kid1);
-    kid1 = fork();
-    if (kid1 < 0) {
-        _log("cannot fork for kid1!\n");
-        exit(EXIT_PRNERR_NORETRY_BAD_SETTINGS);
-    }
-
-    if (kid1) { /* parent */
-        close(pfd_kid1[1]);
-        *fd = pfd_kid1[0];
-        *pid = kid1;
-        return;
-    }
-    else { /* child */
-        /* We go on reading the job data and stuff into the file converter */
-        close(pfd_kid1[0]);
-
-        pipe(pfd_kid2);
-        kid2 = fork();
-        if (kid2 < 0) {
-            _log("cannot fork for kid2!\n");
-            close(pfd_kid1[1]);
-            close(pfd_kid2[0]);
-            close(pfd_kid2[1]);
-            close(pfd_kid_message_conv[0]);
-            snprintf(tmp, 256, "1 %d\n", EXIT_PRNERR_NORETRY_BAD_SETTINGS);
-            write(pfd_kid_message_conv[1], (const void*)tmp, strlen(tmp));
-            exit(EXIT_PRNERR_NORETRY_BAD_SETTINGS);
-        }
-
-        if (kid2) { /* parent, child of primary task; we are |fileconverter| */
-            close(pfd_kid2[1]);
-            _log("file converter PID kid2=%d\n", kid2);
-            if (debug || spooler != SPOOLER_CUPS)
-                _log("file converter command: %s\n", fileconv);
-
-            if (close(STDIN_FILENO) == -1 && errno != ESPIPE) {
-                close(pfd_kid1[1]);
-                close(pfd_kid2[0]);
-                close(pfd_kid_message_conv[0]);
-                snprintf(tmp, 256, "1 %d\n", EXIT_PRNERR_NORETRY_BAD_SETTINGS);
-                write(pfd_kid_message_conv[1], (const void*)tmp, strlen(tmp));
-                _log("Couldn't close STDIN in kid2\n");
-                exit(EXIT_PRNERR_NORETRY_BAD_SETTINGS);
-            }
-
-            if (dup2(pfd_kid2[0], STDIN_FILENO) == -1) {
-                close(pfd_kid1[1]);
-                close(pfd_kid2[0]);
-                close(pfd_kid_message_conv[0]);
-                snprintf(tmp, 256, "1 %d\n", EXIT_PRNERR_NORETRY_BAD_SETTINGS);
-                write(pfd_kid_message_conv[1], (const void*)tmp, strlen(tmp));
-                _log("Couldn't dup KID2_IN\n");
-                exit(EXIT_PRNERR_NORETRY_BAD_SETTINGS);
-            }
-
-            if (close(STDOUT_FILENO) == -1) {
-                close(pfd_kid1[1]);
-                close(pfd_kid2[0]);
-                close(pfd_kid_message_conv[0]);
-                snprintf(tmp, 256, "1 %d\n", EXIT_PRNERR_NORETRY_BAD_SETTINGS);
-                write(pfd_kid_message_conv[1], (const void*)tmp, strlen(tmp));
-                _log("Couldn't close STDOUT in kid2\n");
-                exit(EXIT_PRNERR_NORETRY_BAD_SETTINGS);
-            }
-
-            if (dup2(pfd_kid1[1], STDOUT_FILENO) == -1) {
-                close(pfd_kid1[1]);
-                close(pfd_kid2[0]);
-                close(pfd_kid_message_conv[0]);
-                snprintf(tmp, 256, "1 %d\n", EXIT_PRNERR_NORETRY_BAD_SETTINGS);
-                write(pfd_kid_message_conv[1], (const void*)tmp, strlen(tmp));
-                _log("Couldn't dup KID1\n");
-                exit(EXIT_PRNERR_NORETRY_BAD_SETTINGS);
-            }
-
-            if (debug) {
-                if (dup2(fileno(logh), STDERR_FILENO) == -1) {
-                    close(pfd_kid1[1]);
-                    close(pfd_kid2[0]);
-                    close(pfd_kid_message_conv[0]);
-                    snprintf(tmp, 256, "1 %d\n", EXIT_PRNERR_NORETRY_BAD_SETTINGS);
-                    write(pfd_kid_message_conv[1], (const void*)tmp, strlen(tmp));
-                    _log("Couldn't dup logh to stderr\n");
-                    exit(EXIT_PRNERR_NORETRY_BAD_SETTINGS);
-                }
-            }
-
-
-            /* Actually run the thing... */
-            status = modern_system(fileconv);
-            if (!WIFEXITED(status) || (WIFEXITED(status) && WEXITSTATUS(status) != 0)) {
-                _log("file converter return value: %d\n", WEXITSTATUS(status));
-                if (WIFSIGNALED(status))
-                    _log("file converter received signal: %d\n", WTERMSIG(status));
-
-                close(STDIN_FILENO);
-                close(STDOUT_FILENO);
-                close(pfd_kid1[1]);
-                close(pfd_kid2[0]);
-
-                /* Handle signals*/
-                if (WIFSIGNALED(status)) {
-                    if (WTERMSIG(status) == SIGUSR1)
-                        retval = EXIT_PRNERR;
-                    else if (WTERMSIG(status) == SIGUSR2)
-                        retval = EXIT_PRNERR_NORETRY;
-                    else if (WTERMSIG(status) == SIGTTIN)
-                        retval = EXIT_ENGAGED;
-                }
-
-                if (retval != EXIT_PRINTED) {
-                    snprintf(tmp, 256, "1 %d\n", retval);
-                    write(pfd_kid_message_conv[1], (const void *)tmp, strlen(tmp));
-                    close(pfd_kid_message_conv[0]);
-                    close(pfd_kid_message_conv[1]);
-                    exit(retval);
-                }
-
-                /* Evaluate fileconverter result */
-                if (WEXITSTATUS(status) == 0) {
-                    /* Success, exit with 0 and inform main process */
-                    snprintf(tmp, 256, "1 %d\n", EXIT_PRINTED);
-                    write(pfd_kid_message_conv[1], (const void *)tmp, strlen(tmp));
-                    close(pfd_kid_message_conv[0]);
-                    close(pfd_kid_message_conv[1]);
-                    exit(EXIT_PRINTED);
-                }
-                else {
-                    /* Unknown error */
-                    snprintf(tmp, 256, "1 %d\n", EXIT_PRNERR);
-                    write(pfd_kid_message_conv[1], (const void *)tmp, strlen(tmp));
-                    close(pfd_kid_message_conv[0]);
-                    close(pfd_kid_message_conv[1]);
-                    _log("The file converter command line returned an "
-                            "unrecognized error code %d.\n", WEXITSTATUS(status));
-                    exit(EXIT_PRNERR);
-                }
-            }
-
-            close(STDOUT_FILENO);
-            close(pfd_kid1[1]);
-            close(STDIN_FILENO);
-            close(pfd_kid2[0]);
-
-            /* When arrived here the fileconverter command line was successful
-               So exit with zero exit value here and inform the main process */
-            snprintf(tmp, 256, "1 %d\n", EXIT_PRINTED);
-            write(pfd_kid_message_conv[1], (const void *)tmp, strlen(tmp));
-            close(pfd_kid_message_conv[0]);
-            close(pfd_kid_message_conv[1]);
-            /* Wait for input child */
-            waitpid(kid1, NULL, 0);
-            _log("KID1 finished\n");
-            exit(EXIT_PRINTED);
-        }
-        else {
-            /*  child, first part of the pipe, reading in the data from
-                standard input and stuffing it into the file converter
-                after putting in the already read data (in alreadyread) */
-            close(pfd_kid1[1]);
-            close(pfd_kid2[0]);
-
-            /* At first pass the data which we already read to the filter */
-            write(pfd_kid2[1], (const void *)already_read, strlen(already_read));
-            /* Then read the rest from standard input */
-            while ((count = read(STDIN_FILENO, (void *)tmp, 1024)))
-                write(STDOUT_FILENO, (void *)tmp, count);
-
-            if (close(STDIN_FILENO) == -1 && errno != ESPIPE) {
-                close(pfd_kid2[1]);
-                snprintf(tmp, 256, "2 %d\n", EXIT_PRNERR_NORETRY_BAD_SETTINGS);
-                write(pfd_kid_message_conv[1], (const void *)tmp, strlen(tmp));
-                close(pfd_kid_message_conv[0]);
-                close(pfd_kid_message_conv[1]);
-                _log("error closing STDIN\n");
-                exit(EXIT_PRNERR_NORETRY_BAD_SETTINGS);
-            }
-            close(pfd_kid2[1]);
-            _log("tail process done reading data from STDIN\n");
-
-            /* Successful exit, inform main process */
-            snprintf(tmp, 256, "2 %d\n", EXIT_PRINTED);
-            write(pfd_kid_message_conv[1], (const void *)tmp, strlen(tmp));
-            close(pfd_kid_message_conv[0]);
-            close(pfd_kid_message_conv[1]);
-
-            _log("KID2 finished\n");
-            exit(EXIT_PRINTED);
-        }
-    }
-
-    free(fileconv);
-}
-
-int close_fileconverter_handle(int fileconverter_handle, pid_t fileconverter_pid)
-{
-    char message [1024];
-    ssize_t n;
-    int kid_id, exitstat;
-
-    _log("\nClosing file converter\n");
-    close(fileconverter_handle);
-
-    /* Wait for all kid processes to finish or one kid process to fail */
-    close(pfd_kid_message_conv[1]);
-
-    while (!convkidfailed && !(kid1finished && kid2finished)) {
-        n = read(pfd_kid_message_conv[0], message, 1024);
-        message[n] = '\0';
-        if (sscanf(message, "%d %d", &kid_id, &exitstat) == 2) {
-            _log("KID%d exited with status %d\n", kid_id, exitstat);
-            if (exitstat > 0)
-                convkidfailed = exitstat;
-            else if (kid_id == 1)
-                kid1finished = 1;
-            else if (kid_id == 2)
-                kid2finished = 1;
-        }
-    }
-
-    close(pfd_kid_message_conv[0]);
-
-    /* If a kid failed, return the exit stat of this kid */
-    if (convkidfailed != 0)
-        retval = convkidfailed;
-
-    _log("File converter exit stat: %s\n", retval);
-
-    /* Wait for fileconverter child */
-    waitpid(fileconverter_pid, NULL, 0);
-
-    _log("File converter proecess finished\n");
-
-    return retval;
-}
 
 /* Parse a string containing page ranges and either check whether a
    given page is in the ranges or, if the given page number is zero,
@@ -2007,7 +1197,7 @@ void print_ps_file()
        but not send to the renderer yet */
     dstr_t *psfifo = create_dstr();
 
-    int fileconverter_handle = 0; /* File handle to converter process */
+    FILE *fileconverter_handle = NULL; /* File handle to converter process */
     pid_t fileconverter_pid = 0;  /* PID of the fileconverter process */
 
     int ignoreline;
@@ -2032,12 +1222,12 @@ void print_ps_file()
     double width, height;
 
     pid_t rendererpid = 0;
-    int rendererhandle = -1;
+    FILE *rendererhandle = NULL;
+
+    int retval;
 
     dstr_t *tmp = create_dstr();
     jobhasjcl = 0;
-
-
 
     /* We do not parse the PostScript to find Foomatic options, we check
         only whether we have PostScript. */
@@ -2084,27 +1274,16 @@ void print_ps_file()
                         dstrclear(line);
 
                         /* Start the file conversion filter */
-                        if (!fileconverter_pid) {
+                        if (!fileconverter_pid)
                             get_fileconverter_handle(tmp->data, &fileconverter_handle, &fileconverter_pid);
-                            if (retval != EXIT_PRINTED) {
-                                _log("Error opening file converter\n");
-                                exit(retval);
-                            }
-                        }
-                        else {
-                            _log("File conversion filter probably crashed\n");
-                            exit(EXIT_JOBERR);
-                        }
+                        else
+                            rip_die(EXIT_JOBERR, "File conversion filter probably crashed\n");
 
                         /* Read the further data from the file converter and not from STDIN */
-                        if (close(STDIN_FILENO) == -1 && errno != ESPIPE) {
-                            _log("Couldn't close STDIN\n");
-                            exit(EXIT_PRNERR_NORETRY_BAD_SETTINGS);
-                        }
-                        if (dup2(STDIN_FILENO, fileconverter_handle) == -1) {
-                            _log("Couldn't dup fileconverter_handle\n");
-                            exit(EXIT_PRNERR_NORETRY_BAD_SETTINGS);
-                        }
+                        if (close(STDIN_FILENO) == -1 && errno != ESPIPE)
+                            rip_die(EXIT_PRNERR_NORETRY_BAD_SETTINGS, "Couldn't close STDIN\n");
+                        if (dup2(STDIN_FILENO, fileno(fileconverter_handle)) == -1)
+                            rip_die(EXIT_PRNERR_NORETRY_BAD_SETTINGS, "Couldn't dup fileconverter_handle\n");
                     }
                 }
                 else {
@@ -2724,16 +1903,16 @@ void print_ps_file()
             else {
                 if (passthru && isdscjob) {
                     if (!lastpassthru) {
-                        /* We enter passthru mode with this line, so the
-                        command line can have changed, check it and
-                        close the renderer if needed */
+                        /*
+                         * We enter passthru mode with this line, so the
+                         * command line can have changed, check it and close
+                         * the renderer if needed
+                         */
                         if (rendererpid && !optionset_equal(optionset("currentpage"), optionset("previouspage"), 0)) {
                             _log("Command line/JCL options changed, restarting renderer\n");
                             retval = close_renderer_handle(rendererhandle, rendererpid);
-                            if (retval != EXIT_PRINTED) {
-                                _log("Error closing renderer\n");
-                                exit(retval);
-                            }
+                            if (retval != EXIT_PRINTED)
+                                rip_die(retval, "Error closing renderer\n");
                             rendererpid = 0;
                         }
                     }
@@ -2744,24 +1923,20 @@ void print_ps_file()
                         dstrcpy(tmp, psheader->data);
                         dstrcat(tmp, psfifo->data);
                         get_renderer_handle(tmp, &rendererhandle, &rendererpid);
-                        if (retval != EXIT_PRINTED) {
-                            _log("Error opening renderer\n");
-                            exit(retval);
-                        }
                         /* psfifo is sent out, flush it */
                         dstrclear(psfifo);
                     }
 
                     if (!isempty(psfifo->data)) {
                         /* Send psfifo to renderer */
-                        write(rendererhandle, psfifo->data, psfifo->len);
+                        fwrite(psfifo->data, psfifo->len, 1, rendererhandle);
                         /* flush psfifo */
                         dstrclear(psfifo);
                     }
 
                     /* Send line to renderer */
                     if (!printprevpage) {
-                        write(rendererhandle, line->data, line->len);
+                        fwrite(line->data, line->len, 1, rendererhandle);
 
                         while (fgetdstr(line, stdin) > 0) {
                             if (startswith(line->data, "%%")) {
@@ -2771,7 +1946,7 @@ void print_ps_file()
                                 break;
                             }
                             else {
-                                write(rendererhandle, line->data, line->len);
+                                fwrite(line->data, line->len, 1, rendererhandle);
                                 linect++;
                             }
                         }
@@ -2815,29 +1990,18 @@ void print_ps_file()
                 dstrclear(psheader);
 
                 /* Start the file conversion filter */
-                if (!fileconverter_pid) {
+                if (!fileconverter_pid)
                     get_fileconverter_handle(tmp->data, &fileconverter_handle, &fileconverter_pid);
-                    if (retval != EXIT_PRINTED) {
-                        _log("Error opening file converter\n");
-                        exit(retval);
-                    }
-                }
-                else {
-                    _log("File conversion filter probably crashed\n");
-                    exit(EXIT_JOBERR);
-                }
+                else
+                    rip_die(EXIT_JOBERR, "File conversion filter probably crashed\n");
 
                 /* Read the further data from the file converter and
                 not from STDIN */
-                if (close(STDIN_FILENO) != 0) {
-                    _log("Couldn't close STDIN\n");
-                    exit(EXIT_PRNERR_NORETRY_BAD_SETTINGS);
-                }
+                if (close(STDIN_FILENO) != 0)
+                    rip_die(EXIT_PRNERR_NORETRY_BAD_SETTINGS, "Couldn't close STDIN\n");
 
-                if (dup2(fileconverter_handle, STDIN_FILENO) == -1) {
-                    _log("Couldn't dup fileconverterhandle\n");
-                    exit(EXIT_PRNERR_NORETRY_BAD_SETTINGS);
-                }
+                if (dup2(fileno(fileconverter_handle), STDIN_FILENO) == -1)
+                    rip_die(EXIT_PRNERR_NORETRY_BAD_SETTINGS, "Couldn't dup fileconverterhandle\n");
 
                 /* Now we have new (converted) stuff in STDIN, so
                 continue in the loop */
@@ -2890,10 +2054,8 @@ void print_ps_file()
         if (rendererpid > 0 && !optionset_equal(optionset("currentpage"), optionset("previouspage"), 0)) {
             _log("Command line/JCL options changed, restarting renderer\n");
             retval = close_renderer_handle(rendererhandle, rendererpid);
-            if (retval != EXIT_PRINTED) {
-                _log("Error closing renderer\n");
-                exit(retval);
-            }
+            if (retval != EXIT_PRINTED)
+                rip_die(retval, "Error closing renderer\n");
             rendererpid = 0;
         }
 
@@ -2901,24 +2063,20 @@ void print_ps_file()
             dstrcpy(tmp, psheader->data);
             dstrcat(tmp, psfifo->data);
             get_renderer_handle(tmp, &rendererhandle, &rendererpid);
-            if (retval != EXIT_PRINTED) {
-                _log("Error opening renderer\n");
-                exit(retval);
-            }
             /* We have sent psfifo now */
             dstrclear(psfifo);
         }
 
         if (psfifo->len) {
             /* Send psfifo to the renderer */
-            write(rendererhandle, psfifo->data, psfifo->len);
+            fwrite(psfifo->data, psfifo->len, 1, rendererhandle);
             dstrclear(psfifo);
         }
 
         /* Print the rest of the input data */
         if (more_stuff) {
             while (fgetdstr(tmp, stdin))
-                write(rendererhandle, tmp->data, tmp->len);
+                fwrite(tmp->data, tmp->len, 1, rendererhandle);
         }
     }
 
@@ -2933,20 +2091,16 @@ void print_ps_file()
     /* Close the renderer */
     if (rendererpid) {
         retval = close_renderer_handle(rendererhandle, rendererpid);
-        if (retval != EXIT_PRINTED) {
-            _log("Error closing renderer\n");
-            exit(retval);
-        }
+        if (retval != EXIT_PRINTED)
+            rip_die(retval, "Error closing renderer\n");
         rendererpid = 0;
     }
 
     /* Close the file converter (if it was used) */
     if (fileconverter_pid) {
         retval = close_fileconverter_handle(fileconverter_handle, fileconverter_pid);
-        if (retval != EXIT_PRINTED) {
-            _log("Error closing file converter\n");
-            exit(retval);
-        }
+        if (retval != EXIT_PRINTED)
+            rip_die(retval, "Error closing file converter\n");
         fileconverter_pid = 0;
     }
 
@@ -3012,6 +2166,7 @@ int print_file(const char *filename)
         write_output(buf, startpos);
     }
 
+    /* TODO printing from stdin doesn't work in all cases!*/
     switch (type) {
         case UNKNOWN_FILE:
             break;
@@ -3020,13 +2175,10 @@ int print_file(const char *filename)
             return print_pdf(file, filename, startpos);
 
         case PS_FILE:
-            /* If we do not print standard input, open the file to print */
             if (file != stdin) {
-                fclose(file); /* make print_ps_file() use the open filehandle */
-
-                freopen(filename, "r", stdin);
-                if (!stdin) {
-                    _log("Cannot open %s, skipping.\n", filename);
+                rewind(file);
+                if (dup2(fileno(file), fileno(stdin)) < 0) {
+                    _log("%s: Could not dup stdin.\n", filename);
                     return 1;
                 }
             }
@@ -3042,6 +2194,29 @@ void signal_terminate(int signal)
     rip_die(EXIT_PRINTED, "Caught termination signal: Job canceled\n");
 }
 
+jobparams_t * create_job()
+{
+    jobparams_t *job = malloc(sizeof(jobparams_t));
+    struct passwd *passwd;
+
+    job->optstr = create_dstr();
+    job->time = time(NULL);
+    strcpy(job->copies, "1");
+    gethostname(job->host, 128);
+    passwd = getpwuid(getuid());
+    if (passwd)
+        strlcpy(job->user, passwd->pw_name, 128);
+    snprintf(job->title, 128, "%s@%s", job->user, job->host);
+
+    return job;
+}
+
+void free_job(jobparams_t *job)
+{
+    free_dstr(job->optstr);
+    free(job);
+}
+
 int main(int argc, char** argv)
 {
     int i;
@@ -3053,14 +2228,12 @@ int main(int argc, char** argv)
     FILE *ppdfh = NULL;
     char tmp[1024], pstoraster[256];
     int havefilter, havepstoraster;
-    char user_default_path [256];
     dstr_t *filelist = create_dstr();
-    char programdir[256];
-    struct passwd *passwd;
 
     list_t * arglist = list_create_from_array(argc -1, (void**)&argv[1]);
 
-    job.optstr = create_dstr();
+    job = create_job();
+
     currentcmd = create_dstr();
     jclprepend = create_dstr();
     jclappend = create_dstr();
@@ -3068,51 +2241,10 @@ int main(int argc, char** argv)
 
     options_init();
 
-    curtime = time(NULL);
     signal(SIGTERM, signal_terminate);
 
 
-    strlcpy(programdir, argv[0], 256);
-    p = strrchr(programdir, '/');
-    if (p)
-        *++p = '\0';
-    else
-        programdir[0] = '\0';
-
-    /* spooler specific file converters */
-    snprintf(cups_fileconverter, 512, "%stexttops '%s' '%s' '%s' '%s' "
-         "page-top=36 page-bottom=36 page-left=36 page-right=36 "
-         "nolandscape cpi=12 lpi=7 columns=1 wrap %s'",
-         programdir,
-         argc > 0 ? argv[1] : "1",
-         argc > 1 ? argv[2] : "unknown",
-         argc > 2 ? argv[3] : "foomatic-rip",
-         argc > 3 ? argv[4] : "1",
-         argc > 4 ? argv[5] : "");
-
-
-    i = 1024;
-    cwd = NULL;
-    do {
-        free(cwd);
-        cwd = malloc(i);
-    } while (!getcwd(cwd, i));
-
-    gethostname(job.host, 128);
-    passwd = getpwuid(getuid());
-    if (passwd)
-        strlcpy(job.user, passwd->pw_name, 128);
-    snprintf(job.title, 128, "%s@%s", job.user, job.host);
-
-    /* Path for personal Foomatic configuration */
-    strlcpy(user_default_path, getenv("HOME"), 256);
-    strlcat(user_default_path, "/.foomatic/", 256);
-    debug = 0;
-    strcpy(execpath, "/usr/local/bin:/usr/bin:/bin");
-    strcpy(cupsfilterpath, "/usr/local/lib/cups/filter:/usr/local/lib/cups/filter:/usr/local/libexec/cups/filter:/opt/cups/filter:/usr/lib/cups/filter");
-    strcpy(fileconverter, "");
-
-    read_config_file(CONFIG_PATH "/filter.conf");
+    config_from_file(CONFIG_PATH "/filter.conf");
 
     if (!isempty(execpath))
         setenv("PATH", execpath, 1);
@@ -3155,15 +2287,15 @@ int main(int argc, char** argv)
     }
 
     if (getenv("PPD")) {
-        strncpy_omit(job.ppdfile, getenv("PPD"), 256, omit_specialchars);
+        strncpy_omit(job->ppdfile, getenv("PPD"), 256, omit_specialchars);
         spooler = SPOOLER_CUPS;
     }
 
     if (getenv("SPOOLER_KEY")) {
         spooler = SPOOLER_SOLARIS;
         /* set the printer name from the ppd file name */
-        strncpy_omit(job.ppdfile, getenv("PPD"), 256, omit_specialchars);
-        file_basename(job.printer, job.ppdfile, 256);
+        strncpy_omit(job->ppdfile, getenv("PPD"), 256, omit_specialchars);
+        file_basename(job->printer, job->ppdfile, 256);
         /* TODO read attribute file*/
     }
 
@@ -3174,13 +2306,13 @@ int main(int argc, char** argv)
         /* PPR 1.5 allows the user to specify options for the PPR RIP with the
            "--ripopts" option on the "ppr" command line. They are provided to
            the RIP via the "PPR_RIPOPTS" environment variable. */
-        dstrcatf(job.optstr, "%s ", getenv("PPR_RIPOPTS"));
+        dstrcatf(job->optstr, "%s ", getenv("PPR_RIPOPTS"));
         spooler = SPOOLER_PPR;
     }
 
     if (getenv("LPOPTS")) { /* "LPOPTS": Option settings for some LPD implementations (ex: GNUlpr) */
         spooler = SPOOLER_GNULPR;
-        dstrcatf(job.optstr, "%s ", getenv("LPOPTS"));
+        dstrcatf(job->optstr, "%s ", getenv("LPOPTS"));
     }
 
     /* Check for LPRng first so we do not pick up bogus ppd files by the -ppd option */
@@ -3197,7 +2329,7 @@ int main(int argc, char** argv)
         str += 8;
         if (str) {
             while (isspace(*str)) str++;
-            p = job.ppdfile;
+            p = job->ppdfile;
             while (*str != '\0' && !isspace(*str) && *str != '\n') {
                 if (isprint(*str) && strchr(shellescapes, *str) == NULL)
                     *p++ = *str;
@@ -3210,12 +2342,12 @@ int main(int argc, char** argv)
        allow duplicates, and use the last specified one */
     if (spooler != SPOOLER_LPRNG) {
         while ((str = arglist_get_value(arglist, "-p"))) {
-            strncpy_omit(job.ppdfile, str, 256, omit_shellescapes);
+            strncpy_omit(job->ppdfile, str, 256, omit_shellescapes);
             arglist_remove(arglist, "-p");
         }
     }
     while ((str = arglist_get_value(arglist, "--ppd"))) {
-        strncpy_omit(job.ppdfile, str, 256, omit_shellescapes);
+        strncpy_omit(job->ppdfile, str, 256, omit_shellescapes);
         arglist_remove(arglist, "--ppd");
     }
 
@@ -3226,16 +2358,16 @@ int main(int argc, char** argv)
     if ((str = arglist_get_value(arglist, "-h"))) {
         if (spooler != SPOOLER_GNULPR && spooler != SPOOLER_LPRNG)
             spooler = SPOOLER_LPD;
-        strncpy(job.host, str, 127);
-        job.host[127] = '\0';
+        strncpy(job->host, str, 127);
+        job->host[127] = '\0';
         arglist_remove(arglist, "-h");
     }
     if ((str = arglist_get_value(arglist, "-n"))) {
         if (spooler != SPOOLER_GNULPR && spooler != SPOOLER_LPRNG)
             spooler = SPOOLER_LPD;
 
-        strncpy(job.user, str, 127);
-        job.user[127] = '\0';
+        strncpy(job->user, str, 127);
+        job->user[127] = '\0';
         arglist_remove(arglist, "-n");
     }
     if (arglist_remove(arglist, "-w") ||
@@ -3250,14 +2382,14 @@ int main(int argc, char** argv)
     /* LPRng delivers the option settings via the "-Z" argument */
     if ((str = arglist_get_value(arglist, "-Z"))) {
         spooler = SPOOLER_LPRNG;
-        dstrcatf(job.optstr, "%s ", str);
+        dstrcatf(job->optstr, "%s ", str);
         arglist_remove(arglist, "-Z");
     }
     /* Job title and options for stock LPD */
     if ((str = arglist_get_value(arglist, "-j")) || (str = arglist_get_value(arglist, "-J"))) {
-        strncpy_omit(job.title, str, 128, omit_shellescapes);
+        strncpy_omit(job->title, str, 128, omit_shellescapes);
         if (spooler == SPOOLER_LPD)
-             dstrcatf(job.optstr, "%s ", job.title);
+             dstrcatf(job->optstr, "%s ", job->title);
          if (!arglist_remove(arglist, "-j"))
             arglist_remove(arglist, "-J");
     }
@@ -3268,7 +2400,7 @@ int main(int argc, char** argv)
     /* Options for spooler-less printing, CPS, or PDQ */
     while ((str = arglist_get_value(arglist, "-o"))) {
         strncpy_omit(tmp, str, 1024, omit_shellescapes);
-        dstrcatf(job.optstr, "%s ", tmp);
+        dstrcatf(job->optstr, "%s ", tmp);
         arglist_remove(arglist, "-o");
         /* If we don't print as PPR RIP or as CPS filter, we print
            without spooler (we check for PDQ later) */
@@ -3278,13 +2410,13 @@ int main(int argc, char** argv)
 
     /* Printer for spooler-less printing or PDQ */
     if ((str = arglist_get_value(arglist, "-d"))) {
-        strncpy_omit(job.printer, str, 256, omit_shellescapes);
+        strncpy_omit(job->printer, str, 256, omit_shellescapes);
         arglist_remove(arglist, "-d");
     }
 
     /* Printer for spooler-less printing, PDQ, or LPRng */
     if ((str = arglist_get_value(arglist, "-P"))) {
-        strncpy_omit(job.printer, argv[i +1], 256, omit_shellescapes);
+        strncpy_omit(job->printer, argv[i +1], 256, omit_shellescapes);
         arglist_remove(arglist, "-P");
     }
 
@@ -3300,11 +2432,11 @@ int main(int argc, char** argv)
     /* spooler specific initialization */
     switch (spooler) {
         case SPOOLER_PPR:
-            init_ppr(arglist, &job);
+            init_ppr(arglist, job);
             break;
 
         case SPOOLER_CUPS:
-            init_cups(arglist, filelist, &job);
+            init_cups(arglist, filelist, job);
             break;
 
         case SPOOLER_LPD:
@@ -3312,13 +2444,13 @@ int main(int argc, char** argv)
         case SPOOLER_GNULPR:
             /* Get PPD file name as the last command line argument */
             if (arglist->last)
-                strncpy_omit(job.ppdfile, (char*)arglist->last->data, 256, omit_shellescapes);
+                strncpy_omit(job->ppdfile, (char*)arglist->last->data, 256, omit_shellescapes);
             break;
 
         case SPOOLER_DIRECT:
         case SPOOLER_CPS:
         case SPOOLER_PDQ:
-            init_direct_cps_pdq(arglist, filelist, user_default_path, &job);
+            init_direct_cps_pdq(arglist, filelist, job);
             break;
     }
 
@@ -3332,10 +2464,8 @@ int main(int argc, char** argv)
     p = strtok(filelist->data, " ");
     while (p) {
         if (strcmp(p, "<STDIN>") != 0) {
-            if (p[0] == '-') {
-                _log("Invalid argument: %s", p);
-                exit(EXIT_PRNERR_NORETRY_BAD_SETTINGS);
-            }
+            if (p[0] == '-')
+                rip_die(EXIT_PRNERR_NORETRY_BAD_SETTINGS, "Invalid argument: %s", p);
             else if (access(p, R_OK) != 0) {
                 _log("File %s does not exist/is not readable\n", p);
             strclr(p);
@@ -3370,13 +2500,10 @@ int main(int argc, char** argv)
     /* PPD File */
     /* Load the PPD file and build a data structure for the renderer's
        command line and the options */
-    if (!(ppdfh = fopen(job.ppdfile, "r"))) {
-        _log("error opening %s.\n", job.ppdfile);
-        _log("Unable to open PPD file %s\n", job.ppdfile);
-        exit(EXIT_PRNERR_NORETRY_BAD_SETTINGS);
-    }
+    if (!(ppdfh = fopen(job->ppdfile, "r")))
+        rip_die(EXIT_PRNERR_NORETRY_BAD_SETTINGS, "Unable to open PPD file %s\n", job->ppdfile);
 
-    read_ppd_file(job.ppdfile);
+    read_ppd_file(job->ppdfile);
 
     /* We do not need to parse the PostScript job when we don't have
        any options. If we have options, we must check whether the
@@ -3437,7 +2564,7 @@ int main(int argc, char** argv)
             snprintf(cmd, 1024, "%s | %s", pstoraster, cupsfilter);
 
             /* Set environment variables */
-            setenv("PPD", job.ppdfile, 1);
+            setenv("PPD", job->ppdfile, 1);
         }
     }
 
@@ -3463,14 +2590,14 @@ int main(int argc, char** argv)
          "PPD file: %s\n"
          "ATTR file: %s\n"
          "Printer model: %s\n",
-        spooler_name(spooler), job.printer, get_modern_shell(), job.ppdfile, attrpath, printer_model);
+        spooler_name(spooler), job->printer, get_modern_shell(), job->ppdfile, attrpath, printer_model);
     /* Print the options string only in debug mode, Mac OS X adds very many
        options so that CUPS cannot handle the output of the option string
        in its log files. If CUPS encounters a line with more than 1024 characters
        sent into its log files, it aborts the job with an error.*/
     if (debug || spooler != SPOOLER_CUPS)
-        _log("Options: %s\n", job.optstr->data);
-    _log("Job title: %s\n", job.title);
+        _log("Options: %s\n", job->optstr->data);
+    _log("Job title: %s\n", job->title);
     _log("File(s) to be printed:\n");
     _log("%s\n\n", filelist->data);
     if (getenv("GS_LIB"))
@@ -3490,17 +2617,14 @@ int main(int argc, char** argv)
 
     if (spooler == SPOOLER_PPR_INT) {
         snprintf(tmp, 1024, "interfaces/%s", backend);
-        if (access(tmp, X_OK) != 0) {
-            _log("The backend interface %s/interfaces/%s does not exist/"
-                 "is not executable!\n", cwd, backend);
-            exit(EXIT_PRNERR_NORETRY_BAD_SETTINGS);
-        }
+        if (access(tmp, X_OK) != 0)
+            rip_die(EXIT_PRNERR_NORETRY_BAD_SETTINGS, "The backend interface "
+                    "/interfaces/%s does not exist/ is not executable!\n", backend);
 
         /* foomatic-rip cannot use foomatic-rip as backend */
-        if (!strcmp(backend, "foomatic-rip")) {
-            _log("\"foomatic-rip\" cannot use itself as backend interface!\n");
-            exit(EXIT_PRNERR_NORETRY_BAD_SETTINGS);
-        }
+        if (!strcmp(backend, "foomatic-rip"))
+            rip_die(EXIT_PRNERR_NORETRY_BAD_SETTINGS, "\"foomatic-rip\" cannot "
+                    "use itself as backend interface!\n");
 
         /* Put the backend interface into the postpipe */
         /* TODO
@@ -3586,15 +2710,14 @@ int main(int argc, char** argv)
 
 
     /* Cleanup */
+    free_job(job);
     free_dstr(currentcmd);
     if (genpdqfile && genpdqfile != stdout)
         fclose(genpdqfile);
     free_dstr(filelist);
-    free_dstr(job.optstr);
     options_free();
     if (logh && logh != stderr)
         fclose(logh);
-    free(cwd);
 
     free_dstr(jclprepend);
     free_dstr(jclappend);
@@ -3603,6 +2726,6 @@ int main(int argc, char** argv)
 
     list_free(arglist);
 
-    return retval;
+    return 0;
 }
 

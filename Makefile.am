@@ -49,7 +49,11 @@ foomatic_rip_SOURCES = \
 	spooler.h \
 	spooler.c \
 	process.h \
-	process.c
+	process.c \
+	renderer.c \
+	renderer.h \
+	fileconverter.c \
+	fileconverter.h
 
 
 foomatic_rip_LDADD = $(POPPLER_LIBS)

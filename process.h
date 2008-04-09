@@ -2,11 +2,15 @@
 #ifndef process_h
 #define process_h
 
-int start_process(const char *name, int (*proc_func)(), int *fdin, int *fdout);
-int start_system_process(const char *name, const char *command, int *fdin, int *fdout);
+#include <stdio.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+
+pid_t start_process(const char *name, int (*proc_func)(), void *user_arg, FILE **fdin, FILE **fdout);
+pid_t start_system_process(const char *name, const char *command, FILE **fdin, FILE **fdout);
 
 /* returns command's return status (see waitpid(2)) */
-int run_system_process(const char *command);
+int run_system_process(const char *name, const char *command);
 
 int wait_for_process(int pid);
 

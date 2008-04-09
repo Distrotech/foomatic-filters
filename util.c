@@ -208,6 +208,35 @@ const char * strncpy_tochar(char *dest, const char *src, size_t max, const char 
     return psrc +1;
 }
 
+int find_in_path(const char *progname, const char *paths, char *found_in)
+{
+    char *pathscopy;
+    char *path;
+    char filepath[PATH_MAX];
+
+    if (access(progname, X_OK) == 0)
+        return 1;
+
+    pathscopy = strdup(paths);
+    for (path = strtok(pathscopy, ":"); path; path = strtok(NULL, ":")) {
+        strlcpy(filepath, path, PATH_MAX);
+        strlcat(filepath, "/", PATH_MAX);
+        strlcat(filepath, progname, PATH_MAX);
+
+        if (access(filepath, X_OK) == 0) {
+            if (found_in)
+                strlcpy(found_in, path, PATH_MAX);
+            free(pathscopy);
+            return 1;
+        }
+    }
+
+    if (found_in)
+        found_in[0] = '\0';
+    free(pathscopy);
+    return 0;
+}
+
 void file_basename(char *dest, const char *path, size_t dest_size)
 {
     const char *p = strrchr(path, '/');

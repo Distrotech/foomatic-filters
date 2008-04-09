@@ -1005,6 +1005,89 @@ static choice_t * option_assure_choice(option_t *opt, const char *name)
     return choice;
 }
 
+static void unhtmlify(char *dest, size_t size, const char *src)
+{
+    jobparams_t *job = get_current_job();
+    char *pdest = dest;
+    const char *psrc = src;
+    const char *repl;
+    struct tm *t = localtime(&job->time);
+    char tmpstr[10];
+
+    while (*psrc && pdest - dest < size) {
+
+        if (*psrc == '&') {
+            psrc++;
+            repl = NULL;
+
+            /* Replace HTML/XML entities by the original characters */
+            if (!prefixcmp(psrc, "apos;"))
+                repl = "\'";
+            else if (!prefixcmp(psrc, "quot;"))
+                repl = "\"";
+            else if (!prefixcmp(psrc, "gt;"))
+                repl = ">";
+            else if (!prefixcmp(psrc, "lt;"))
+                repl = "<";
+            else if (!prefixcmp(psrc, "amp;"))
+                repl = "&";
+
+            /* Replace special entities by job->data */
+            else if (!prefixcmp(psrc, "job;"))
+                repl = job->id;
+            else if (!prefixcmp(psrc, "user;"))
+                repl = job->user;
+            else if (!prefixcmp(psrc, "host;"))
+                repl = job->host;
+            else if (!prefixcmp(psrc, "title;"))
+                repl = job->title;
+            else if (!prefixcmp(psrc, "copies;"))
+                repl = job->copies;
+            else if (!prefixcmp(psrc, "options;"))
+                repl = job->optstr->data;
+            else if (!prefixcmp(psrc, "year;")) {
+                sprintf(tmpstr, "%04d", t->tm_year + 1900);
+                repl = tmpstr;
+            }
+            else if (!prefixcmp(psrc, "month;")) {
+                sprintf(tmpstr, "%02d", t->tm_mon + 1);
+                repl = tmpstr;
+            }
+            else if (!prefixcmp(psrc, "date;")) {
+                sprintf(tmpstr, "%02d", t->tm_mday);
+                repl = tmpstr;
+            }
+            else if (!prefixcmp(psrc, "hour;")) {
+                sprintf(tmpstr, "%02d", t->tm_hour);
+                repl = tmpstr;
+            }
+            else if (!prefixcmp(psrc, "min;")) {
+                sprintf(tmpstr, "%02d", t->tm_min);
+                repl = tmpstr;
+            }
+            else if (!prefixcmp(psrc, "sec;")) {
+                sprintf(tmpstr, "%02d", t->tm_sec);
+                repl = tmpstr;
+            }
+
+            if (repl) {
+                strncpy(pdest, repl, size - (pdest - dest));
+                pdest += strlen(repl);
+                psrc = strchr(psrc, ';') +1;
+            }
+            else {
+                psrc = strchr(psrc, ';') +1;
+            }
+        }
+        else {
+            *pdest = *psrc;
+            pdest++;
+            psrc++;
+        }
+    }
+    *pdest = '\0';
+}
+
 void option_set_choice(option_t *opt, const char *name, const char *text,
                        const char *code)
 {
