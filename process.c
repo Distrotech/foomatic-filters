@@ -34,8 +34,7 @@ void add_process(const char *name, int pid, int isgroup)
             return;
         }
     }
-    _log("Didn't think there would be that many child processes... Exiting.\n");
-    exit(EXIT_PRNERR_NORETRY_BAD_SETTINGS);
+    rip_die(EXIT_PRNERR_NORETRY_BAD_SETTINGS, "Didn't think there would be that many child processes... Exiting.\n");
 }
 
 int find_process(int pid)
@@ -88,7 +87,7 @@ static int _start_process(const char *name,
 
     pid = fork();
     if (pid < 0) {
-        _log("Could not fork for process %d\n", name);
+        _log("Could not fork for %s\n", name);
         if (pipe_in) {
             close(pfdin[0]);
             close(pfdin[1]);
@@ -150,14 +149,10 @@ static int _start_process(const char *name,
 
 int exec_command(FILE *in, FILE *out, void *cmd)
 {
-    if (in && dup2(fileno(in), fileno(stdin)) < 0) {
-        _log("%s: Could not dup stdin\n", (const char *)cmd);
-        exit(EXIT_PRNERR_NORETRY_BAD_SETTINGS);
-    }
-    if (out && dup2(fileno(out), fileno(stdout)) < 0) {
-        _log("%s: Could not dup stdout\n", (const char *)cmd);
-        exit(EXIT_PRNERR_NORETRY_BAD_SETTINGS);
-    }
+    if (in && dup2(fileno(in), fileno(stdin)) < 0)
+        rip_die(EXIT_PRNERR_NORETRY_BAD_SETTINGS, "%s: Could not dup stdin\n", (const char *)cmd);
+    if (out && dup2(fileno(out), fileno(stdout)) < 0)
+        rip_die(EXIT_PRNERR_NORETRY_BAD_SETTINGS, "%s: Could not dup stdout\n", (const char *)cmd);
 
     execl(get_modern_shell(), get_modern_shell(), "-c", (const char *)cmd, (char *)NULL);
 
@@ -170,9 +165,9 @@ int start_system_process(const char *name, const char *command, FILE **fdin, FIL
     return _start_process(name, exec_command, (void*)command, fdin, fdout, 1);
 }
 
-int start_process(const char *name, int (*proc_func)(FILE *, FILE *, void *), FILE **fdin, FILE **fdout)
+int start_process(const char *name, int (*proc_func)(FILE *, FILE *, void *), void *user_arg, FILE **fdin, FILE **fdout)
 {
-    return _start_process(name, proc_func, NULL, fdin, fdout, 0);
+    return _start_process(name, proc_func, user_arg, fdin, fdout, 0);
 }
 
 int wait_for_process(int pid)

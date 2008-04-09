@@ -64,6 +64,10 @@ void escapechars(char *dest, size_t size, const char *src, const char *esc_chars
 */
 const char * strncpy_tochar(char *dest, const char *src, size_t max, const char *stopchars);
 
+/* 'paths' is a colon seperated list of paths (like $PATH) 
+ * 'found_in' may be NULL if it is not needed */
+int find_in_path(const char *progname, const char *paths, char *found_in);
+
 /* extracts the base name of 'path', i.e. only the filename, without path or extension */
 void file_basename(char *dest, const char *path, size_t dest_size);
 

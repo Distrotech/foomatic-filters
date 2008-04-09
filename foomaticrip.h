@@ -109,15 +109,22 @@ typedef struct {
 jobparams_t * get_current_job();
 
 void _log(const char* msg, ...);
+int redirect_log_to_stderr();
+void rip_die(int status, const char *msg, ...);
 
 const char * get_modern_shell();
+const char * get_postpipe();
 
 extern struct dstr *currentcmd;
 extern struct dstr *jclappend;
 extern struct dstr *jclprepend;
 extern int jobhasjcl;
 extern const char *accounting_prolog;
-
+extern char fileconverter[PATH_MAX];
+extern char cupsfilterpath[PATH_MAX];
+extern int debug;
+extern int do_docs;
+extern char printer_model[];
 
 #endif
 

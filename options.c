@@ -1033,7 +1033,7 @@ static void unhtmlify(char *dest, size_t size, const char *src)
                 repl = "&";
 
             /* Replace special entities by job->data */
-            else if (!prefixcmp(psrc, "job->"))
+            else if (!prefixcmp(psrc, "job;"))
                 repl = job->id;
             else if (!prefixcmp(psrc, "user;"))
                 repl = job->user;
