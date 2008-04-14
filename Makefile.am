@@ -44,6 +44,8 @@ foomatic_rip_SOURCES = \
 	options.h \
 	pdf.cc \
 	pdf.h \
+	postscript.cc \
+	postscript.h \
 	util.c \
 	util.h \
 	spooler.h \

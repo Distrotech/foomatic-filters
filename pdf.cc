@@ -40,7 +40,7 @@ pid_t rendererpid = 0;
 /*
  * 'filename' must point to a string with a length of at least PATH_MAX
  */
-FILE * create_temp_file(char *filename, FILE *copyfrom)
+FILE * create_temp_file(char *filename, FILE *copyfrom, const char *alreadyread, size_t len)
 {
     int fd;
     FILE *tmpfile;
@@ -56,7 +56,10 @@ FILE * create_temp_file(char *filename, FILE *copyfrom)
     }
     tmpfile = fdopen(fd, "r+");
 
-    while (fread(buf, 1, sizeof(buf), stdin) > 0)
+    if (alreadyread)
+        fwrite(alreadyread, 1, len, tmpfile);
+
+    while (fread(buf, 1, sizeof(buf), copyfrom) > 0)
         fwrite(buf, 1, sizeof(buf), tmpfile);
 
     rewind(tmpfile);
@@ -128,7 +131,7 @@ int render_pages(const char *filename, int firstpage, int lastpage)
 }
 
 extern "C"
-int print_pdf(FILE *s, const char *filename, size_t startpos)
+int print_pdf(FILE *s, const char *alreadyread, size_t len, const char *filename, size_t startpos)
 {
     PDFDoc *doc;
     Object obj;
@@ -141,7 +144,7 @@ int print_pdf(FILE *s, const char *filename, size_t startpos)
     FileStream *stream;
 
     if (s == stdin) {
-        tmpfile = create_temp_file(tmpfilename, stdin);
+        tmpfile = create_temp_file(tmpfilename, stdin, alreadyread, len);
         if (!tmpfile)
             exit(EXIT_PRNERR_NORETRY_BAD_SETTINGS);
         s = tmpfile;

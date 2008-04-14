@@ -1,10 +1,12 @@
 
-#include "options.h"
 #include "foomaticrip.h"
+#include "options.h"
 #include "util.h"
 #include <stdlib.h>
+#include <ctype.h>
 #include <assert.h>
 #include <regex.h>
+#include <string.h>
 
 
 /* Values from foomatic keywords in the ppd file */
@@ -199,6 +201,8 @@ static void free_option(option_t *opt)
         opt->paramlist = opt->paramlist->next;
         free_param(param);
     }
+    if (opt->foomatic_param)
+        free_param(opt->foomatic_param);
 
     free(opt);
 }
@@ -597,13 +601,7 @@ char * paramvalues_to_string(option_t *opt, char **paramvalues)
 
     if (opt->param_count == 1) {
         param = opt->paramlist;
-        /* If this option was set by foomatic, don't append the "Custom.",
-           because the value could be used for the command line (for cups custom
-           options only the ps/jcl command is important */
-        if (!strcmp(param->name, "Custom"))
-            dstrcpy(res, paramvalues[0]);
-        else
-            dstrcpyf(res, "Custom.%s", paramvalues[0]);
+        dstrcpyf(res, "Custom.%s", paramvalues[0]);
     }
     else {
         dstrcpyf(res, "{%s=%s", opt->paramlist->name, paramvalues[0]);
@@ -653,17 +651,17 @@ char * get_valid_value_string(option_t *opt, const char *value)
     if ((choice = option_find_choice(opt, value)))
         return strdup(choice->value);
 
-
     if (opt->type == TYPE_ENUM) {
         if (!strcasecmp(value, "none"))
             return strdup("None");
 
-        /* CUPS assumes that options with the choices "Yes", "No",
-        "On", "Off", "True", or "False" are boolean options and
-        maps "-o Option=On" to "-o Option" and "-o Option=Off"
-        to "-o noOption", which foomatic-rip maps to "0" and "1".
-        So when "0" or "1" is unavailable in the option, we try
-        "Yes", "No", "On", "Off", "True", and "False". */
+        /*
+         * CUPS assumes that options with the choices "Yes", "No", "On", "Off",
+         * "True", or "False" are boolean options and maps "-o Option=On" to
+         * "-o Option" and "-o Option=Off" to "-o noOption", which foomatic-rip
+         * maps to "0" and "1".  So when "0" or "1" is unavailable in the
+         * option, we try "Yes", "No", "On", "Off", "True", and "False". 
+         */
         if (is_true_string(value)) {
             for (choice = opt->choicelist; choice; choice = choice->next) {
                 if (is_true_string(choice->value))
@@ -687,6 +685,8 @@ char * get_valid_value_string(option_t *opt, const char *value)
             return res;
         }
     }
+    else if (opt->foomatic_param)
+        return get_valid_param_string(opt, opt->foomatic_param, value);
 
     return NULL;
 }
@@ -709,14 +709,14 @@ int option_use_foomatic_prototype(option_t *opt)
         return 0;
     if (!opt->custom_command && opt->proto)
         return 1;
-    if (opt->param_count != 1)
-        /* Foomatic prototype can only be used with one parameter */
-        return 0;
 
+    /* TODO we should always take the custom command when it is available */
+#if 0
     param = opt->paramlist;
     if (param->allowedchars || param->allowedregexp)
         /* Foomatic specific extensions, use proto */
         return 1;
+#endif
     return 0;
 }
 
@@ -734,10 +734,10 @@ void build_cups_custom_ps_command(dstr_t *cmd, option_t *opt, const char *values
     int i;
     char **paramvalues = paramvalues_from_string(opt, values);
 
-    for (param = opt->paramlist, i = 0; param; param = param->next, i++) {
+    dstrclear(cmd);
+    for (param = opt->paramlist, i = 0; param; param = param->next, i++)
         dstrcatf(cmd, "%s ", paramvalues[i]);
-    }
-    dstrcpy(cmd, opt->custom_command);
+    dstrcat(cmd, opt->custom_command);
     free_paramvalues(opt, paramvalues);
 }
 
@@ -841,10 +841,10 @@ int option_get_command(dstr_t *cmd, option_t *opt, int optionset, int section)
             build_foomatic_custom_command(cmd, opt, valstr);
         else {
             dstrcpy(cmd, opt->custom_command);
-            if (option_is_ps_command(opt))
+            if (option_get_section(opt) == SECTION_JCLSETUP)
                 build_cups_custom_jcl_command(cmd, opt, valstr);
-            else if (option_is_jcl_arg(opt))
-                build_cups_custom_jcl_command(cmd, opt, valstr);
+            else
+                build_cups_custom_ps_command(cmd, opt, valstr);
         }
     }
 
@@ -1149,8 +1149,10 @@ int param_set_allowed_regexp(param_t *param, const char *value)
 
 void option_set_custom_command(option_t *opt, const char *cmd)
 {
+    size_t len = strlen(cmd) + 50;
     free(opt->custom_command);
-    opt->custom_command = strdup(cmd);
+    opt->custom_command = malloc(len);
+    unhtmlify(opt->custom_command, len, cmd);
 }
 
 param_t * option_add_custom_param_from_string(option_t *opt,
@@ -1220,25 +1222,15 @@ param_t * option_assure_foomatic_param(option_t *opt)
 {
     param_t *param;
 
-    /* If the option has foomatic extensions, it will get exactly one param_t */
-    if (opt->paramlist && !strcmp(opt->paramlist->name, "Custom"))
-        return opt->paramlist;
-
-    /* TODO more error checking */
-
-    while (opt->paramlist) {
-        param = opt->paramlist;
-        opt->paramlist = opt->paramlist->next;
-        free_param(param);
-    }
+    if (opt->foomatic_param)
+        return opt->foomatic_param;
 
     param = calloc(1, sizeof(param_t));
-    strcpy(param->name, "Custom");
+    strcpy(param->name, "foomatic-param");
     param->order = 0;
     param->type = opt->type;
 
-    opt->paramlist = param;
-    opt->param_count = 1;
+    opt->foomatic_param = param;
     return param;
 }
 
@@ -1310,7 +1302,7 @@ void optionset_delete_values(int optionset)
                 val = prev_val ? prev_val->next : opt->valuelist;
                 break;
             } else {
-			    prev_val = val;
+                prev_val = val;
                 val = val->next;
             }
         }
@@ -1335,8 +1327,8 @@ int optionset_equal(int optset1, int optset2, int exceptPS)
         }
         else if (val1 || val2) /* one entry exists --> can't be equal */
             return 0;
-        /* If no extry exists, the non-existing entries are considered as
-           equal */
+        /* If no extry exists, the non-existing entries
+         * are considered as equal */
     }
     return 1;
 }
@@ -1359,7 +1351,7 @@ void read_ppd_file(const char *filename)
     fh = fopen(filename, "r");
     if (!fh) {
         _log("error opening %s\n", filename);
-        exit(EXIT_PRNERR_NORETRY_BAD_SETTINGS); /* TODO remove */
+        exit(EXIT_PRNERR_NORETRY_BAD_SETTINGS);
     }
     _log("Parsing PPD file ...\n");
 
@@ -1368,7 +1360,7 @@ void read_ppd_file(const char *filename)
     while (!feof(fh)) {
         fgets(line, 256, fh);
 
-        if (line[0] != '*') /* line does not start with a keyword */
+        if (line[0] != '*' || startswith(line, "*%"))
             continue;
 
         /* get the key */
@@ -1453,12 +1445,8 @@ void read_ppd_file(const char *filename)
         }
         else if (startswith(key, "Custom") && !strcasecmp(name, "true")) {
             /* Cups custom option: *CustomFoo True: "command" */
-            if (!(p = strchr(key, ' ')))
-                continue;
-            *p = '\0';
             opt = assure_option(&key[6]);
             option_set_custom_command(opt, value->data);
-
             if (!strcmp(key, "CustomPageSize"))
                 option_set_custom_command(assure_option("PageRegion"), value->data);
         }
@@ -1806,5 +1794,108 @@ void append_page_setup_section(dstr_t *str, int optset, int comments)
     /* End comment */
     if (comments)
         dstrcat(str, "%%EndPageSetup\n");
+}
+
+/* Parse a string containing page ranges and either check whether a
+   given page is in the ranges or, if the given page number is zero,
+   determine the score how specific this page range string is.*/
+int parse_page_ranges(const char *ranges, int page)
+{
+    int rangestart = 0;
+    int rangeend = 0;
+    int tmp;
+    int totalscore = 0;
+    int pageinside = 0;
+    char *rangestr;
+    const char *p;
+    const char *rangeend_pos;
+
+    p = ranges;
+    rangeend_pos = ranges;
+    while (*rangeend_pos && (rangeend_pos = strchrnul(rangeend_pos, ','))) {
+
+        if (!prefixcasecmp(p, "even")) {
+            totalscore += 50000;
+            if (page % 2 == 0)
+                pageinside = 1;
+        }
+        else if (!prefixcasecmp(p, "odd")) {
+            totalscore += 50000;
+            if (page % 2 == 1)
+                pageinside = 1;
+        }
+        else if (isdigit(*p)) {
+            rangestart = strtol(p, (char**)&p, 10);
+            if (*p == '-') {
+                p++;
+                if (isdigit(*p)) {  /* Page range is a sequence of pages */
+                    rangeend = strtol(p, NULL, 10);
+                    totalscore += abs(rangeend - rangestart) +1;
+                    if (rangeend < rangestart) {
+                        tmp = rangestart;
+                        rangestart = rangeend;
+                        rangeend = tmp;
+                    }
+                    if (page >= rangestart && page <= rangeend)
+                        pageinside = 1;
+                }
+                else {              /* Page range goes to the end of the document */
+                    totalscore += 100000;
+                    if (page >= rangestart)
+                        pageinside = 1;
+                }
+            }
+            else {                  /* Page range is a single page */
+                totalscore += 1;
+                if (page == rangestart)
+                    pageinside = 1;
+            }
+        }
+        else {  /* Invalid range */
+            rangestr = malloc(rangeend_pos - p +1);
+            strlcpy(rangestr, p, rangeend_pos - p +1);
+            _log("   Invalid range: %s", rangestr);
+            free(rangestr);
+        }
+        rangestart = 0;
+        rangeend = 0;
+    }
+
+    if (page == 0 || pageinside)
+        return totalscore;
+
+    return 0;
+}
+
+/* Set the options for a given page */
+void set_options_for_page(int optset, int page)
+{
+    int score, bestscore;
+    option_t *opt;
+    value_t *val, *bestvalue;
+    const char *ranges;
+    const char *optsetname;
+
+    for (opt = optionlist; opt; opt = opt->next) {
+
+        bestscore = 10000000;
+        bestvalue = NULL;
+        for (val = opt->valuelist; val; val = val->next) {
+
+            optsetname = optionset_name(val->optionset);
+            if (!startswith(optsetname, "pages:"))
+                continue;
+
+            ranges = &optsetname[6]; /* after "pages:" */
+            score = parse_page_ranges(ranges, page);
+            if (score && score < bestscore) {
+                bestscore = score;
+                bestvalue = val;
+            }
+        }
+
+        if (bestvalue)
+            option_set_value(opt, optset, bestvalue->value);
+    }
 }
 
