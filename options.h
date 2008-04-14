@@ -68,11 +68,14 @@ typedef struct option_s {
 
     choice_t *choicelist;
 
-    char *custom_command;       /* *CustomFoo */
+    /* Foomatic PPD extensions */
     char *proto;                /* *FoomaticRIPOptionPrototype: if this is set
                                    it will be used with only the first option
                                    in paramlist (there should be only one) */
+    param_t *foomatic_param;
 
+    /* CUPS custom options */
+    char *custom_command;       /* *CustomFoo */
     param_t *paramlist;         /* for custom values, sorted by stack order */
     size_t param_count;
 
@@ -146,6 +149,8 @@ void append_prolog_section(dstr_t *str, int optset, int comments);
 void append_setup_section(dstr_t *str, int optset, int comments);
 void append_page_setup_section(dstr_t *str, int optset, int comments);
 const char * build_commandline(int optset);
+
+void set_options_for_page(int optset, int page);
 
 #endif
 

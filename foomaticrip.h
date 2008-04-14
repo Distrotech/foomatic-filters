@@ -125,6 +125,7 @@ extern char cupsfilterpath[PATH_MAX];
 extern int debug;
 extern int do_docs;
 extern char printer_model[];
+extern int dontparse;
 
 #endif
 
