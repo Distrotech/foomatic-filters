@@ -484,10 +484,11 @@ char * get_valid_param_string(option_t *opt, param_t *param, const char *str)
                 return NULL;
             }
             if (!isempty(param->max) && len > atoi(param->max)) {
-                _log("Custom value \"%s\" is too long for option \"%s.%s\". Truncating.\n",
-                    str, opt->name, param->name);
                 result = malloc(len +1);
-                snprintf(result, atoi(param->max), "%s", str);
+                snprintf(result, atoi(param->max) +1, "%s", str);
+                _log("Custom value \"%s\" is too long for parameter \"%s\" of "
+                        "option \"%s\". Truncating to \"%s\".\n",
+                        str, param->name, opt->name, result);
                 return result;
             }
             return strdup(str);
@@ -1076,7 +1077,8 @@ static void unhtmlify(char *dest, size_t size, const char *src)
                 psrc = strchr(psrc, ';') +1;
             }
             else {
-                psrc = strchr(psrc, ';') +1;
+                *pdest = '&';
+                pdest++;
             }
         }
         else {

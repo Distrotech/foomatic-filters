@@ -867,16 +867,23 @@ int guess_file_type(const char *begin, size_t len, int *startpos)
         return PS_FILE;
     else if (!memcmp(p, "%PDF-1.", 7))
         return PDF_FILE;
+    *startpos = 0;
     return UNKNOWN_FILE;
 }
 
-int print_file(const char *filename)
+/*
+ * Prints 'filename'. If 'convert' is true, the file will be converted if it is
+ * not postscript or pdf
+ */
+int print_file(const char *filename, int convert)
 {
     FILE *file;
     char buf[8192];
     int type;
     int startpos;
     size_t n;
+    FILE *fchandle = NULL;
+    int fcpid = 0, ret;
 
     if (!strcasecmp(filename, "<STDIN>"))
         file = stdin;
@@ -889,6 +896,7 @@ int print_file(const char *filename)
     }
 
     n = fread(buf, 1, sizeof(buf), file);
+    buf[n] = '\0';
     type = guess_file_type(buf, n, &startpos);
     if (startpos > 0) {
         jobhasjcl = 1;
@@ -904,12 +912,24 @@ int print_file(const char *filename)
             else
                 return print_pdf(file, NULL, 0, filename, startpos);
 
-        case UNKNOWN_FILE: /* print_ps still handles the fileconverter */
         case PS_FILE:
             if (file == stdin)
                 return print_ps(stdin, buf, n, filename);
             else
                 return print_ps(file, NULL, 0, filename);
+
+        case UNKNOWN_FILE:
+            get_fileconverter_handle(buf, &fchandle, &fcpid);
+
+            /* Read further data from the file converter and not from STDIN */
+            if (dup2(fileno(fchandle), fileno(stdin)) < 0)
+                rip_die(EXIT_PRNERR_NORETRY_BAD_SETTINGS, "Couldn't dup fileconverterhandle\n");
+
+            ret = print_file("<STDIN>", 0);
+
+            if (close_fileconverter_handle(fchandle, fcpid) != EXIT_PRINTED)
+                rip_die(ret, "Error closing file converter\n");
+            return ret;
     }
     fclose(file);
     return 1;
@@ -1412,7 +1432,7 @@ int main(int argc, char** argv)
            PostScript file (all before the first page begins). */
         optionset_copy_values(optionset("userval"), optionset("header"));
 
-        print_file(filename);
+        print_file(filename, 1);
         filename = strtok_r(NULL, " ", &p);
     }
 

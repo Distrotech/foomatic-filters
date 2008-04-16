@@ -646,11 +646,18 @@ void dstrfixnewlines(dstr_t *ds)
 
 void dstrremovenewline(dstr_t *ds)
 {
+    if (!ds->len)
+        return;
+
     if (ds->data[ds->len -1] == '\r' || ds->data[ds->len -1] == '\n') {
         ds->data[ds->len -1] = '\0';
         ds->len -= 1;
     }
-    else if (ds->data[ds->len -2] == '\r') {
+
+    if (ds->len < 2)
+        return;
+
+    if (ds->data[ds->len -2] == '\r') {
         ds->data[ds->len -2] = '\0';
         ds->len -= 2;
     }
