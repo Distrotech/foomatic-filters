@@ -10,7 +10,8 @@
 #include "process.h"
 
 
-/* One of these fileconverters is used if the 'textfilter' option in the config file
+/*
+ * One of these fileconverters is used if the 'textfilter' option in the config file
  * is not set. (Except if the spooler is CUPS, then 'texttops' is used
  */
 const char *fileconverters[][2] = {
@@ -33,32 +34,34 @@ void set_fileconverter(const char *fc)
         strlcpy(fileconverter, fc, PATH_MAX);
 }
 
-void guess_fileconverter()
+int guess_fileconverter()
 {
     int i;
     for (i = 0; fileconverters[i][0]; i++) {
         if (find_in_path(fileconverters[i][0], getenv("PATH"), NULL)) {
             strlcpy(fileconverter, fileconverters[i][1], PATH_MAX);
-            return;
+            return 1;
         }
     }
-    strlcpy(fileconverter, "echo \"Cannot convert file to PostScript!\" 1>&2", PATH_MAX);
+    return 0;
 }
 
 /*
  * Replace @@...@@PAGESIZE@@ and @@...@@JOBTITLE@@ with 'pagesize' and
  * 'jobtitle' (if they are are not NULL). Returns a newly malloced string.
  */
-char * fileconverter_from_template(const char *fileconverter, const char
-        *pagesize, const char *jobtitle)
+char * fileconverter_from_template(const char *fileconverter,
+        const char *pagesize, const char *jobtitle)
 {
     char *templstart, *templname;
     const char *last = fileconverter;
     char *res;
+    size_t len;
 
-    res = malloc(strlen(fileconverter) + 
-            pagesize ? strlen(pagesize) : 0 + 
-            jobtitle ? strlen(jobtitle) : 0 +1);
+    len = strlen(fileconverter) +
+            (pagesize ? strlen(pagesize) : 0) + 
+            (jobtitle ? strlen(jobtitle) : 0) +1;
+    res = malloc(len);
     res[0] = '\0';
 
     while ((templstart = strstr(last, "@@"))) {
@@ -87,7 +90,7 @@ char * fileconverter_from_template(const char *fileconverter, const char
         else
             last += strlen(res);
     }
-    strncat(res, last, fileconverter + strlen(fileconverter) - last);
+    strlcat(res, last, len);
 
     return res;
 }
@@ -102,17 +105,19 @@ int exec_kid2(FILE *in, FILE *out, void *user_arg)
      * and stuffing it into the file converter after putting in the already
      * read data (in alreadyread) */
 
+    _log("kid2: writing alreadyread\n");
 
     /* At first pass the data which we already read to the filter */
     fwrite(alreadyread, 1, strlen(alreadyread), out);
 
+    _log("kid2: Then read the rest from standard input\n");
     /* Then read the rest from standard input */
     while ((n = fread(tmp, 1, 1024, stdin)) > 0)
         fwrite(tmp, 1, n, out);
 
+    _log("kid2: Close out and stdin\n");
     fclose(out);
-    if (fclose(stdin) != 0)
-        rip_die(EXIT_PRNERR_NORETRY_BAD_SETTINGS, "kid4: Error closing stdin\n");
+    fclose(stdin);
 
     _log("kid2 finished\n");
     return EXIT_PRINTED;
@@ -195,8 +200,9 @@ void get_fileconverter_handle(const char *alreadyread, FILE **fd, pid_t *pid)
 
     _log("\nStarting converter for non-PostScript files\n");
 
-    if (isempty(fileconverter))
-        guess_fileconverter();
+    if (isempty(fileconverter) && !guess_fileconverter())
+        rip_die(EXIT_PRNERR_NORETRY_BAD_SETTINGS, "Cannot convert file to "
+                "Postscript (missing fileconverter).");
 
     /* Use wider margins so that the pages come out completely on every printer
      * model (especially HP inkjets) */
@@ -217,7 +223,8 @@ void get_fileconverter_handle(const char *alreadyread, FILE **fd, pid_t *pid)
     kid1_userdata.alreadyread = alreadyread;
     kid1 = start_process("kid1", exec_kid1, &kid1_userdata, NULL, &kid1out);
     if (kid1 < 0)
-        rip_die(EXIT_PRNERR_NORETRY_BAD_SETTINGS, "Cannot fork for kid1!\n");
+        rip_die(EXIT_PRNERR_NORETRY_BAD_SETTINGS, "Cannot convert file to "
+                "Postscript (Cannot fork for kid1!)\n");
 
     *fd = kid1out;
     *pid = kid1;
