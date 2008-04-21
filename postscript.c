@@ -403,7 +403,7 @@ void _print_ps(stream_t *stream)
                 }
             }
             else {
-                if (startswith(line->data, "%%")) {
+                if (startswith(line->data, "%")) {
                     if (startswith(line->data, "%%BeginDocument")) {
                         /* Beginning of an embedded document
                         Note that Adobe Acrobat has a bug and so uses
@@ -893,6 +893,13 @@ void _print_ps(stream_t *stream)
                         append_prolog_section(tmp, optset, 0);
                         dstrprepend(line, tmp->data);
                         prologfound = 1;
+                    }
+                    else if (nestinglevel == 0 && (
+                                startswith(line->data, "%RBINumCopies:") ||
+                                startswith(line->data, "%%RBINumCopies:"))) {
+                        p = strchr(line->data, ':') +1;
+                        get_current_job()->rbinumcopies = atoi(p);
+                        _log("Found %RBINumCopies: %d\n", get_current_job()->rbinumcopies);
                     }
                     else if (startswith(ignore_whitespace(line->data), "%") ||
                             startswith(ignore_whitespace(line->data), "$"))

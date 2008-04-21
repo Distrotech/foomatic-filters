@@ -101,6 +101,7 @@ typedef struct {
     char title[128];
     char ppdfile[256];
     char copies[128];
+    int rbinumcopies;
     struct dstr *optstr;
     time_t time;
 } jobparams_t;

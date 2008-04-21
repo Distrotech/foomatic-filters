@@ -1,4 +1,13 @@
 2008-03-17 Lars Uebernickel <larsuebernickel@gmx.de>
+
+	* postscript.c, options.c: New placeholder "&rbinumcopies;" which gets
+	replaced by the value set in the "%RBINumCopies: ..." or
+	"%%RBINumCopies: ..." line in the PostScript input. If the PostScript
+	input does not contain such lines, the number of copies according to
+	the foomatic-rip command line is inserted. Feature request of George
+	Liu from Ricoh.
+
+2008-03-17 Lars Uebernickel <larsuebernickel@gmx.de>
 	* foomaticrip.c, options.c: Moved buildcommandline() and
 	append_*_section() to options.c, where they belong.
 	* foomaticrip.c, spooler.c: Moved some spooler specific stuff to spooler.c
