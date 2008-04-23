@@ -217,8 +217,15 @@ char * extract_next_option(char *str, char **pagerange, char **key, char **value
         while (*p && *p != ':' && *p != '=' && *p != ' ') p++;
     }
 
-    if (*p != ':' && *p != '=') /* no value for this option */
-        return NULL;
+    if (*p != ':' && *p != '=') { /* no value for this option */
+        if (!*p)
+            return NULL;
+        else if (isspace(*p)) {
+            *p = '\0';
+            return p +1;
+        }
+        return p;
+    }
 
     *p++ = '\0'; /* remove the separator sign */
 

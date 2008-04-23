@@ -556,6 +556,7 @@ void _print_ps(stream_t *stream)
 
                             /* Here begins a new page */
                             if (inheader) {
+                                build_commandline(optset);
                                 /* Here we add some stuff which still
                                 belongs into the header */
                                 dstrclear(tmp);
@@ -621,12 +622,6 @@ void _print_ps(stream_t *stream)
                                         o->notfirst = 0;
                                 }
                             }
-                            /* Insert PostScript option settings
-                                (options for section "PageSetup") */
-                            if (isdscjob) {
-                                append_page_setup_section(line, optset, 0);
-                                pagesetupfound = 1;
-                            }
                             /* Now the page header comes, so buffer the data,
                                 because we must perhaps shut down and restart
                                 the renderer */
@@ -646,6 +641,13 @@ void _print_ps(stream_t *stream)
                         inpageheader = 1;
                         postscriptsection = PS_SECTION_PAGESETUP;
                         optionsalsointoheader = (ooo110 && currentpage == 1) ? 1 : 0;
+
+                        /* Insert PostScript option settings
+                           (options for section "PageSetup") */
+                        if (isdscjob) {
+                            append_page_setup_section(line, optset, 0);
+                            pagesetupfound = 1;
+                        }
                     }
                     else if (nestinglevel == 0 && !ignorepageheader &&
                             startswith(line->data, "%%BeginPageSetup")) {
@@ -758,17 +760,21 @@ void _print_ps(stream_t *stream)
                                         dstrcatf(pdest, "%%%%BeginFeature: *%s %s\n", o->name, val);
 
                                     dstrcatf(pdest, "%s\n", tmp->data);
+
+                                    /* We have replaced this option on the FIFO */
+                                    optionreplaced = 1;
                                 }
                                 else {   /* Command line or JCL option */
                                     val = option_get_value(o, optset);
                                     dstrcatf(pdest, "%%%% FoomaticRIPOptionSetting: %s=%s\n",
                                             o->name, val ? val : "");
                                 }
-                                val = option_get_value(o, optset);
-                                _log(" --> Correcting numerical/string option to %s=%s (Command line argument)\n",
-                                    o->name, val ? val : "");
-                                /* We have replaced this option on the FIFO */
-                                optionreplaced = 1;
+
+                                if (optionreplaced) {
+                                    val = option_get_value(o, optset);
+                                    _log(" --> Correcting numerical/string option to %s=%s (Command line argument)\n",
+                                            o->name, val ? val : "");
+                                }
                             }
 
                             /* Mark that we have already found this option */
@@ -965,6 +971,12 @@ void _print_ps(stream_t *stream)
                             ignorepageheader = 1;
                             optionsalsointoheader = 0;
                         }
+                        /* Insert PostScript option settings (options for
+                         * section "PageSetup") */
+                        if (isdscjob || !pagesetupfound) {
+                            append_page_setup_section(line, optset, 1);
+                            pagesetupfound = 1;
+                        }
                     }
                 }
             }
@@ -1123,6 +1135,7 @@ void _print_ps(stream_t *stream)
             _log("Flushing FIFO.\n");
 
         if (inheader) {
+            build_commandline(optset);
             /* No page initialized yet? Copy the "header" option set into the
             "currentpage" option set, so that the renderer will find the
             options settings. */
