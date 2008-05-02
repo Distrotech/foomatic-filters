@@ -33,7 +33,7 @@
 typedef struct choice_s {
     char value [128];
     char text [128];
-    char c1024];
+    char command[1024];
     struct choice_s *next;
 } choice_t;
 

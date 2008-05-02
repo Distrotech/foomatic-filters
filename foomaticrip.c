@@ -258,8 +258,10 @@ void process_cmdline_options()
     int optset;
     char tmp [256];
 
-    nextopt = extract_next_option(job->optstr->data, &pagerange, &key, &value);
-    while (key) {
+    for (nextopt = extract_next_option(job->optstr->data, &pagerange, &key, &value);
+        key;
+        nextopt = extract_next_option(nextopt, &pagerange, &key, &value))
+    {
         if (value)
             _log("Pondering option '%s=%s'\n", key, value);
         else
@@ -284,7 +286,7 @@ void process_cmdline_options()
             optset = optionset(tmp);
 
             opt = find_option(key);
-            if (opt && (option_get_section(opt) != SECTION_ANYSETUP ||
+            if (opt && (option_get_section(opt) != SECTION_ANYSETUP &&
                         option_get_section(opt) != SECTION_PAGESETUP)) {
                 _log("This option (%s) is not a \"PageSetup\" or \"AnySetup\" option, so it cannot be restricted to a page range.\n", key);
                 continue;
@@ -292,7 +294,6 @@ void process_cmdline_options()
         }
         else
             optset = optionset("userval");
-
 
         if (value) {
             /* At first look for the "backend" option to determine the PPR backend to use */
@@ -399,9 +400,6 @@ void process_cmdline_options()
             option_set_value(opt, optset, "1");
         else
             _log("Unknown boolean option \"%s\".\n", key);
-
-        /* get next option */
-        nextopt = extract_next_option(nextopt, &pagerange, &key, &value);
     }
 }
 
@@ -981,10 +979,20 @@ int main(int argc, char** argv)
     FILE *ppdfh = NULL;
     char tmp[1024], pstoraster[256];
     int havefilter, havepstoraster;
-    dstr_t *filelist = create_dstr();
+    dstr_t *filelist;
+    list_t * arglist;
 
-    list_t * arglist = list_create_from_array(argc -1, (void**)&argv[1]);
+    arglist = list_create_from_array(argc -1, (void**)&argv[1]);
 
+    if (arglist_find(arglist, "--version") || arglist_find(arglist, "--help") ||
+                arglist_find(arglist, "-v") || arglist_find(arglist, "-h")) {
+        printf("foomatic rip version "VERSION"\n");
+        printf("\"man foomatic-rip\" for help.\n");
+        list_free(arglist);
+        return 0;
+    }
+
+    filelist = create_dstr();
     job = create_job();
 
     currentcmd = create_dstr();
@@ -1025,7 +1033,7 @@ int main(int argc, char** argv)
         first which spooler is used. When printing without spooler we
         suppress logging because foomatic-rip is called directly on the
         command line and so we avoid logging onto the console. */
-        _log("foomatic-rip version "RIP_VERSION" running...\n");
+        _log("foomatic-rip version "VERSION" running...\n");
 
         /* Print the command line only in debug mode, Mac OS X adds very many
         options so that CUPS cannot handle the output of the command line
@@ -1237,7 +1245,7 @@ int main(int argc, char** argv)
 
     /* If we are in debug mode, we do this earlier. */
     if (!debug) {
-        _log("foomatic-rip version " RIP_VERSION " running...\n");
+        _log("foomatic-rip version " VERSION " running...\n");
         /* Print the command line only in debug mode, Mac OS X adds very many
         options so that CUPS cannot handle the output of the command line
         in its log files. If CUPS encounters a line with more than 1024

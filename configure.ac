@@ -2,9 +2,11 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ(2.61)
-AC_INIT(foomatic-rip, 4.0)
-AM_INIT_AUTOMAKE
+AC_INIT(foomatic-rip, "4.0.0")
+AM_INIT_AUTOMAKE([no-define])
 AC_CONFIG_SRCDIR([options.c])
+
+AC_DEFINE_UNQUOTED(VERSION, "`cat VERSION 2> /dev/null`.`bzr revno 2> /dev/null`")
 
 # If the user didn't specify the $sysconfdir on the command line, let it
 # be /etc, not /usr/local/etc or /usr/etc

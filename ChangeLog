@@ -1,4 +1,11 @@
-2008-03-17 Lars Uebernickel <larsuebernickel@gmx.de>
+2008-04-23 Lars Uebernickel <larsuebernickel@gmx.de>
+
+	* foomatic-rip.c, configure.ac: Compose the current version out of the
+	contents of VERSION and `bzr revno`. It is now possible to find out
+	foomatic-rip's version by calling it with one of "--version", "-v",
+	"--help", or "-h".
+
+2008-04-22 Lars Uebernickel <larsuebernickel@gmx.de>
 
 	* foomatic-rip.c, options.c: Fixed a bug in option parsing (some
 	  options were not read correctly).
@@ -7,7 +14,7 @@
 	  PostScript input file really be inserted in and not before the
 	  "PageSetup" sections.
 
-2008-03-17 Lars Uebernickel <larsuebernickel@gmx.de>
+2008-04-21 Lars Uebernickel <larsuebernickel@gmx.de>
 
 	* postscript.c, options.c: New placeholder "&rbinumcopies;" which gets
 	replaced by the value set in the "%RBINumCopies: ..." or
