@@ -82,9 +82,8 @@ AC_PATH_DIR(PPR_INTERFACES,ppr/interfaces,/usr/lib/ppr/interfaces,$LIBSEARCHPATH
 # Check for /usr/lib/ppr/lib
 AC_PATH_DIR(PPR_LIB,ppr/lib,/usr/lib/ppr/lib,$LIBSEARCHPATH)
 
-
-# Check for poppler
-PKG_CHECK_MODULES(POPPLER, poppler)
+AC_CHECK_HEADERS([ghostscript/ierrors.h, ghostscript/iapi.h])
+AC_CHECK_LIB(gs, gsapi_new_instance)
 
 AC_ARG_ENABLE(file-converter-check, [  --enable-file-converter-check  check whether a file converter is installed [default=yes]],
 [if eval "test x${enableval} = xno"; then

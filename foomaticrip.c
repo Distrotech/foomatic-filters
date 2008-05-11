@@ -912,18 +912,21 @@ int print_file(const char *filename, int convert)
 
     switch (type) {
         case PDF_FILE:
+            _log("Filetype: PDF\n");
             if (file == stdin)
                 return print_pdf(stdin, buf, n, filename, startpos);
             else
                 return print_pdf(file, NULL, 0, filename, startpos);
 
         case PS_FILE:
+            _log("Filetype: PostScript\n");
             if (file == stdin)
                 return print_ps(stdin, buf, n, filename);
             else
                 return print_ps(file, NULL, 0, filename);
 
         case UNKNOWN_FILE:
+            _log("Filetype unknown, trying to convert ...\n");
             get_fileconverter_handle(buf, &fchandle, &fcpid);
 
             /* Read further data from the file converter and not from STDIN */
@@ -984,8 +987,8 @@ int main(int argc, char** argv)
 
     arglist = list_create_from_array(argc -1, (void**)&argv[1]);
 
-    if (arglist_find(arglist, "--version") || arglist_find(arglist, "--help") ||
-                arglist_find(arglist, "-v") || arglist_find(arglist, "-h")) {
+    if (argc == 2 && (arglist_find(arglist, "--version") || arglist_find(arglist, "--help") ||
+                arglist_find(arglist, "-v") || arglist_find(arglist, "-h"))) {
         printf("foomatic rip version "VERSION"\n");
         printf("\"man foomatic-rip\" for help.\n");
         list_free(arglist);

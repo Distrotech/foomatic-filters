@@ -1,19 +1,83 @@
 
-extern "C" {
 #include "foomaticrip.h"
 #include "util.h"
 #include "options.h"
 #include "process.h"
-}
 
+#include <stdlib.h>
 #include <ctype.h>
 #include <sys/wait.h>
 #include <unistd.h>
-#include <Object.h>
-#include <PDFDoc.h>
-#include <Page.h>
-#include <Stream.h>
 #include <errno.h>
+
+#include <ghostscript/iapi.h>
+#include <ghostscript/ierrors.h>
+
+
+const char *pagecountcode = 
+    "/pdffile (%s) (r) file def\n"
+    "pdfdict begin\n"
+    "pdffile pdfopen begin\n"
+    "(PageCount: ) print\n"
+    "pdfpagecount == flush\n"   /* 'flush' makes sure that gs_stdout is called
+                                   before gsapi_run_string returns */
+    "currentdict pdfclose\n"
+    "end end\n";
+
+char gsout [256];
+
+int gs_stdout(void *instance, const char *str, int len)
+{
+    int last;
+    if (isempty(gsout)) {
+        last = len < 256 ? len : 255;
+        strncpy(gsout, str, last +1);
+        gsout[last] = '\0';
+    }
+    return len; /* ignore everything after the first few chars */
+}
+
+int gs_stderr(void *instance, const char *str, int len)
+{
+    char *buf = malloc(len +1);
+    strncpy(buf, str, len);
+    buf[len] = '\0';
+    _log("%s", buf);
+    free(buf);
+    return len;
+}
+
+static int pdf_count_pages(const char *filename)
+{
+    void *minst;
+    int gsargc = 3;
+    char *gsargv[] = { "", "-dNODISPLAY", "-q" };
+    int pagecount;
+    int exit_code;
+    char code[2048];
+
+    if (gsapi_new_instance(&minst, NULL) < 0) {
+        _log("Could not create ghostscript instance\n");
+        return -1;
+    }
+    gsapi_set_stdio(minst, NULL, gs_stdout, gs_stderr);
+    if (gsapi_init_with_args(minst, gsargc, gsargv) < 0) {
+        _log("Could not init ghostscript\n");
+        gsapi_exit(minst);
+        gsapi_delete_instance(minst);
+        return -1;
+    }
+
+    snprintf(code, 2048, pagecountcode, filename);
+    if (gsapi_run_string(minst, code, 0, &exit_code) == 0) {
+        if (sscanf(gsout, "PageCount: %d", &pagecount) < 1)
+            pagecount = -1;
+    }
+
+    gsapi_exit(minst);
+    gsapi_delete_instance(minst);
+    return pagecount;
+}
 
 void extract_command(size_t *start, size_t *end, const char *cmdline, const char *cmd)
 {
@@ -130,54 +194,28 @@ int render_pages(const char *filename, int firstpage, int lastpage)
     free_dstr(cmd);
 }
 
-extern "C"
 int print_pdf(FILE *s, const char *alreadyread, size_t len, const char *filename, size_t startpos)
 {
-    PDFDoc *doc;
-    Object obj;
     int page_count, i;
-    Catalog *cat;
-    Page *page;
     char tmpfilename[PATH_MAX];
-    FILE *tmpfile;
     int firstpage;
-    FileStream *stream;
 
-    if (s == stdin) {
-        tmpfile = create_temp_file(tmpfilename, stdin, alreadyread, len);
-        if (!tmpfile)
-            exit(EXIT_PRNERR_NORETRY_BAD_SETTINGS);
-        s = tmpfile;
-    }
-
-    obj.initNull();
-    stream = new FileStream(s, startpos, gFalse, 0, &obj);
-
-    doc = new PDFDoc(stream);
-    if (!doc->isOk()) {
-        printf("Could not load pdf.\n");
+    page_count = pdf_count_pages(filename);
+    if (page_count <= 0)
         return 1;
-    }
-
-    page_count = doc->getNumPages();
-    cat = doc->getCatalog();
-    if (!cat)
-        return 1;
+    _log("File contains %d pages\n", page_count);
 
     optionset_copy_values(optionset("default"), optionset("currentpage"));
     optionset_copy_values(optionset("currentpage"), optionset("previouspage"));
     firstpage = 1;
     for (i = 1; i <= page_count; i++) {
-        page = cat->getPage(i);
-
+        set_options_for_page(optionset("currentpage"), i);
         if (!optionset_equal(optionset("currentpage"), optionset("previouspage"), 1)) {
             render_pages(filename, firstpage, i);
             firstpage = i;
         }
-
         optionset_copy_values(optionset("currentpage"), optionset("previouspage"));
     }
-
     render_pages(filename, firstpage, page_count);
     wait_for_renderer();
 }

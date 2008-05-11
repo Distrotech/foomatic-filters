@@ -34,7 +34,6 @@ BINFILES=beh
 #DESTDIR=
 
 bin_PROGRAMS = foomatic-rip
-INCLUDES=$(POPPLER_CFLAGS)
 
 foomatic_ripdir = .
 foomatic_rip_SOURCES = \
@@ -42,7 +41,7 @@ foomatic_rip_SOURCES = \
 	foomaticrip.h \
 	options.c \
 	options.h \
-	pdf.cc \
+	pdf.c \
 	pdf.h \
 	postscript.cc \
 	postscript.h \
@@ -57,8 +56,6 @@ foomatic_rip_SOURCES = \
 	fileconverter.c \
 	fileconverter.h
 
-
-foomatic_rip_LDADD = $(POPPLER_LIBS)
 
 # Masks for trash files which have to be removed before packaging Foomatic
 TRASHFILES="*~" "*\#*" ".??*" "*.rej"
@@ -99,6 +96,7 @@ install-man:
 
 # Clean up the source directory
 clean:	remove-trash
+	rm -f *.o foomatic-rip
 	rm -f .testing-stamp
 	rm -f test/*.out
 
