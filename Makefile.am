@@ -43,7 +43,7 @@ foomatic_rip_SOURCES = \
 	options.h \
 	pdf.c \
 	pdf.h \
-	postscript.cc \
+	postscript.c \
 	postscript.h \
 	util.c \
 	util.h \
@@ -104,6 +104,7 @@ distclean:	clean
 	rm -f $(AC_OUTPUT_FILES) config.log config.status config.cache configure.lineno
 	rm -rf autom*.cache confdefs.h
 	rm -f tests/Makefile
+	rm -rf .deps
 
 maintainer-clean:	distclean
 	rm -f configure aclocal.m4
