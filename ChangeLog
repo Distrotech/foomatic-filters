@@ -1,3 +1,32 @@
+2008-05-11 Lars Uebernickel <larsuebernickel@gmx.de>
+	* pdf backend: removed poppler dependency, process pdfs with libgs
+	now. Changed the buildsystem to reflect this.
+
+2008-04-23 Lars Uebernickel <larsuebernickel@gmx.de>
+
+	* foomatic-rip.c, configure.ac: Compose the current version out of the
+	contents of VERSION and `bzr revno`. It is now possible to find out
+	foomatic-rip's version by calling it with one of "--version", "-v",
+	"--help", or "-h".
+
+2008-04-22 Lars Uebernickel <larsuebernickel@gmx.de>
+
+	* foomatic-rip.c, options.c: Fixed a bug in option parsing (some
+	  options were not read correctly).
+
+	  Let option settings for the "PageSetup" sections of the
+	  PostScript input file really be inserted in and not before the
+	  "PageSetup" sections.
+
+2008-04-21 Lars Uebernickel <larsuebernickel@gmx.de>
+
+	* postscript.c, options.c: New placeholder "&rbinumcopies;" which gets
+	replaced by the value set in the "%RBINumCopies: ..." or
+	"%%RBINumCopies: ..." line in the PostScript input. If the PostScript
+	input does not contain such lines, the number of copies according to
+	the foomatic-rip command line is inserted. Feature request of George
+	Liu from Ricoh.
+
 2008-03-17 Lars Uebernickel <larsuebernickel@gmx.de>
 	* foomaticrip.c, options.c: Moved buildcommandline() and
 	append_*_section() to options.c, where they belong.

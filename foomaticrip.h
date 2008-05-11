@@ -9,8 +9,6 @@
 #include <stddef.h>
 #include <time.h>
 
-#define RIP_VERSION "4.0"
-
 /* Location of the configuration file "filter.conf" this file can be
  * used to change the settings of foomatic-rip without editing
  * foomatic-rip. itself. This variable must contain the full pathname
@@ -101,6 +99,7 @@ typedef struct {
     char title[128];
     char ppdfile[256];
     char copies[128];
+    int rbinumcopies;
     struct dstr *optstr;
     time_t time;
 } jobparams_t;

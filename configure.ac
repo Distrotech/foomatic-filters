@@ -2,9 +2,11 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ(2.61)
-AC_INIT(foomatic-rip, 4.0)
-AM_INIT_AUTOMAKE
+AC_INIT(foomatic-rip, "4.0.0")
+AM_INIT_AUTOMAKE([no-define])
 AC_CONFIG_SRCDIR([options.c])
+
+AC_DEFINE_UNQUOTED(VERSION, "`cat VERSION 2> /dev/null`.`bzr revno 2> /dev/null`")
 
 # If the user didn't specify the $sysconfdir on the command line, let it
 # be /etc, not /usr/local/etc or /usr/etc
@@ -80,9 +82,8 @@ AC_PATH_DIR(PPR_INTERFACES,ppr/interfaces,/usr/lib/ppr/interfaces,$LIBSEARCHPATH
 # Check for /usr/lib/ppr/lib
 AC_PATH_DIR(PPR_LIB,ppr/lib,/usr/lib/ppr/lib,$LIBSEARCHPATH)
 
-
-# Check for poppler
-PKG_CHECK_MODULES(POPPLER, poppler)
+AC_CHECK_HEADERS([ghostscript/ierrors.h, ghostscript/iapi.h])
+AC_CHECK_LIB(gs, gsapi_new_instance)
 
 AC_ARG_ENABLE(file-converter-check, [  --enable-file-converter-check  check whether a file converter is installed [default=yes]],
 [if eval "test x${enableval} = xno"; then

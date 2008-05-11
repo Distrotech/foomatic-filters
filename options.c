@@ -1044,6 +1044,14 @@ static void unhtmlify(char *dest, size_t size, const char *src)
                 repl = job->title;
             else if (!prefixcmp(psrc, "copies;"))
                 repl = job->copies;
+            else if (!prefixcmp(psrc, "rbinumcopies;")) {
+                if (job->rbinumcopies > 0) {
+                    snprintf(tmpstr, 10, "%d", job->rbinumcopies);
+                    repl = tmpstr;
+                }
+                else
+                    repl = job->copies;
+            }
             else if (!prefixcmp(psrc, "options;"))
                 repl = job->optstr->data;
             else if (!prefixcmp(psrc, "year;")) {
@@ -1108,7 +1116,7 @@ void option_set_choice(option_t *opt, const char *name, const char *text,
         strlcpy(choice->text, text, 128);
 
     if (code && !startswith(code, "%% FoomaticRIPOptionSetting"))
-        unhtmlify(choice->command, 256, code);
+        unhtmlify(choice->command, 1024, code);
 }
 
 
