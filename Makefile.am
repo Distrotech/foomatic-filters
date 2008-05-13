@@ -27,9 +27,6 @@ PPR=@PPR@
 PPR_INTERFACES=@PPR_INTERFACES@
 PPR_LIB=@PPR_LIB@
 
-# User programs and helper programs
-BINFILES=beh
-
 # This is mainly useful for building a binary foomatic package
 #DESTDIR=
 

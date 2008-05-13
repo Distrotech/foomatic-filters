@@ -61,6 +61,13 @@ if test x$uname = xIRIX; then
   LIBSEARCHPATH="/usr/freeware/lib32:/usr/freeware/lib:$LIBSEARCHPATH"
 fi
 
+dnl Check for Perl
+AC_PATH_PROG(PERL,perl)
+
+if test -z "$PERL"; then
+	AC_MSG_ERROR([Perl 5 is required to build and run]);
+fi
+
 # Check for /etc/printcap
 AC_PATH_DIR(PRINTCAP,printcap,/etc/printcap,$ETCSEARCHPATH)
 
@@ -82,7 +89,7 @@ AC_PATH_DIR(PPR_INTERFACES,ppr/interfaces,/usr/lib/ppr/interfaces,$LIBSEARCHPATH
 # Check for /usr/lib/ppr/lib
 AC_PATH_DIR(PPR_LIB,ppr/lib,/usr/lib/ppr/lib,$LIBSEARCHPATH)
 
-AC_CHECK_HEADERS([ghostscript/ierrors.h, ghostscript/iapi.h])
+AC_CHECK_HEADERS([ghostscript/ierrors.h ghostscript/iapi.h])
 AC_CHECK_LIB(gs, gsapi_new_instance)
 
 AC_ARG_ENABLE(file-converter-check, [  --enable-file-converter-check  check whether a file converter is installed [default=yes]],
