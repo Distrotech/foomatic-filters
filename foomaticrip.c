@@ -1180,7 +1180,7 @@ int main(int argc, char** argv)
 
     /* Printer for spooler-less printing, PDQ, or LPRng */
     if ((str = arglist_get_value(arglist, "-P"))) {
-        strncpy_omit(job->printer, argv[i +1], 256, omit_shellescapes);
+        strncpy_omit(job->printer, str, 256, omit_shellescapes);
         arglist_remove(arglist, "-P");
     }
 
