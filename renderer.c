@@ -52,9 +52,9 @@ void massage_gs_commandline(dstr_t *cmd)
        will be on 2(stderr) and job ps program interpreter output on
        1(stdout). */
     if (gswithoutputredirection)
-        dstrreplace(cmd, "-sOutputFile=- ", "-sOutputFile=%stdout");
+        dstrreplace(cmd, "-sOutputFile=- ", "-sOutputFile=%stdout ");
     else
-        dstrreplace(cmd, "-sOutputFile=- ", "-sOutputFile=/dev/fd/3");
+        dstrreplace(cmd, "-sOutputFile=- ", "-sOutputFile=/dev/fd/3 ");
 
     /* Use always buffered input. This works around a Ghostscript
        bug which prevents printing encrypted PDF files with Adobe
