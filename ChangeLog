@@ -1,3 +1,9 @@
+2007-06-13  Till Kamppeter <till.kamppeter@gmail.com>
+
+	* renderer.c: When replacing elements of the Ghostscript command line,
+	  do not remove the spaces between the items. This made printing with
+	  the new foomatic-rip not working in general for most cases.
+
 2008-05-11 Lars Uebernickel <larsuebernickel@gmx.de>
 	* pdf backend: removed poppler dependency, process pdfs with libgs
 	now. Changed the buildsystem to reflect this.
