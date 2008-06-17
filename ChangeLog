@@ -1,3 +1,7 @@
+2008-05-11 Lars Uebernickel <larsuebernickel@gmx.de>
+	* options.c, postscript.c: fixed bug #138 (foomatic-rip does not
+	always insert the code pieces of the members of composite options)
+
 2007-06-13  Till Kamppeter <till.kamppeter@gmail.com>
 
 	* renderer.c: When replacing elements of the Ghostscript command line,
