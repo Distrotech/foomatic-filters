@@ -320,7 +320,7 @@ int option_has_name(option_t *opt, const char *name)
 
 int option_is_composite(option_t *opt)
 {
-    return opt->style == 'X';
+    return opt ? (opt->style == 'X') : 0;
 }
 
 int option_is_ps_command(option_t *opt)
@@ -631,12 +631,8 @@ char * get_valid_value_string(option_t *opt, const char *value)
     if (!value)
         return NULL;
 
-    if (startswith(value, "From")) {
-        if (find_option(&value[4]))
-            return strdup(value);
-        else
-            _log("Could not find composite option \"%s\" (required to set option \"%s\".\n", &value[4], opt->name);
-    }
+    if (startswith(value, "From") && option_is_composite(find_option(&value[4])))
+        return strdup(value);
 
     if (opt->type == TYPE_BOOL) {
         if (is_true_string(value))
@@ -903,16 +899,12 @@ int option_set_value(option_t *opt, int optionset, const char *value)
     free(val->value);
     val->value = NULL;
 
-    if (startswith(newvalue, "From")) {
-        fromopt = find_option(&newvalue[4]);
-        if (!fromopt) {
-            _log("Could not find composite option \"%s\" (required to "
-                 "set option \"%s\".\n", &newvalue[4], opt->name);
-            return 0;
-        }
+    if (startswith(newvalue, "From") && (fromopt = find_option(&newvalue[4])) &&
+                option_is_composite(fromopt)) {
         /* TODO only set the changed option, not all of them */
         choice = option_find_choice(fromopt, 
                                     option_get_value(fromopt, optionset));
+
         composite_set_values(fromopt, optionset, choice->command);
     }
     else {

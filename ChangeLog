@@ -1,6 +1,12 @@
-2008-05-11 Lars Uebernickel <larsuebernickel@gmx.de>
+2008-06-17 Lars Uebernickel <larsuebernickel@gmx.de>
+	* options.c: Allow choices starting with "From". Even if they do not
+	  point to a valid composite option.
+	* renderer.c: Parse more complex command lines correctly when looking
+	  for the "gs" executable
+
+2008-06-17 Lars Uebernickel <larsuebernickel@gmx.de>
 	* options.c, postscript.c: fixed bug #138 (foomatic-rip does not
-	always insert the code pieces of the members of composite options)
+	  always insert the code pieces of the members of composite options)
 
 2007-06-13  Till Kamppeter <till.kamppeter@gmail.com>
 

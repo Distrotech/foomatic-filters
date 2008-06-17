@@ -342,6 +342,26 @@ void unhexify(char *dest, size_t size, const char *src)
     *pdest = '\0';
 }
 
+void extract_command(size_t *start, size_t *end, const char *cmdline, const char *cmd)
+{
+    char *copy = strdup(cmdline);
+    char *tok = NULL;
+    const char *delim = "|;";
+
+    *start = *end = 0;
+    for (tok = strtok(copy, delim); tok; tok = strtok(NULL, delim)) {
+        while (*tok && isspace(*tok))
+            tok++;
+        if (startswith(tok, cmd)) {
+            *start = tok - copy;
+            *end = tok + strlen(tok) - copy;
+            break;
+        }
+    }
+
+    free(copy);
+}
+
 /*
  * Dynamic strings
  */

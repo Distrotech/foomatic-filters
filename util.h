@@ -88,6 +88,7 @@ int line_start(const char *str, int line_number);
    by the actual characters ex: "<0A>" --> chr(hex("0A")) */
 void unhexify(char *dest, size_t size, const char *src);
 
+void extract_command(size_t *start, size_t *end, const char *cmdline, const char *cmd);
 
 /* Dynamic string */
 typedef struct dstr {
