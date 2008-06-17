@@ -395,6 +395,7 @@ static param_t * option_find_param_index(option_t *opt, const char *name, int *i
 static choice_t * option_find_choice(option_t *opt, const char *name)
 {
     choice_t *choice;
+    assert(opt && name);   
     for (choice = opt->choicelist; choice; choice = choice->next) {
         if (!strcasecmp(choice->value, name))
             return choice;
@@ -893,13 +894,30 @@ int option_set_value(option_t *opt, int optionset, const char *value)
     value_t *val = option_assure_value(opt, optionset);
     char *newvalue;
     choice_t *choice;
+    option_t *fromopt;
 
     newvalue = get_valid_value_string(opt, value);
     if (!newvalue)
         return 0;
 
     free(val->value);
-    val->value = newvalue;
+    val->value = NULL;
+
+    if (startswith(newvalue, "From")) {
+        fromopt = find_option(&newvalue[4]);
+        if (!fromopt) {
+            _log("Could not find composite option \"%s\" (required to "
+                 "set option \"%s\".\n", &newvalue[4], opt->name);
+            return 0;
+        }
+        /* TODO only set the changed option, not all of them */
+        choice = option_find_choice(fromopt, 
+                                    option_get_value(fromopt, optionset));
+        composite_set_values(fromopt, optionset, choice->command);
+    }
+    else {
+        val->value = newvalue;
+    }
 
     if (option_is_composite(opt)) {
         /* set dependent values */
@@ -1631,6 +1649,8 @@ const char * build_commandline(int optset)
 
 
     for (opt = optionlist_sorted_by_order; opt; opt = opt->next_by_order) {
+        /* composite options have no direct influence, and all their dependents
+           have already been set */
         if (option_is_composite(opt))
             continue;
 
