@@ -41,9 +41,11 @@ int test_gs_output_redirection()
 void massage_gs_commandline(dstr_t *cmd)
 {
     int gswithoutputredirection = test_gs_output_redirection();
+    int start, end;
+    
+    extract_command(&start, &end, cmd->data, "gs");
 
-    /* TODO Handle commandlines in which the 'gs' command is part of a pipe */
-    if (!startswith(cmd->data, "gs"))
+    if (start == end) /* cmd doesn't call ghostscript */
         return;
 
     /* If Ghostscript does not support redirecting the standard output
@@ -64,7 +66,7 @@ void massage_gs_commandline(dstr_t *cmd)
     dstrreplace(cmd, " /dev/fd/0 ", " -_ ");
 
     /* Turn *off* -q (quiet!); now that stderr is useful! :) */
-    dstrreplace(cmd, " -q ", "");
+    dstrreplace(cmd, " -q ", " ");
 
     /* Escape any quotes, and then quote everything just to be sure...
        Escaping a single quote inside single quotes is a bit complex as the shell
@@ -74,12 +76,13 @@ void massage_gs_commandline(dstr_t *cmd)
     /* dstrreplace(cmd, "'", "'\"'\"'"); TODO tbd */
 
 
-    dstrremove(cmd, 0, 2);     /* Remove 'gs' */
+    dstrremove(cmd, start, 2);     /* Remove 'gs' */
     if (gswithoutputredirection)
-        dstrprepend(cmd, " -sstdout=%stderr ");
-    else
-        dstrcat(cmd, " 3>&1 1>&2");
-    dstrprepend(cmd, GS_PATH);
+        dstrinsert(cmd, start, GS_PATH" -sstdout=%stderr ");
+    else {
+        dstrinsert(cmd, start, GS_PATH);
+        dstrinsert(cmd, end, " 3>&1 1>&2");
+    }
 
     /* If the renderer command line contains the "echo" command, replace the
      * "echo" by the user-chosen $myecho (important for non-GNU systems where
