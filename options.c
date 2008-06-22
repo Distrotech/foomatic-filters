@@ -748,7 +748,7 @@ void build_cups_custom_jcl_command(dstr_t *cmd, option_t *opt, const char *value
 
     dstrcpy(cmd, opt->custom_command);
     for (param = opt->paramlist, i = 0; param; param = param->next, i++) {
-        snprintf(orderstr, 8, "\\%d", param->order);
+        snprintf(orderstr, 8, "\\%lf", param->order);
         dstrreplace(cmd, orderstr, paramvalues[i]);
     }
     free_paramvalues(opt, paramvalues);
@@ -946,7 +946,7 @@ int option_type(option_t *opt)
     return opt->type;
 }
 
-void option_set_order(option_t *opt, int order)
+void option_set_order(option_t *opt, double order)
 {
     option_t *prev;
 
@@ -982,9 +982,10 @@ void option_set_order(option_t *opt, int order)
 void option_set_from_string(option_t *opt, const char *str)
 {
     char type[32], style[32];
-    int order, matches;
+    double order;
+    int matches;
 
-    matches = sscanf(str, "%31s %31s %c %d", type, style, &opt->spot, &order);
+    matches = sscanf(str, "%31s %31s %c %lf", type, style, &opt->spot, &order);
     if (matches < 3) {
         _log("Can't read the value of *FoomaticRIPOption for \"%s\"", opt->name);
         return;
@@ -1363,7 +1364,7 @@ void read_ppd_file(const char *filename)
     char *p;
     char key[128], name[64], text[64];
     dstr_t *value = create_dstr(); /* value can span multiple lines */
-    int order;
+    double order;
     value_t *val;
     option_t *opt, *current_opt = NULL;
     param_t *param;
@@ -1531,7 +1532,7 @@ void read_ppd_file(const char *filename)
         else if (!strcmp(key, "OrderDependency")) {
             /* OrderDependency: <order> <section> *<option> */
             /* use 'text' to read <section> */
-            sscanf(value->data, "%d %63s *%63s", &order, text, name);
+            sscanf(value->data, "%lf %63s *%63s", &order, text, name);
             opt = assure_option(name);
             opt->section = section_from_string(text);
             option_set_order(opt, order);
