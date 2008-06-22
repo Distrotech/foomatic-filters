@@ -1006,6 +1006,8 @@ int main(int argc, char** argv)
     options_init();
 
     signal(SIGTERM, signal_terminate);
+    signal(SIGKILL, signal_terminate);
+    signal(SIGINT, signal_terminate);
 
 
     config_from_file(CONFIG_PATH "/filter.conf");
