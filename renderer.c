@@ -41,7 +41,7 @@ int test_gs_output_redirection()
 void massage_gs_commandline(dstr_t *cmd)
 {
     int gswithoutputredirection = test_gs_output_redirection();
-    int start, end;
+    size_t start, end;
     
     extract_command(&start, &end, cmd->data, "gs");
 

@@ -61,7 +61,7 @@ typedef struct option_s {
     int type;
     int style;
     char spot;
-    int order;
+    double order;
     int section;
 
     int notfirst;               /* TODO remove */
