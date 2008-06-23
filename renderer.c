@@ -24,7 +24,7 @@ int test_gs_output_redirection()
         return 0;
     }
 
-    fread(output, 1, 1024, pd);
+    fread(output, 1, 10, pd);
     pclose(pd);
 
     if (startswith(output, "hello"))

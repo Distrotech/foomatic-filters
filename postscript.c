@@ -2,8 +2,13 @@
 #include "foomaticrip.h"
 #include "util.h"
 #include "options.h"
+#include "fileconverter.h"
+#include "renderer.h"
 
 #include <errno.h>
+#include <unistd.h>
+#include <ctype.h>
+#include <stdlib.h>
 
 #define LT_BEGIN_FEATURE 1
 #define LT_FOOMATIC_RIP_OPTION_SETTING 2
@@ -367,7 +372,7 @@ void _print_ps(stream_t *stream)
                             rip_die(EXIT_JOBERR, "File conversion filter probably crashed\n");
 
                         /* Read the further data from the file converter and not from STDIN */
-                        if (close() == -1 && errno != ESPIPE)
+                        if (close(fileno(stdin)) == -1 && errno != ESPIPE)
                             rip_die(EXIT_PRNERR_NORETRY_BAD_SETTINGS, "Couldn't close STDIN\n");
                         if (dup2(fileno(stdin), fileno(fileconverter_handle)) == -1)
                             rip_die(EXIT_PRNERR_NORETRY_BAD_SETTINGS, "Couldn't dup fileconverter_handle\n");
