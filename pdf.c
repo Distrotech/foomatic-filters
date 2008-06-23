@@ -172,12 +172,12 @@ int render_pages(const char *filename, int firstpage, int lastpage)
     }
 
     free_dstr(cmd);
+    return 1;
 }
 
 int print_pdf(FILE *s, const char *alreadyread, size_t len, const char *filename, size_t startpos)
 {
     int page_count, i;
-    char tmpfilename[PATH_MAX];
     int firstpage;
 
     page_count = pdf_count_pages(filename);
@@ -198,5 +198,6 @@ int print_pdf(FILE *s, const char *alreadyread, size_t len, const char *filename
     }
     render_pages(filename, firstpage, page_count);
     wait_for_renderer();
+    return 1;
 }
 

@@ -700,21 +700,11 @@ const char * option_get_value(option_t *opt, int optionset)
  * optionset, otherwise the custom_command will be used */
 int option_use_foomatic_prototype(option_t *opt)
 {
-    param_t *param;
-
     /* if only one of them exists, take that one */
     if (opt->custom_command && !opt->proto)
         return 0;
     if (!opt->custom_command && opt->proto)
         return 1;
-
-    /* TODO we should always take the custom command when it is available */
-#if 0
-    param = opt->paramlist;
-    if (param->allowedchars || param->allowedregexp)
-        /* Foomatic specific extensions, use proto */
-        return 1;
-#endif
     return 0;
 }
 
@@ -748,7 +738,7 @@ void build_cups_custom_jcl_command(dstr_t *cmd, option_t *opt, const char *value
 
     dstrcpy(cmd, opt->custom_command);
     for (param = opt->paramlist, i = 0; param; param = param->next, i++) {
-        snprintf(orderstr, 8, "\\%lf", param->order);
+        snprintf(orderstr, 8, "\\%d", param->order);
         dstrreplace(cmd, orderstr, paramvalues[i]);
     }
     free_paramvalues(opt, paramvalues);
