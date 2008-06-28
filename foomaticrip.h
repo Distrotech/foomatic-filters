@@ -6,18 +6,10 @@
 #define _GNU_SOURCE
 #endif
 
+#include "config.h"
+
 #include <stddef.h>
 #include <time.h>
-
-/* Location of the configuration file "filter.conf" this file can be
- * used to change the settings of foomatic-rip without editing
- * foomatic-rip. itself. This variable must contain the full pathname
- * of the directory which contains the configuration file, usually
- * "/etc/foomatic".
- */
-#ifndef CONFIG_PATH
-#define CONFIG_PATH "/usr/local/etc/foomatic"
-#endif
 
 /* This is the location of the debug logfile (and also the copy of the
  * processed PostScript data) in case you have enabled debugging above.
