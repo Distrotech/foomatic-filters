@@ -132,15 +132,13 @@ int exec_kid4(FILE *in, FILE *out, void *user_arg)
         /* Determine magic string of JCL in use (usually "@PJL") For that we
          * take the first part of the second JCL line up to the first space */
         if (jclprepend->len && !isspace(jclprepend->data[0])) {
-            strncpy_tochar(jclstr, jclprepend->data, 64, " \t\r\n");
+            strncpy_tochar(jclstr, strchr(jclprepend->data, '\n') +1, 64, " \t\r\n");
+            _log("------------------------> %s\n", jclstr);
             /* read from the renderer output until the first non-JCL line
              * appears */
 
-            while (fgetdstr(jclline, in)) {
+            while (fgetdstr(jclline, in) && strstr(jclline->data, jclstr))
                 dstrcat(jclheader, jclline->data);
-                if (!strstr(jclline->data, jclstr))
-                    break;
-            }
 
             /* If we had read at least two lines, at least one is a JCL header,
              * so do the merging */
@@ -183,7 +181,7 @@ int exec_kid4(FILE *in, FILE *out, void *user_arg)
                             /* jclheader has more than one line, insert the new
                              * command beginning right after the first line and
                              * continuing after the previous inserted command */
-                            dstrinsert(jclheader, line_start(jclheader->data, insert), line);
+                            dstrinsertf(jclheader, line_start(jclheader->data, insert), "%s\n", line);
                             insert++;
                         }
                         else {
@@ -198,7 +196,7 @@ int exec_kid4(FILE *in, FILE *out, void *user_arg)
                             p = strstr(jclheader->data, jclstr);
                             if (p) {
                                 dstrncpy(dtmp, jclheader->data, p - jclheader->data);
-                                dstrcatf(dtmp, "%s%s", line, p);
+                                dstrcatf(dtmp, "\n%s\n%s", line, p);
                                 dstrcpy(jclheader, dtmp->data);
                             }
                         }
