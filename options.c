@@ -645,8 +645,10 @@ char * get_valid_value_string(option_t *opt, const char *value)
         }
     }
 
-    /* Check if "value" is a predefined choice */
-    if ((choice = option_find_choice(opt, value)))
+    /* Check if "value" is a predefined choice (except for "Custom", which is
+     * not really a predefined choice, but an error if used without further
+     * parameters) */
+    if (strcmp(value, "Custom") != 0 && (choice = option_find_choice(opt, value)))
         return strdup(choice->value);
 
     if (opt->type == TYPE_ENUM) {

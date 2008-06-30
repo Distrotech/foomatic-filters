@@ -103,6 +103,7 @@ void dstrclear(dstr_t *ds);
 void dstrassure(dstr_t *ds, size_t alloc);
 void dstrcpy(dstr_t *ds, const char *src);
 void dstrncpy(dstr_t *ds, const char *src, size_t n);
+void dstrncat(dstr_t *ds, const char *src, size_t n);
 void dstrcpyf(dstr_t *ds, const char *src, ...);
 void dstrcat(dstr_t *ds, const char *src);
 void dstrcatf(dstr_t *ds, const char *src, ...);
