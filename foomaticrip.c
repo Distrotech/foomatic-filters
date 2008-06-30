@@ -1026,7 +1026,7 @@ int main(int argc, char** argv)
         debug = 1;
 
     if (debug)
-        logh = fopen(LOG_FILE ".log", "r"); /* insecure, use for debugging only */
+        logh = fopen(LOG_FILE ".log", "w"); /* insecure, use for debugging only */
     else if (quiet && !verbose)
         logh = NULL; /* Quiet mode, do not log */
     else

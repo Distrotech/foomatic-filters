@@ -6,13 +6,8 @@ AC_INIT(foomatic-rip, "4.0.0")
 AM_INIT_AUTOMAKE([no-define])
 AC_CONFIG_SRCDIR([options.c])
 
-AC_DEFINE_UNQUOTED(VERSION, "`cat VERSION.full 2> /dev/null`")
+AC_DEFINE_UNQUOTED(VERSION, "`cat VERSION.full 2> /dev/null`", [Foomatic version])
 
-# If the user didn't specify the $sysconfdir on the command line, let it
-# be /etc, not /usr/local/etc or /usr/etc
-# if [[ x$sysconfdir = 'x${prefix}/etc' ]]; then
-#  sysconfdir=/etc
-# fi
 
 # Checks for programs.
 AC_PROG_CC
@@ -130,6 +125,7 @@ AC_MSG_RESULT([Execpath: $EXECPATH])
 AC_SUBST(EXECPATH)
 
 AC_CONFIG_FILES([Makefile beh foomatic-rip.1])
+AC_CONFIG_HEADER(config.h)
 AC_OUTPUT
 
 # Finished

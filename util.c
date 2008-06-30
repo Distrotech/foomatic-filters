@@ -412,17 +412,32 @@ void dstrcpy(dstr_t *ds, const char *src)
 
 void dstrncpy(dstr_t *ds, const char *src, size_t n)
 {
-    if (n +1 >= ds->alloc) {
+    if (n >= ds->alloc) {
         do {
             ds->alloc *= 2;
-        } while (n +1 >= ds->alloc);
+        } while (n >= ds->alloc);
         ds->data = realloc(ds->data, ds->alloc);
     }
 
     strncpy(ds->data, src, n);
     ds->len = n;
-    if (ds->data[ds->len] != '\0')
-        ds->data[ds->len++] = '\0';
+    ds->data[ds->len] = '\0';
+}
+
+void dstrncat(dstr_t *ds, const char *src, size_t n)
+{
+    size_t needed = ds->len + n;
+
+    if (needed >= ds->alloc) {
+        do {
+            ds->alloc *= 2;
+        } while (needed >= ds->alloc);
+        ds->data = realloc(ds->data, ds->alloc);
+    }
+
+    strncpy(&ds->data[ds->len], src, n);
+    ds->len = needed;
+    ds->data[ds->len] = '\0';
 }
 
 void dstrcpyf(dstr_t *ds, const char *src, ...)
@@ -621,23 +636,17 @@ void dstrremove(dstr_t *ds, int idx, size_t count)
     *p1 = '\0';
 }
 
+static inline int isnewline(int c)
+{
+    return c == '\n' || c == '\r';
+}
+
 void dstrcatline(dstr_t *ds, const char *str)
 {
-    const char *s = str;
-
-    if (!*s)
-        return;
-
-    do {
-        while (ds->len >= ds->alloc) {
-            ds->alloc *= 2;
-            ds->data = realloc(ds->data, ds->alloc);
-        }
-        ds->data[ds->len++] = *s == '\r' ? '\n' : *s;
-        s++;
-    } while (*s && *s != '\r' && *s != '\n');
-
-    ds->data[ds->len++] = '\0';
+    size_t eol = strcspn(str, "\n\r");
+    if (isnewline(str[eol]))
+        eol++;
+    dstrncat(ds, str, eol);
 }
 
 int dstrendswith(dstr_t *ds, const char *str)

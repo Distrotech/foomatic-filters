@@ -53,6 +53,7 @@ foomatic_rip_SOURCES = \
 	fileconverter.c \
 	fileconverter.h
 
+AM_CPPFLAGS = -DCONFIG_PATH='"$(sysconfdir)/foomatic"'
 
 # Masks for trash files which have to be removed before packaging Foomatic
 TRASHFILES="*~" "*\#*" ".??*" "*.rej"
