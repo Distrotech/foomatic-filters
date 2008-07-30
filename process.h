@@ -12,6 +12,12 @@ pid_t start_system_process(const char *name, const char *command, FILE **fdin, F
 /* returns command's return status (see waitpid(2)) */
 int run_system_process(const char *name, const char *command);
 
+pid_t create_pipe_process(const char *name,
+                          FILE *src,
+                          FILE *dest,
+                          const char *alreadyread,
+                          size_t alreadyread_len);
+
 int wait_for_process(int pid);
 
 void kill_all_processes();

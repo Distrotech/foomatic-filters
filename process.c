@@ -170,6 +170,42 @@ int start_process(const char *name, int (*proc_func)(FILE *, FILE *, void *), vo
     return _start_process(name, proc_func, user_arg, fdin, fdout, 0);
 }
 
+typedef struct {
+    FILE *src, *dest;
+    const char *alreadyread;
+    size_t alreadyread_len;
+} PipeProcData;
+
+static int exec_pipe(FILE *in, FILE *out, void *user)
+{
+    PipeProcData *data = (PipeProcData *)user;
+
+    return copy_file(data->dest,
+                     data->src,
+                     data->alreadyread,
+                     data->alreadyread_len) != 0;
+}
+
+pid_t create_pipe_process(const char *name,
+                          FILE *src,
+                          FILE *dest,
+                          const char *alreadyread,
+                          size_t alreadyread_len)
+{
+    PipeProcData *data = malloc(sizeof(PipeProcData));
+    int pid;
+
+    data->src = src;
+    data->dest = dest;
+    data->alreadyread = alreadyread;
+    data->alreadyread_len = alreadyread_len;
+
+    pid = _start_process(name, exec_pipe, data, NULL, NULL, 1);
+
+    free(data);
+    return pid;
+}
+
 int wait_for_process(int pid)
 {
     int i;

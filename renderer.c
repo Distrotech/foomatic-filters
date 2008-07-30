@@ -254,7 +254,7 @@ int exec_kid3(FILE *in, FILE *out, void *user_arg)
     if (kid4 < 0)
         return EXIT_PRNERR_NORETRY_BAD_SETTINGS;
 
-    dstrcpy(commandline, currentcmd->data);
+    build_commandline(optionset("currentpage"), commandline, 0);
     massage_gs_commandline(commandline);
     _log("renderer command: %s\n", commandline->data);
 
@@ -334,7 +334,7 @@ void get_renderer_handle(const dstr_t *prepend, FILE **fd, pid_t *pid)
     FILE *kid3in;
 
     /* Build the command line and get the JCL commands */
-    build_commandline(optionset("currentpage"));
+    build_commandline(optionset("currentpage"), NULL, 0);
 
     _log("\nStarting renderer\n");
     kid3 = start_process("kid3", exec_kid3, NULL, &kid3in, NULL);

@@ -13,6 +13,8 @@
 #include <ghostscript/iapi.h>
 #include <ghostscript/ierrors.h>
 
+#define ARRAY_LEN(a) (sizeof(a) / sizeof(a[0]))
+
 
 const char *pagecountcode = 
     "/pdffile (%s) (r) file def\n"
@@ -25,6 +27,9 @@ const char *pagecountcode =
     "end end\n";
 
 char gsout [256];
+
+static int wait_for_renderer();
+
 
 int gs_stdout(void *instance, const char *str, int len)
 {
@@ -81,36 +86,20 @@ static int pdf_count_pages(const char *filename)
 
 pid_t rendererpid = 0;
 
-/*
- * 'filename' must point to a string with a length of at least PATH_MAX
- */
-FILE * create_temp_file(char *filename, FILE *copyfrom, const char *alreadyread, size_t len)
+
+static int start_renderer(const char *cmd)
 {
-    int fd;
-    FILE *tmpfile;
-    char buf[8192];
+    if (rendererpid != 0)
+        wait_for_renderer();
 
-    strlcpy(filename, getenv("TMPDIR") ? getenv("TMPDIR") : "/tmp", PATH_MAX);
-    strlcat(filename, "foomatic-XXXXXX", PATH_MAX);
+    rendererpid = start_system_process("renderer", cmd, NULL, NULL);
+    if (rendererpid < 0)
+        return 0;
 
-    fd = mkstemp(filename);
-    if (fd < 0) {
-        perror("Could not create temporary file.");
-        return NULL;
-    }
-    tmpfile = fdopen(fd, "r+");
-
-    if (alreadyread)
-        fwrite(alreadyread, 1, len, tmpfile);
-
-    while (fread(buf, 1, sizeof(buf), copyfrom) > 0)
-        fwrite(buf, 1, sizeof(buf), tmpfile);
-
-    rewind(tmpfile);
-    return tmpfile;
+    return 1;
 }
 
-int wait_for_renderer()
+static int wait_for_renderer()
 {
     int status;
 
@@ -131,66 +120,145 @@ int wait_for_renderer()
     return 1;
 }
 
-int render_pages(const char *filename, int firstpage, int lastpage)
+/*
+ * Extract pages 'first' through 'last' from the pdf and write them into a
+ * temporary file.
+ */
+static int pdf_extract_pages(char filename[PATH_MAX],
+                             const char *pdffilename,
+                             int first,
+                             int last)
 {
-    dstr_t *cmd = create_dstr();
-    size_t pos, start, end;
-    const char *currentcmd;
+    void *minst;
+    char filename_arg[PATH_MAX], first_arg[50], last_arg[50];
+    char *gs_args[] = { "", "-dNOPAUSE", "-dBATCH", "-dPARANOIDSAFER",
+        "-sDEVICE=pdfwrite", filename_arg, first_arg, last_arg };
+    int exit_code;
 
-    currentcmd = build_commandline(optionset("currentpage"));
+    snprintf(filename, PATH_MAX, "%s/foomatic-XXXXXX", P_tmpdir);
+    mktemp(filename);
+    if (!filename[0])
+        return 0;
 
-    dstrcpy(cmd, currentcmd);
-
-    extract_command(&start, &end, cmd->data, "gs");
-    if (start == end) {
-        /* TODO No ghostscript --> convert pdf to postscript */
+    if (gsapi_new_instance(&minst, NULL) < 0)
+    {
+        _log("Could not create ghostscript instance\n");
         return 0;
     }
 
-    for (pos = start +2; pos < end; pos++) {
-        if (!strcmp(&cmd->data[pos], " -")) {
-            cmd->data[pos +1] = ' ';
-            break;
-        }
-        else if (!strcmp(&cmd->data[pos], " -_")) { /* buffered input */
-            cmd->data[pos +1] = ' ';
-            cmd->data[pos +2] = ' ';
-            break;
-        }
-    }
-    dstrinsertf(cmd, pos, " %s ", filename);
-    dstrinsertf(cmd, start +2, " -dFirstPage=%d -dLastPage=%d ", firstpage, lastpage);
+    snprintf(filename_arg, PATH_MAX, "-sOutputFile=%s", filename);
+    snprintf(first_arg, 50, "-dFirstPage=%d", first);
+    snprintf(last_arg, 50, "-dLastPage=%d", last);
 
-    if (rendererpid != 0)
-        wait_for_renderer();
-        /* TODO evaluate result */
-
-    rendererpid = start_system_process("renderer", cmd->data, NULL, NULL);
-    if (rendererpid < 0) {
-        _log("Could not start renderer process.\n");
+    if (gsapi_init_with_args(minst, ARRAY_LEN(gs_args), gs_args) < 0)
+    {
+        _log("Could not init ghostscript\n");
+        gsapi_exit(minst);
+        gsapi_delete_instance(minst);
         return 0;
     }
 
-    free_dstr(cmd);
+    if (gsapi_run_file(minst, pdffilename, 0, &exit_code) == 0)
+    {
+        _log("gsapi: Could not run file %s\n", pdffilename);
+        gsapi_exit(minst);
+        gsapi_delete_instance(minst);
+        return 0;
+    }
+
+    gsapi_exit(minst);
+    gsapi_delete_instance(minst);
     return 1;
 }
 
-int print_pdf(FILE *s, const char *alreadyread, size_t len, const char *filename, size_t startpos)
+static int render_pages_with_generic_command(dstr_t *cmd,
+                                             const char *filename,
+                                             int firstpage,
+                                             int lastpage)
+{
+    char tmpfile[PATH_MAX];
+    int result;
+
+    if (!pdf_extract_pages(tmpfile, filename, firstpage, lastpage))
+        return 0;
+
+    /* TODO it might be a good idea to give pdf command lines the possibility
+     * to get the file on the command line rather than piped through stdin
+     * (maybe introduce a &filename; ??) */
+
+    dstrcatf(cmd, " < %s", tmpfile);
+
+    result = start_renderer(cmd->data);
+
+    unlink(tmpfile);
+    return result;
+}
+
+static int render_pages_with_ghostscript(dstr_t *cmd,
+                                         size_t start_gs_cmd,
+                                         size_t end_gs_cmd,
+                                         const char *filename,
+                                         int firstpage,
+                                         int lastpage)
+{
+    /* No need to create a temporary file, just give ghostscript the file and
+     * first/last page on the command line */
+
+    dstrinsertf(cmd, start_gs_cmd +2,
+                " -dFirstPage=%d -dLastPage=%d ",
+                firstpage, lastpage);
+
+    dstrinsertf(cmd, end_gs_cmd, " %s ", filename);
+
+    return start_renderer(cmd->data);
+}
+
+static int render_pages(const char *filename, int firstpage, int lastpage)
+{
+    dstr_t *cmd = create_dstr();
+    size_t start, end;
+    int result;
+
+    build_commandline(optionset("currentpage"), cmd, 1);
+
+    extract_command(&start, &end, cmd->data, "gs");
+    if (start == end)
+        /* command is not GhostScript */
+        result = render_pages_with_generic_command(cmd,
+                                                   filename,
+                                                   firstpage,
+                                                   lastpage);
+    else
+        /* GhostScript command, tell it which pages we want to render */
+        result = render_pages_with_ghostscript(cmd,
+                                               start,
+                                               end,
+                                               filename,
+                                               firstpage,
+                                               lastpage);
+
+    free_dstr(cmd);
+    return result;
+}
+
+static int print_pdf_file(const char *filename)
 {
     int page_count, i;
     int firstpage;
 
     page_count = pdf_count_pages(filename);
     if (page_count <= 0)
-        return 1;
+        return 0;
     _log("File contains %d pages\n", page_count);
 
     optionset_copy_values(optionset("default"), optionset("currentpage"));
     optionset_copy_values(optionset("currentpage"), optionset("previouspage"));
     firstpage = 1;
-    for (i = 1; i <= page_count; i++) {
+    for (i = 1; i <= page_count; i++)
+    {
         set_options_for_page(optionset("currentpage"), i);
-        if (!optionset_equal(optionset("currentpage"), optionset("previouspage"), 1)) {
+        if (!optionset_equal(optionset("currentpage"), optionset("previouspage"), 1))
+        {
             render_pages(filename, firstpage, i);
             firstpage = i;
         }
@@ -198,6 +266,46 @@ int print_pdf(FILE *s, const char *alreadyread, size_t len, const char *filename
     }
     render_pages(filename, firstpage, page_count);
     wait_for_renderer();
+
     return 1;
+}
+
+int print_pdf(FILE *s,
+              const char *alreadyread,
+              size_t len,
+              const char *filename,
+              size_t startpos)
+{
+    char tmpfilename[PATH_MAX] = "";
+    int result;
+
+    /* If reading from stdin, write everything into a temporary file */
+    /* TODO don't do this if there aren't any pagerange-limited options */
+    if (s == stdin)
+    {
+        FILE *tmpfile, *file;
+
+        snprintf(tmpfilename, PATH_MAX, "%s/foomatic-XXXXXX", P_tmpdir);
+        mktemp(tmpfilename);
+
+        tmpfile = fopen(tmpfilename, "r");
+        file = fopen(filename, "r");
+        if (!file || !tmpfile)
+            return 0;
+
+        copy_file(tmpfile, file, alreadyread, len);
+
+        fclose(file);
+        fclose(tmpfile);
+
+        filename = tmpfilename;
+    }
+
+    result = print_pdf_file(filename);
+
+    if (!isempty(tmpfilename))
+        unlink(tmpfilename);
+
+    return result;
 }
 

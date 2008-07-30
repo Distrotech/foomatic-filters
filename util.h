@@ -90,6 +90,13 @@ void unhexify(char *dest, size_t size, const char *src);
 
 void extract_command(size_t *start, size_t *end, const char *cmdline, const char *cmd);
 
+/*
+ * Returns non-zero if 'cmdline' calls 'cmd' in some way
+ */
+int contains_command(const char *cmdline, const char *cmd);
+
+int copy_file(FILE *dest, FILE *src, const char *alreadyread, size_t alreadyread_len);
+
 /* Dynamic string */
 typedef struct dstr {
     char *data;

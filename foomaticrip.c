@@ -110,7 +110,6 @@ dstr_t *backendoptions = NULL;
 
 /* These variables were in 'dat' before */
 char colorprofile [128];
-dstr_t *currentcmd;
 char cupsfilter[256];
 dstr_t *jclprepend;
 dstr_t *jclappend;
@@ -913,6 +912,35 @@ int print_file(const char *filename, int convert)
     switch (type) {
         case PDF_FILE:
             _log("Filetype: PDF\n");
+
+            if (!ppd_supports_pdf_commandline())
+            {
+                char pdf2ps_cmd[PATH_MAX];
+                FILE *out, *in;
+                int pid;
+
+                _log("Driver does not understand PDF input, "
+                     "converting to PostScript\n");
+
+                snprintf(pdf2ps_cmd, PATH_MAX,
+                         "gs -q -sDEVICE=pswrite -sOutputFile=- "
+                            "-dBATCH -dNOPAUSE -dPARANOIDSAFER %s",
+                         file == stdin ? "-" : filename);
+
+                pid = start_system_process("pdf-to-ps", pdf2ps_cmd, &in, &out);
+
+                create_pipe_process("pipe-pdf", stdin, in, buf, n);
+
+                if (dup2(fileno(out), fileno(stdin)) < 0)
+                    rip_die(EXIT_PRNERR_NORETRY_BAD_SETTINGS,
+                            "Couldn't dup stdout of pdf-to-ps\n");
+
+                ret = print_file("<STDIN>", 0);
+
+                wait_for_process(pid);
+                return ret;
+            }
+
             if (file == stdin)
                 return print_pdf(stdin, buf, n, filename, startpos);
             else
@@ -998,7 +1026,6 @@ int main(int argc, char** argv)
     filelist = create_dstr();
     job = create_job();
 
-    currentcmd = create_dstr();
     jclprepend = create_dstr();
     jclappend = create_dstr();
     postpipe = create_dstr();
@@ -1476,7 +1503,6 @@ int main(int argc, char** argv)
 
     /* Cleanup */
     free_job(job);
-    free_dstr(currentcmd);
     if (genpdqfile && genpdqfile != stdout)
         fclose(genpdqfile);
     free_dstr(filelist);
