@@ -1,3 +1,13 @@
+2008-07-30 Lars Uebernickel <larsuebernickel@gmx.de>
+	* *: Added support for the *FoomaticRIPCommandLinePDF keyword. It will
+	  be used for PDF input. If it is missing, *FoomaticRIPCommandLine
+	  will be used _only_ if it calls GhostScript, otherwise the Job is
+	  converted to PostScript.
+	* pdf.c: Pagerange-specific options work correctly now. If the command
+	  line calls GhostScript, the -d(First|Last)Page parameters are used.
+	  Otherwise, the PDF is split with GhostScript and fed to the command
+	  line afterwards.
+
 2008-06-22 Lars Uebernickel <larsuebernickel@gmx.de>
 	* options.c: Allow float values on *OrderDependency settings. This is
 	valid according to the PPD spec, and is used by some HP PPDs.

@@ -104,6 +104,7 @@ extern char jclend[256];
 extern char jclprefix[256];
 
 extern char cmd[1024];
+extern char cmd_pdf[1024];
 
 extern int ps_accounting;
 
@@ -127,6 +128,8 @@ option_t *find_option(const char *name);
 
 void read_ppd_file(const char *filename);
 
+int ppd_supports_pdf_commandline();
+
 
 int option_set_value(option_t *opt, int optset, const char *value);
 const char * option_get_value(option_t *opt, int optset);
@@ -148,7 +151,7 @@ void optionset_delete_values(int optionset);
 void append_prolog_section(dstr_t *str, int optset, int comments);
 void append_setup_section(dstr_t *str, int optset, int comments);
 void append_page_setup_section(dstr_t *str, int optset, int comments);
-const char * build_commandline(int optset);
+int build_commandline(int optset, dstr_t *cmdline, int pdfcmdline);
 
 void set_options_for_page(int optset, int page);
 

@@ -362,6 +362,17 @@ void extract_command(size_t *start, size_t *end, const char *cmdline, const char
     free(copy);
 }
 
+int contains_command(const char *cmdline, const char *cmd)
+{
+    size_t start = 0, end = 0;
+
+    extract_command(&start, &end, cmdline, cmd);
+    if (start == 0 && end == 0)
+        return 0;
+
+    return 1;
+}
+
 /*
  * Dynamic strings
  */
@@ -908,5 +919,28 @@ int arglist_remove_flag(list_t *list, const char *name)
         return 1;
     }
     return 0;
+}
+
+int copy_file(FILE *dest,
+              FILE *src,
+              const char *alreadyread,
+              size_t alreadyread_len)
+{
+    char buf[8192];
+    size_t bytes;
+
+    if (alreadyread && alreadyread_len)
+    {
+        if (fwrite(alreadyread, 1, alreadyread_len, dest) < alreadyread_len)
+        {
+            _log("Could not write to temp file\n");
+            return 0;
+        }
+    }
+
+    while ((bytes = fread(buf, 1, 8192, src)))
+        fwrite(buf, 1, bytes, dest);
+
+    return !ferror(src) && !ferror(dest);
 }
 

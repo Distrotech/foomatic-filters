@@ -561,7 +561,7 @@ void _print_ps(stream_t *stream)
 
                             /* Here begins a new page */
                             if (inheader) {
-                                build_commandline(optset);
+                                build_commandline(optset, NULL, 0);
                                 /* Here we add some stuff which still
                                 belongs into the header */
                                 dstrclear(tmp);
@@ -825,7 +825,7 @@ void _print_ps(stream_t *stream)
                                         is chosen according to the setting
                                         of the composite option. */
                                         if (option_is_composite(o) && linetype == LT_FOOMATIC_RIP_OPTION_SETTING) {
-                                            build_commandline(optset); /* TODO can this be removed? */
+                                            build_commandline(optset, NULL, 0); /* TODO can this be removed? */
 
                                             /* TODO merge section and ps_section */
                                             if (postscriptsection == PS_SECTION_JCLSETUP)
@@ -856,7 +856,7 @@ void _print_ps(stream_t *stream)
                                         if (optionsalsointoheader)
                                             option_set_value(o, optionset("header"), value);
                                         /* update composite options */
-                                        build_commandline(optset);
+                                        build_commandline(optset, NULL, 0);
                                         /* Substitute PostScript comment by the real code */
                                         /* TODO what exactly is the next line doing? */
                                         /* dstrcpy(line, o->compositesubst->data); */
@@ -1133,7 +1133,7 @@ void _print_ps(stream_t *stream)
             _log("Flushing FIFO.\n");
 
         if (inheader) {
-            build_commandline(optset);
+            build_commandline(optset, NULL, 0);
             /* No page initialized yet? Copy the "header" option set into the
             "currentpage" option set, so that the renderer will find the
             options settings. */

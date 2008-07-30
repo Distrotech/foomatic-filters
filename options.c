@@ -14,6 +14,7 @@ char printer_model [256];
 char printer_id [128];
 char driver [128];
 char cmd [1024];
+char cmd_pdf [1024];
 dstr_t *postpipe = NULL;  /* command into which the output of this
                              filter should be piped */
 int ps_accounting = 1;
@@ -1612,8 +1613,19 @@ void read_ppd_file(const char *filename)
     }
 }
 
+int ppd_supports_pdf_commandline()
+{
+    if (!isempty(cmd_pdf))
+        return 1;
+
+    if (contains_command(cmd, "gs"))
+        return 1;
+
+    return 0;
+}
+
 /* build a renderer command line, based on the given option set */
-const char * build_commandline(int optset)
+int build_commandline(int optset, dstr_t *cmdline, int pdfcmdline)
 {
     option_t *opt;
     const char *userval;
@@ -1630,8 +1642,8 @@ const char * build_commandline(int optset)
     dstrclear(setupprepend);
     dstrclear(pagesetupprepend);
 
-    dstrcpy(currentcmd, cmd);
-
+    if (cmdline)
+        dstrcpy(cmdline, pdfcmdline ? cmd_pdf : cmd);
 
     for (opt = optionlist_sorted_by_order; opt; opt = opt->next_by_order) {
         /* composite options have no direct influence, and all their dependents
@@ -1692,25 +1704,25 @@ const char * build_commandline(int optset)
             if (cmdvar->len)
                 dstrcatf(local_jclprepend, "%s%s\n", jclprefix, cmdvar->data);
         }
-        else if (option_is_commandline_arg(opt)) {
+        else if (option_is_commandline_arg(opt) && cmdline) {
             /* Insert the processed argument in the command line
             just before every occurrence of the spot marker. */
             p = malloc(3);
             snprintf(p, 3, "%%%c", opt->spot);
             s = malloc(cmdvar->len +3);
             snprintf(s, cmdvar->len +3, "%s%%%c", cmdvar->data, opt->spot);
-            dstrreplace(currentcmd, p, s);
+            dstrreplace(cmdline, p, s);
             free(p);
             free(s);
         }
 
         /* Insert option into command line of CUPS raster driver */
-        if (strstr(currentcmd->data, "%Y")) {
+        if (cmdline && strstr(cmdline->data, "%Y")) {
             if (isempty(userval))
                 continue;
             s = malloc(strlen(opt->name) + strlen(userval) + 20);
             sprintf(s, "%s=%s %%Y", opt->name, userval);
-            dstrreplace(currentcmd, "%Y", s);
+            dstrreplace(cmdline, "%Y", s);
             free(s);
         }
     }
@@ -1719,10 +1731,12 @@ const char * build_commandline(int optset)
 
     /* C type finishing */
     /* Pluck out all of the %n's from the command line prototype */
-    s = strtok(letters, " ");
-    do {
-        dstrreplace(currentcmd, s, "");
-    } while ((s = strtok(NULL, " ")));
+    if (cmdline) {
+        s = strtok(letters, " ");
+        do {
+            dstrreplace(cmdline, s, "");
+        } while ((s = strtok(NULL, " ")));
+    }
 
     /* J type finishing */
     /* Compute the proper stuff to say around the job */
@@ -1744,7 +1758,7 @@ const char * build_commandline(int optset)
     free_dstr(close);
     free_dstr(local_jclprepend);
 
-    return currentcmd->data;
+    return !isempty(cmd);
 }
 
 /* if "comments" is set, add "%%BeginProlog...%%EndProlog" */
@@ -1759,7 +1773,7 @@ void append_prolog_section(dstr_t *str, int optset, int comments)
     /* Generate the option code (not necessary when CUPS is spooler) */
     if (spooler != SPOOLER_CUPS) {
         _log("Inserting option code into \"Prolog\" section.\n");
-        build_commandline(optset);
+        build_commandline(optset, NULL, 0);
         dstrcat(str, prologprepend->data);
     }
 
@@ -1784,7 +1798,7 @@ void append_setup_section(dstr_t *str, int optset, int comments)
     /* Generate the option code (not necessary when CUPS is spooler) */
     else {
         _log("Inserting option code into \"Setup\" section.\n");
-        build_commandline(optset);
+        build_commandline(optset, NULL, 0);
         dstrcat(str, setupprepend->data);
     }
 
@@ -1803,7 +1817,7 @@ void append_page_setup_section(dstr_t *str, int optset, int comments)
 
     /* Generate the option code (not necessary when CUPS is spooler) */
     _log("Inserting option code into \"PageSetup\" section.\n");
-    build_commandline(optset);
+    build_commandline(optset, NULL, 0);
     dstrcat(str, pagesetupprepend->data);
 
     /* End comment */
