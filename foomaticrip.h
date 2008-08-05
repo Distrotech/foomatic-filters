@@ -9,6 +9,7 @@
 #include "config.h"
 
 #include <stddef.h>
+#include <stdio.h>
 #include <time.h>
 
 /* This is the location of the debug logfile (and also the copy of the
@@ -104,11 +105,11 @@ int redirect_log_to_stderr();
 void rip_die(int status, const char *msg, ...);
 
 const char * get_modern_shell();
-const char * get_postpipe();
+FILE * open_postpipe();
 
 extern struct dstr *currentcmd;
 extern struct dstr *jclappend;
-extern struct dstr *jclprepend;
+extern char **jclprepend;
 extern int jobhasjcl;
 extern const char *accounting_prolog;
 extern char fileconverter[PATH_MAX];

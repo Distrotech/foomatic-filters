@@ -86,10 +86,26 @@ jobparams_t * get_current_job()
 
 dstr_t *postpipe;  /* command into which the output of this filter should be piped */
 
-const char * get_postpipe()
+FILE * open_postpipe()
 {
-    return postpipe->data;
+    const char *p;
+    FILE *fileh;
+
+    if (isempty(postpipe->data))
+        return stdout;
+
+    /* Delete possible '|' symbol in the beginning */
+    p = skip_whitespace(postpipe->data);
+    if (*p && *p == '|')
+        p += 1;
+
+    if (start_system_process("postpipe", p, &fileh, NULL) < 0)
+        rip_die(EXIT_PRNERR_NORETRY_BAD_SETTINGS,
+                "Cannot execute postpipe %s\n", postpipe->data);
+
+    return fileh;
 }
+
 
 char printer_model[128] = "";
 const char *accounting_prolog = NULL;
@@ -111,7 +127,7 @@ dstr_t *backendoptions = NULL;
 /* These variables were in 'dat' before */
 char colorprofile [128];
 char cupsfilter[256];
-dstr_t *jclprepend;
+char **jclprepend = NULL;
 dstr_t *jclappend;
 
 /* Set debug to 1 to enable the debug logfile for this filter; it will appear
@@ -978,7 +994,7 @@ void signal_terminate(int signal)
 
 jobparams_t * create_job()
 {
-    jobparams_t *job = malloc(sizeof(jobparams_t));
+    jobparams_t *job = calloc(1, sizeof(jobparams_t));
     struct passwd *passwd;
 
     job->optstr = create_dstr();
@@ -1026,14 +1042,13 @@ int main(int argc, char** argv)
     filelist = create_dstr();
     job = create_job();
 
-    jclprepend = create_dstr();
+    jclprepend = NULL;
     jclappend = create_dstr();
     postpipe = create_dstr();
 
     options_init();
 
     signal(SIGTERM, signal_terminate);
-    signal(SIGKILL, signal_terminate);
     signal(SIGINT, signal_terminate);
 
 
@@ -1509,7 +1524,7 @@ int main(int argc, char** argv)
     options_free();
     close_log();
 
-    free_dstr(jclprepend);
+    argv_free(jclprepend);
     free_dstr(jclappend);
     if (backendoptions)
         free_dstr(backendoptions);

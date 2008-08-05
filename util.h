@@ -19,7 +19,7 @@ int prefixcasecmp(const char *str, const char *prefix);
 int startswith(const char *str, const char *prefix);
 int endswith(const char *str, const char *postfix);
 
-const char * ignore_whitespace(const char *str);
+const char * skip_whitespace(const char *str);
 
 void strlower(char *dest, size_t destlen, const char *src);
 
@@ -89,6 +89,10 @@ int line_start(const char *str, int line_number);
 void unhexify(char *dest, size_t size, const char *src);
 
 void extract_command(size_t *start, size_t *end, const char *cmdline, const char *cmd);
+
+char ** argv_split(const char *string, const char *separators, int *cntp);
+size_t argv_count(char **argv);
+void argv_free(char **argv);
 
 /*
  * Returns non-zero if 'cmdline' calls 'cmd' in some way

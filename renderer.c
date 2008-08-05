@@ -1,6 +1,9 @@
 
+#define _GNU_SOURCE
+
 #include <signal.h>
 #include <ctype.h>
+#include <stdlib.h>
 #include <unistd.h>
 
 #include "foomaticrip.h"
@@ -90,156 +93,213 @@ void massage_gs_commandline(dstr_t *cmd)
     dstrreplace(cmd, "echo", ECHO); /* TODO search for \wecho\w */
 }
 
+char * read_line(FILE *stream)
+{
+    char *line;
+    size_t alloc = 64, len = 0;
+    int c;
+
+    line = malloc(alloc);
+
+    while ((c = fgetc(stream)) != EOF) {
+        if (len >= alloc -1) {
+            alloc *= 2;
+            line = realloc(line, alloc);
+        }
+        if (c == '\n')
+            break;
+        line[len] = (char)c;
+        len++;
+    }
+
+    line[len] = '\0';
+    return line;
+}
+
+/*
+ * Read all lines containing 'jclstr' from 'stream' (actually, one more) and
+ * return them in a zero terminated array.
+ */
+static char ** read_jcl_lines(FILE *stream, const char *jclstr)
+{
+    char *line;
+    char **result;
+    size_t alloc = 8, cnt = 0;
+
+    result = malloc(alloc * sizeof(char *));
+
+    /* read from the renderer output until the first non-JCL line appears */
+    while ((line = read_line(stream)))
+    {
+        if (cnt >= alloc -1)
+        {
+            alloc *= 2;
+            result = realloc(result, alloc);
+        }
+        result[cnt] = line;
+        cnt++;
+        if (!strstr(line, jclstr))
+            break;
+    }
+
+    result[cnt] = NULL;
+    return result;
+}
+
+static int jcl_keywords_equal(const char *jclline1, const char *jclline2)
+{
+    char *p1, *p2;
+
+    p1 = strchrnul(skip_whitespace(jclline1), '=') -1;
+    while (isspace(*p1))
+        p1--;
+
+    p2 = strchrnul(skip_whitespace(jclline1), '=') -1;
+    while (isspace(*p2))
+        p2--;
+
+    return strncmp(jclline1, jclline2, p1 - jclline1) == 0;
+}
+
+/*
+ * Finds the keyword of line in opts
+ */
+static const char * jcl_options_find_keyword(char **opts, const char *line)
+{
+    if (!opts)
+        return NULL;
+
+    while (*opts)
+    {
+        if (jcl_keywords_equal(*opts, line))
+            return *opts;
+        opts++;
+    }
+    return NULL;
+}
+
+static void argv_write(FILE *stream, char **argv, const char *sep)
+{
+    if (!argv)
+        return;
+
+    while (*argv)
+        fprintf(stream, "%s%s", *argv++, sep);
+}
+
+/*
+ * Merges 'original_opts' and 'pref_opts' and writes them to 'stream'. Header /
+ * footer is taken from 'original_opts'. If both have the same options, the one
+ * from 'pref_opts' is preferred
+ * Returns true, if original_opts was not empty
+ */
+static int write_merged_jcl_options(FILE *stream,
+                                    char **original_opts,
+                                    char **opts,
+                                    const char *jclstr)
+{
+    /* No JCL options in original_opts, just prepend opts */
+    if (argv_count(original_opts) == 1)
+    {
+        fprintf(stream, "%s", jclbegin);
+        argv_write(stream, opts, "\n");
+        fprintf(stream, "%s\n", original_opts[0]);
+        return 0;
+    }
+
+    if (argv_count(original_opts) == 2)
+    {
+        /* If we have only one line of JCL it is probably something like the
+         * "@PJL ENTER LANGUAGE=..." line which has to be in the end, but it
+         * also contains the "<esc>%-12345X" which has to be in the beginning
+         * of the job */
+        char *p = strstr(original_opts[0], jclstr);
+        if (p)
+            fwrite(original_opts[0], 1, p - original_opts[0], stream);
+        else
+            fprintf(stream, "%s\n", original_opts[0]);
+
+        argv_write(stream, opts, "\n");
+
+        if (p)
+            fprintf(stream, "%s\n", p);
+
+        fprintf(stream, "%s\n", original_opts[1]);
+        return 1;
+    }
+
+    /* First, write the first line from original_opts, as it contains the JCL
+     * header */
+    fprintf(stream, "%s\n", *original_opts++);
+
+    while (*opts)
+        fprintf(stream, "%s\n", *opts++);
+
+    while (*original_opts)
+        if (!jcl_options_find_keyword(opts, *original_opts))
+            fprintf(stream, "%s\n", *original_opts++);
+
+
+    return 1;
+}
+
+void log_jcl()
+{
+    char **opt;
+
+    _log("JCL: ");
+    if (jclprepend)
+        for (opt = jclprepend; *opt; opt++)
+            _log("%s\n", *opt);
+
+    _log("<job data> %s\n\n", jclappend->data);
+}
+
 int exec_kid4(FILE *in, FILE *out, void *user_arg)
 {
-    FILE *fileh;
-    char jclstr[64];
-    dstr_t *jclheader = create_dstr(); /* JCL header read from renderer output */
+    FILE *fileh = open_postpipe();
     int driverjcl;
-    dstr_t *jclprepend_copy = create_dstr();
-    char *line;
-    char tmp[1024];
-    int insert, commandfound;
-    dstr_t *dtmp = create_dstr();
-    size_t n;
-    dstr_t *jclline = create_dstr();
-    const char *p, *postpipe;
 
-    dstrcpy(jclprepend_copy, jclprepend->data);
-
-    /* Do we have a $postpipe, if yes, launch the command(s) and point our
-     * output into it/them */
-    postpipe = get_postpipe();
-    if (!isempty(postpipe)) {
-        /* Postpipe might contain a '|' in the beginning */
-        for (p = postpipe; *p && isspace(*p); p++);
-        if (*p && *p == '|')
-            p += 1;
-
-        if (start_system_process("postpipe", p, &fileh, NULL) < 0)
-            rip_die(EXIT_PRNERR_NORETRY_BAD_SETTINGS, "Cannot execute postpipe %s\n", postpipe);
-    }
-    else
-        fileh = stdout;
-
-    /* Debug output */
-    _log("JCL: %s <job data> %s\n\n", jclprepend->data, jclappend->data);
+    log_jcl();
 
     /* wrap the JCL around the job data, if there are any options specified...
      * Should the driver already have inserted JCL commands we merge our JCL
      * header with the one from the driver */
-    if (line_count(jclprepend->data) > 1) {
-        /* Determine magic string of JCL in use (usually "@PJL") For that we
-         * take the first part of the second JCL line up to the first space */
-        if (jclprepend->len && !isspace(jclprepend->data[0])) {
-            strncpy_tochar(jclstr, strchr(jclprepend->data, '\n') +1, 64, " \t\r\n");
-            _log("------------------------> %s\n", jclstr);
-            /* read from the renderer output until the first non-JCL line
-             * appears */
+    if (argv_count(jclprepend) > 1)
+    {
+        if (!isspace(jclprepend[1][0]))
+        {
+            char *jclstr = strndup(jclprepend[1],
+                                   strcspn(jclprepend[1], " \t\n\r"));
+            char **jclheader = read_jcl_lines(in, jclstr);
 
-            while (fgetdstr(jclline, in) && strstr(jclline->data, jclstr))
-                dstrcat(jclheader, jclline->data);
+            driverjcl = write_merged_jcl_options(fileh,
+                                                 jclheader,
+                                                 jclprepend,
+                                                 jclstr);
 
-            /* If we had read at least two lines, at least one is a JCL header,
-             * so do the merging */
-            if (line_count(jclheader->data) > 1) {
-                driverjcl = 1;
-                /* Discard the first and the last entry of the @jclprepend
-                 * array, we only need the option settings to merge them in */
-                dstrremove(jclprepend_copy, 0, line_start(jclprepend_copy->data, 1));
-                jclprepend_copy->data[
-                    line_start(jclprepend_copy->data, line_count(jclprepend_copy->data) -1)] = '\0';
-
-                /* Line after which we insert new JCL commands in the JCL
-                 * header of the job */
-                insert = 1;
-
-                /* Go through every JCL command in jclprepend */
-                for (line = strtok(jclprepend_copy->data, "\r\n"); line; line = strtok(NULL, "\r\n")) {
-                    /* Search the command in the JCL header from the driver. As
-                     * search term use only the string from the beginning of
-                     * the line to the "=", so the command will also be found
-                     * when it has another value */
-                    strncpy_tochar(tmp, line, 256, "="); /* command */
-                    commandfound = 0;
-                    dstrclear(dtmp);
-                    p = jclheader->data;
-                    while (p) {
-                        if (startswith(p, tmp)) {
-                            dstrcatf(dtmp, "%s\n", line);
-                            commandfound = 1;
-                        }
-                        else
-                            dstrcatline(dtmp, p);
-                        if ((p = strchr(p, '\n')))
-                            p++;
-                    }
-                    dstrcpy(jclheader, dtmp->data);
-                    if (!commandfound) {
-                        /* If the command is not found. insert it */
-                        if (line_count(jclheader->data) > 2) {
-                            /* jclheader has more than one line, insert the new
-                             * command beginning right after the first line and
-                             * continuing after the previous inserted command */
-                            dstrinsertf(jclheader, line_start(jclheader->data, insert), "%s\n", line);
-                            insert++;
-                        }
-                        else {
-                            /* If we have only one line of JCL it is probably
-                             * something like the "@PJL ENTER LANGUAGE=..."
-                             * line which has to be in the end, but it also
-                             * contains the "<esc>%-12345X" which has to be in
-                             * the beginning of the job-> So we split the line
-                             * right before the $jclstr and append our command
-                             * to the end of the first part and let the second
-                             * part be a second JCL line. */
-                            p = strstr(jclheader->data, jclstr);
-                            if (p) {
-                                dstrncpy(dtmp, jclheader->data, p - jclheader->data);
-                                dstrcatf(dtmp, "\n%s\n%s", line, p);
-                                dstrcpy(jclheader, dtmp->data);
-                            }
-                        }
-                    }
-                }
-
-                /* Now pass on the merged JCL header */
-                fwrite(jclheader->data, jclheader->len, 1, fileh);
-            }
-            else {
-                /* The driver didn't create a JCL header, simply
-                   prepend ours and then pass on the line which we
-                   already have read */
-                fwrite(jclprepend->data, jclprepend->len, 1, fileh);
-                fwrite(jclheader->data, jclheader->len, 1, fileh);
-            }
+            free(jclstr);
+            argv_free(jclheader);
         }
-        else {
+        else
             /* No merging of JCL header possible, simply prepend it */
-            fwrite(jclprepend->data, jclprepend->len, 1, fileh);
-        }
+            argv_write(fileh, jclprepend, "\n");
     }
 
-    /* The rest of the job data */
-    while ((n = fread(tmp, 1, 1024, in)) > 0)
-        fwrite(tmp, 1, n, fileh);
+    /* The job data */
+    copy_file(fileh, in, NULL, 0);
 
     /* A JCL trailer */
-    if (line_count(jclprepend->data) > 1 && !driverjcl)
+    if (argv_count(jclprepend) > 1 && !driverjcl)
         fwrite(jclappend->data, jclappend->len, 1, fileh);
 
-    fclose(stdin);
-    if (fclose(fileh) != 0) {
+    fclose(in);
+    if (fclose(fileh) != 0)
+    {
         _log("error closing postpipe\n");
         return EXIT_PRNERR_NORETRY_BAD_SETTINGS;
     }
 
-    free_dstr(jclheader);
-    free_dstr(dtmp);
-    free_dstr(jclline);
-
-    /* Successful exit, inform main process */
-    _log("kid4 finished\n");
     return EXIT_PRINTED;
 }
 
