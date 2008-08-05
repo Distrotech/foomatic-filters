@@ -911,8 +911,8 @@ void _print_ps(stream_t *stream)
                         get_current_job()->rbinumcopies = atoi(p);
                         _log("Found %RBINumCopies: %d\n", get_current_job()->rbinumcopies);
                     }
-                    else if (startswith(ignore_whitespace(line->data), "%") ||
-                            startswith(ignore_whitespace(line->data), "$"))
+                    else if (startswith(skip_whitespace(line->data), "%") ||
+                            startswith(skip_whitespace(line->data), "$"))
                         /* This is an unknown PostScript comment or a blank
                         line, no active code */
                         ignoreline = 1;

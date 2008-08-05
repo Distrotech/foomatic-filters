@@ -39,7 +39,7 @@ int endswith(const char *str, const char *postfix)
     return strcmp(str, postfix) == 0;
 }
 
-const char * ignore_whitespace(const char *str)
+const char * skip_whitespace(const char *str)
 {
     while (*str && isspace(*str))
         str++;
@@ -290,6 +290,92 @@ int digit(char c)
     if (c >= '0' && c <= '9')
         return (int)c - (int)'0';
     return -1;
+}
+
+static const char * next_token(const char *string, const char *separators)
+{
+    if (!string)
+        return NULL;
+
+    while (*string && !strchr(separators, *string))
+        string++;
+
+    while (*string && strchr(separators, *string))
+        string++;
+
+    return string;
+}
+
+static unsigned count_separators(const char *string, const char *separators)
+{
+    const char *p;
+    unsigned cnt = 0;
+
+    if (!string)
+        return 0;
+
+    for (p = string; *p; p = next_token(p, separators))
+        cnt++;
+
+    return cnt;
+}
+
+/*
+ * Returns a zero terminated array of strings
+ */
+char ** argv_split(const char *string, const char *separators, int *cntp)
+{
+    unsigned cnt;
+    int i;
+    char **argv, **argvp;
+
+    if (!string)
+        return NULL;
+
+    if ((cnt = count_separators(string, separators)) == 0)
+        return NULL;
+
+    argv = malloc((cnt +1) * sizeof(char *));
+    argv[cnt] = NULL;
+
+    argvp = argv;
+    for (i = 0; i < cnt; i++)
+    {
+        size_t len = strcspn(string, separators);
+        *argvp = strndup(string, len);
+        string = next_token(string, separators);
+        argvp++;
+    }
+
+    if (cntp)
+        *cntp = cnt;
+    return argv;
+}
+
+size_t argv_count(char **argv)
+{
+    size_t cnt = 0;
+
+    if (!argv)
+        return 0;
+
+    while (*argv++)
+        cnt++;
+
+    return cnt;
+}
+
+void argv_free(char **argv)
+{
+    char **p;
+
+    if (!argv)
+        return;
+
+    for (p = argv; *p; p++)
+        free(*p);
+
+    free(argv);
 }
 
 int line_count(const char *str)

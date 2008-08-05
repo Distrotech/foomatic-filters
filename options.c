@@ -1741,16 +1741,14 @@ int build_commandline(int optset, dstr_t *cmdline, int pdfcmdline)
     /* J type finishing */
     /* Compute the proper stuff to say around the job */
     if (jcl && !jobhasjcl) {
-        /* Stick the beginning job cruft on the front of the jcl stuff */
-        dstrprepend(local_jclprepend, jclbegin);
-
         /* command to switch to the interpreter */
         dstrcatf(local_jclprepend, "%s", jcltointerpreter);
 
         /* Arrange for JCL RESET command at the end of job */
         dstrcpy(jclappend, jclend);
 
-        dstrcpy(jclprepend, local_jclprepend->data);
+        argv_free(jclprepend);
+        jclprepend = argv_split(local_jclprepend->data, "\r\n", NULL);
     }
 
     free_dstr(cmdvar);
