@@ -1602,9 +1602,9 @@ void read_ppd_file(const char *filename)
     for (opt = optionlist; opt; opt = opt->next) {
         val = option_find_value(opt, optionset("default"));
         if (val) {
-            p = strdup(val->value);
-            option_set_value(opt, optionset("default"), p);
-            free(p);
+            /* if fromopt is set, this value has already been validated */
+            if (!val->fromoption)
+                option_set_value(opt, optionset("default"), val->value);
         }
         else
             /* Make sure that this option has a default choice, even if none is

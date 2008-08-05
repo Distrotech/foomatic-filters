@@ -1,3 +1,9 @@
+2008-08-05 Lars Uebernickel <larsuebernickel@gmx.de>
+	* renderer.c: fixed bug #146, merging of JCL options omitted some
+	  options.
+	* options.c: Fixed bug #151, crash when default value of an option was
+	  set from a composite option.
+
 2008-07-30 Lars Uebernickel <larsuebernickel@gmx.de>
 	* *: Added support for the *FoomaticRIPCommandLinePDF keyword. It will
 	  be used for PDF input. If it is missing, *FoomaticRIPCommandLine
