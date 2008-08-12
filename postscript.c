@@ -714,7 +714,7 @@ void _print_ps(stream_t *stream)
                         funky, especially wrt boolean options. */
                         _log("Found: %s", line->data);
                         if ((o = find_option(optionname))) {
-                            _log("   Option: %s=%s%s", optionname, fromcomposite ? "From" : "", value);
+                            _log("   Option: %s=%s%s\n", optionname, fromcomposite ? "From" : "", value);
                             if (spooler == SPOOLER_CUPS &&
                                 linetype == LT_BEGIN_FEATURE &&
                                 !option_get_value(o, optionset("notfirst")) &&
@@ -772,6 +772,7 @@ void _print_ps(stream_t *stream)
                                     val = option_get_value(o, optset);
                                     dstrcatf(pdest, "%%%% FoomaticRIPOptionSetting: %s=%s\n",
                                             o->name, val ? val : "");
+                                    optionreplaced = 1;
                                 }
 
                                 if (optionreplaced) {
