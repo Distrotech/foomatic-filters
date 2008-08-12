@@ -47,7 +47,7 @@ int gs_stderr(void *instance, const char *str, int len)
     char *buf = malloc(len +1);
     strncpy(buf, str, len);
     buf[len] = '\0';
-    _log("%s", buf);
+    _log("GhostScript: %s", buf);
     free(buf);
     return len;
 }
@@ -92,6 +92,7 @@ static int start_renderer(const char *cmd)
     if (rendererpid != 0)
         wait_for_renderer();
 
+    _log("Render command: %s\n", cmd);
     rendererpid = start_system_process("renderer", cmd, NULL, NULL);
     if (rendererpid < 0)
         return 0;
@@ -131,9 +132,11 @@ static int pdf_extract_pages(char filename[PATH_MAX],
 {
     void *minst;
     char filename_arg[PATH_MAX], first_arg[50], last_arg[50];
-    char *gs_args[] = { "", "-dNOPAUSE", "-dBATCH", "-dPARANOIDSAFER",
-        "-sDEVICE=pdfwrite", filename_arg, first_arg, last_arg };
-    int exit_code;
+    const char *gs_args[] = { "", "-q", "-dNOPAUSE", "-dBATCH",
+        "-dPARANOIDSAFER", "-sDEVICE=pdfwrite", filename_arg, first_arg,
+        last_arg, pdffilename };
+
+    _log("Extracting pages %d through %d\n", first, last);
 
     snprintf(filename, PATH_MAX, "%s/foomatic-XXXXXX", P_tmpdir);
     mktemp(filename);
@@ -150,17 +153,11 @@ static int pdf_extract_pages(char filename[PATH_MAX],
     snprintf(first_arg, 50, "-dFirstPage=%d", first);
     snprintf(last_arg, 50, "-dLastPage=%d", last);
 
-    if (gsapi_init_with_args(minst, ARRAY_LEN(gs_args), gs_args) < 0)
-    {
-        _log("Could not init ghostscript\n");
-        gsapi_exit(minst);
-        gsapi_delete_instance(minst);
-        return 0;
-    }
+    gsapi_set_stdio(minst, NULL, NULL, gs_stderr);
 
-    if (gsapi_run_file(minst, pdffilename, 0, &exit_code) == 0)
+    if (gsapi_init_with_args(minst, ARRAY_LEN(gs_args), (char **)gs_args) < 0)
     {
-        _log("gsapi: Could not run file %s\n", pdffilename);
+        _log("Could not run ghostscript to extract the pages\n");
         gsapi_exit(minst);
         gsapi_delete_instance(minst);
         return 0;
@@ -179,18 +176,24 @@ static int render_pages_with_generic_command(dstr_t *cmd,
     char tmpfile[PATH_MAX];
     int result;
 
-    if (!pdf_extract_pages(tmpfile, filename, firstpage, lastpage))
-        return 0;
-
     /* TODO it might be a good idea to give pdf command lines the possibility
      * to get the file on the command line rather than piped through stdin
      * (maybe introduce a &filename; ??) */
 
-    dstrcatf(cmd, " < %s", tmpfile);
+    if (lastpage < 0)  /* i.e. print the whole document */
+        dstrcatf(cmd, " < %s", filename);
+    else
+    {
+        if (!pdf_extract_pages(tmpfile, filename, firstpage, lastpage))
+            return 0;
+        dstrcatf(cmd, " < %s", tmpfile);
+    }
 
     result = start_renderer(cmd->data);
 
-    unlink(tmpfile);
+    if (lastpage > 0)
+        unlink(tmpfile);
+
     return result;
 }
 
@@ -264,7 +267,11 @@ static int print_pdf_file(const char *filename)
         }
         optionset_copy_values(optionset("currentpage"), optionset("previouspage"));
     }
-    render_pages(filename, firstpage, page_count);
+    if (firstpage == 1)
+        render_pages(filename, 1, -1); /* Render the whole document */
+    else
+        render_pages(filename, firstpage, page_count);
+
     wait_for_renderer();
 
     return 1;

@@ -1,3 +1,7 @@
+2008-08-12 Lars Uebernickel <larsuebernickel@gmx.de>
+	* options.c: Use FoomaticRIPCommandLinePDF if it is available. Don't
+	  use it if at least one option wants to insert PostScript code
+
 2008-08-05 Lars Uebernickel <larsuebernickel@gmx.de>
 	* renderer.c: fixed bug #146, merging of JCL options omitted some
 	  options.

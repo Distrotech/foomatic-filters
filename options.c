@@ -37,6 +37,7 @@ char jclend[256] = "\033%-12345X@PJL RESET\n";
 char jclprefix[256] = "@PJL ";
 int jclprefixset = 0;
 
+int ppd_requires_postscript = 0;
 
 dstr_t *prologprepend;
 dstr_t *setupprepend;
@@ -1102,6 +1103,25 @@ static void unhtmlify(char *dest, size_t size, const char *src)
     *pdest = '\0';
 }
 
+/*
+ * Checks whether 'code' contains active PostScript, i.e. not only comments
+ */
+static int contains_active_postscript(const char *code)
+{
+    char **line, **lines;
+    int contains_ps = 0;
+
+    if (!(lines = argv_split(code, "\n", NULL)))
+        return 0;
+
+    for (line = lines; *line && !contains_ps; line++)
+        contains_ps = !isempty(*line) && 
+                      !startswith(skip_whitespace(*line), "%");
+
+    argv_free(lines);
+    return contains_ps;
+}
+
 void option_set_choice(option_t *opt, const char *name, const char *text,
                        const char *code)
 {
@@ -1119,7 +1139,17 @@ void option_set_choice(option_t *opt, const char *name, const char *text,
     if (text)
         strlcpy(choice->text, text, 128);
 
-    if (code && !startswith(code, "%% FoomaticRIPOptionSetting"))
+    if (!code)
+    {
+        _log("Warning: No code for choice \"%s\" of option \"%s\"\n",
+             choice->text, opt->name);
+        return;
+    }
+
+    if (option_is_ps_command(opt) && contains_active_postscript(code))
+        ppd_requires_postscript = 1;
+
+    if (!startswith(code, "%% FoomaticRIPOptionSetting"))
         unhtmlify(choice->command, 1024, code);
 }
 
@@ -1439,6 +1469,9 @@ void read_ppd_file(const char *filename)
         else if (strcmp(key, "FoomaticRIPCommandLine") == 0) {
             unhtmlify(cmd, 1024, value->data);
         }
+        else if (strcmp(key, "FoomaticRIPCommandLinePDF") == 0) {
+            unhtmlify(cmd_pdf, 1024, value->data);
+        }
         else if (strcmp(key, "FoomaticNoPageAccounting") == 0) {
             /* Boolean value */
             if (strcasecmp(value->data, "true") != 0) {
@@ -1613,13 +1646,21 @@ void read_ppd_file(const char *filename)
     }
 }
 
-int ppd_supports_pdf_commandline()
+int ppd_supports_pdf()
 {
+    /* At least one option inserts PostScript code */
+    if (ppd_requires_postscript)
+        return 0;
+
     if (!isempty(cmd_pdf))
         return 1;
 
-    if (contains_command(cmd, "gs"))
+    /* If we have ghostscript at the beginning of 'cmd', it understands pdf, too */
+    if (startswith(cmd, "gs"))
+    {
+        strncpy(cmd_pdf, cmd, 1024);
         return 1;
+    }
 
     return 0;
 }

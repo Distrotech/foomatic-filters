@@ -929,7 +929,7 @@ int print_file(const char *filename, int convert)
         case PDF_FILE:
             _log("Filetype: PDF\n");
 
-            if (!ppd_supports_pdf_commandline())
+            if (!ppd_supports_pdf())
             {
                 char pdf2ps_cmd[PATH_MAX];
                 FILE *out, *in;
