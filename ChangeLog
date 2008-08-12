@@ -1,3 +1,11 @@
+2008-08-12 Lars Uebernickel <larsuebernickel@gmx.de>
+	* options.c: Use FoomaticRIPCommandLinePDF if it is available. Don't
+	  use it if at least one option wants to insert PostScript code
+	* pdf.c: Only create a temporary file if there actually are page
+	  overrides, not if printing the whole document
+	* postscript.c: Fixed bug #142, custom input value which was wrongly
+	  set by pstops was not set to the correct value by foomatic-rip
+
 2008-08-05 Lars Uebernickel <larsuebernickel@gmx.de>
 	* renderer.c: fixed bug #146, merging of JCL options omitted some
 	  options.

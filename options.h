@@ -128,7 +128,7 @@ option_t *find_option(const char *name);
 
 void read_ppd_file(const char *filename);
 
-int ppd_supports_pdf_commandline();
+int ppd_supports_pdf();
 
 
 int option_set_value(option_t *opt, int optset, const char *value);
