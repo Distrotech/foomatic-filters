@@ -37,8 +37,6 @@ char jclend[256] = "\033%-12345X@PJL RESET\n";
 char jclprefix[256] = "@PJL ";
 int jclprefixset = 0;
 
-int ppd_requires_postscript = 0;
-
 dstr_t *prologprepend;
 dstr_t *setupprepend;
 dstr_t *pagesetupprepend;
@@ -1150,14 +1148,9 @@ void option_set_choice(option_t *opt, const char *name, const char *text,
         return;
     }
 
-    if (option_is_ps_command(opt) && contains_active_postscript(code))
-        ppd_requires_postscript = 1;
-
     if (!startswith(code, "%% FoomaticRIPOptionSetting"))
         unhtmlify(choice->command, 1024, code);
 }
-
-
 
 /*
  *  Parameters
@@ -1652,14 +1645,26 @@ void read_ppd_file(const char *filename)
 
 int ppd_supports_pdf()
 {
-    /* At least one option inserts PostScript code */
-    if (ppd_requires_postscript)
-        return 0;
+    option_t *opt;
+
+    /* If at least one option inserts PostScript code, we cannot support PDF */
+    for (opt = optionlist; opt; opt = opt->next)
+    {
+        choice_t *choice;
+
+        if (!option_is_ps_command(opt))
+            continue;
+
+        for (choice = opt->choicelist; choice; choice = choice->next)
+            if (contains_active_postscript(choice->command))
+                return 0;
+    }
 
     if (!isempty(cmd_pdf))
         return 1;
 
-    /* If we have ghostscript at the beginning of 'cmd', it understands pdf, too */
+    /* GhostScript also accepts PDF, use that if it is in the normal command
+     * line */
     if (startswith(cmd, "gs"))
     {
         strncpy(cmd_pdf, cmd, 1024);
