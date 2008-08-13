@@ -151,7 +151,10 @@ static int pdf_extract_pages(char filename[PATH_MAX],
 
     snprintf(filename_arg, PATH_MAX, "-sOutputFile=%s", filename);
     snprintf(first_arg, 50, "-dFirstPage=%d", first);
-    snprintf(last_arg, 50, "-dLastPage=%d", last);
+    if (last > 0)
+        snprintf(last_arg, 50, "-dLastPage=%d", last);
+    else
+        first_arg[0] = '\0';
 
     gsapi_set_stdio(minst, NULL, NULL, gs_stderr);
 
@@ -204,14 +207,26 @@ static int render_pages_with_ghostscript(dstr_t *cmd,
                                          int firstpage,
                                          int lastpage)
 {
+    char *p;
+
     /* No need to create a temporary file, just give ghostscript the file and
      * first/last page on the command line */
 
-    dstrinsertf(cmd, start_gs_cmd +2,
-                " -dFirstPage=%d -dLastPage=%d ",
-                firstpage, lastpage);
+    /* Some command lines want to read from stdin */
+    for (p = &cmd->data[end_gs_cmd -1]; isspace(*p); p--)
+        ;
+    if (*p == '-')
+        *p = '\0';
 
     dstrinsertf(cmd, end_gs_cmd, " %s ", filename);
+
+    if (lastpage > 0)
+        dstrinsertf(cmd, start_gs_cmd +2,
+                    " -dFirstPage=%d -dLastPage=%d ",
+                    firstpage, lastpage);
+    else
+        dstrinsertf(cmd, start_gs_cmd +2,
+                    " -dFirstPage=%d ", firstpage);
 
     return start_renderer(cmd->data);
 }

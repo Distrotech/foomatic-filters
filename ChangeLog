@@ -1,3 +1,13 @@
+2008-08-13 Lars Uebernickel <larsuebernickel@gmx.de>
+	* pdf.c: foomatic-rip inserted the -sOutputFile GhostScript command
+	  line argument at the wrong position when printing a PDF file (not from
+	  stdin), which led GhostScript to crash
+	* options.c: Option settings can be given in the PPD file before the
+	  option is "declared", which led foomatic-rip to think that there are
+	  PostScript options (the default) in the PPD and the driver could not
+	  understand PDF input. Now, foomatic-rip checks for PostScript
+	  options after the whole PPD has been read.
+
 2008-08-12 Lars Uebernickel <larsuebernickel@gmx.de>
 	* options.c: Use FoomaticRIPCommandLinePDF if it is available. Don't
 	  use it if at least one option wants to insert PostScript code
