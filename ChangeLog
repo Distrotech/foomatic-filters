@@ -1,3 +1,8 @@
+2008-08-13 Lars Uebernickel <larsuebernickel@gmx.de>
+	* pdf.c: foomatic-rip inserted the -sOutputFile GhostScript command
+	  line argument at the wrong position when printing a PDF file (not from
+	  stdin), which led GhostScript to crash
+
 2008-08-12 Lars Uebernickel <larsuebernickel@gmx.de>
 	* options.c: Use FoomaticRIPCommandLinePDF if it is available. Don't
 	  use it if at least one option wants to insert PostScript code
