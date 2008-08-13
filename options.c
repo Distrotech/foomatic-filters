@@ -530,7 +530,10 @@ static char ** paramvalues_from_string(option_t *opt, const char *str)
     float width, height;
     char unit[3];
 
-    if (!strcmp(opt->name, "PageSize")) {
+    if (!strcmp(opt->name, "PageSize"))
+    {
+        if (startswith(str, "Custom."))
+            str = &str[7];
         /* 'unit' is optional, if it is not given, 'pt' is assumed */
         n = sscanf(str, "%fx%f%2s", &width, &height, unit);
         if (n > 1) {
@@ -688,7 +691,8 @@ char * get_valid_value_string(option_t *opt, const char *value)
         }
     }
     else if (opt->foomatic_param)
-        return get_valid_param_string(opt, opt->foomatic_param, value);
+        return get_valid_param_string(opt, opt->foomatic_param,
+                              startswith(value, "Custom.") ? &value[7] : value);
 
     return NULL;
 }
