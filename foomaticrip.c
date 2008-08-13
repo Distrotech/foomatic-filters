@@ -933,19 +933,25 @@ int print_file(const char *filename, int convert)
             {
                 char pdf2ps_cmd[PATH_MAX];
                 FILE *out, *in;
-                int pid;
+                int renderer_pid;
 
                 _log("Driver does not understand PDF input, "
                      "converting to PostScript\n");
 
                 snprintf(pdf2ps_cmd, PATH_MAX,
-                         "gs -q -sDEVICE=pswrite -sOutputFile=- "
+                         "gs -q -sstdout=%%stderr -sDEVICE=pswrite -sOutputFile=- "
                             "-dBATCH -dNOPAUSE -dPARANOIDSAFER %s",
                          file == stdin ? "-" : filename);
 
-                pid = start_system_process("pdf-to-ps", pdf2ps_cmd, &in, &out);
+                renderer_pid = start_system_process("pdf-to-ps", pdf2ps_cmd, &in, &out);
 
-                create_pipe_process("pipe-pdf", stdin, in, buf, n);
+                if (file == stdin)
+                {
+                    fwrite(buf, 1, n, in);
+                    while ((n = fread(buf, 1, sizeof(buf), file)))
+                        fwrite(buf, 1, n, in);
+                    fclose(in);
+                }
 
                 if (dup2(fileno(out), fileno(stdin)) < 0)
                     rip_die(EXIT_PRNERR_NORETRY_BAD_SETTINGS,
@@ -953,7 +959,7 @@ int print_file(const char *filename, int convert)
 
                 ret = print_file("<STDIN>", 0);
 
-                wait_for_process(pid);
+                wait_for_process(renderer_pid);
                 return ret;
             }
 
