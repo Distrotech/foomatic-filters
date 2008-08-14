@@ -976,6 +976,11 @@ int print_file(const char *filename, int convert)
                 return print_ps(file, NULL, 0, filename);
 
         case UNKNOWN_FILE:
+            if (spooler == SPOOLER_CUPS) {
+                _log("Cannot process \"%s\": Unknown filetype.\n", filename);
+                return 0;
+            }
+
             _log("Filetype unknown, trying to convert ...\n");
             get_fileconverter_handle(buf, &fchandle, &fcpid);
 
