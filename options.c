@@ -248,11 +248,11 @@ option_t * find_option(const char *name)
     option_t *opt;
 
     /* PageRegion and PageSize are the same options, just store one of them */
-    if (!strcmp(name, "PageRegion"))
+    if (!strcasecmp(name, "PageRegion"))
         return find_option("PageSize");
 
     for (opt = optionlist; opt; opt = opt->next) {
-        if (!strcmp(opt->name, name))
+        if (!strcasecmp(opt->name, name))
             return opt;
     }
     return NULL;
