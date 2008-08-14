@@ -409,7 +409,7 @@ void process_cmdline_options()
         /* Standard bool args:
            landscape; what to do here?
            duplex; we should just handle this one OK now? */
-        else if (!startswith(key, "no") && (opt = find_option(&key[3])))
+        else if (!prefixcasecmp(key, "no") && (opt = find_option(&key[2])))
             option_set_value(opt, optset, "0");
         else if ((opt = find_option(key)))
             option_set_value(opt, optset, "1");
