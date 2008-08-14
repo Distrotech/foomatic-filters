@@ -305,19 +305,18 @@ int print_pdf(FILE *s,
     /* TODO don't do this if there aren't any pagerange-limited options */
     if (s == stdin)
     {
-        FILE *tmpfile, *file;
+        int fd;
+        FILE *tmpfile;
 
         snprintf(tmpfilename, PATH_MAX, "%s/foomatic-XXXXXX", P_tmpdir);
-        mktemp(tmpfilename);
+        fd = mkstemp(tmpfilename);
+        if (fd < 0) {
+            _log("Could not create temporary file: %s\n", strerror(errno));
+            return EXIT_PRNERR_NORETRY_BAD_SETTINGS;
+        }
 
-        tmpfile = fopen(tmpfilename, "r");
-        file = fopen(filename, "r");
-        if (!file || !tmpfile)
-            return 0;
-
-        copy_file(tmpfile, file, alreadyread, len);
-
-        fclose(file);
+        tmpfile = fdopen(fd, "r+");
+        copy_file(tmpfile, stdin, alreadyread, len);
         fclose(tmpfile);
 
         filename = tmpfilename;
