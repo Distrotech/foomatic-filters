@@ -409,7 +409,7 @@ void process_cmdline_options()
         /* Standard bool args:
            landscape; what to do here?
            duplex; we should just handle this one OK now? */
-        else if (!startswith(key, "no") && (opt = find_option(&key[3])))
+        else if (!prefixcasecmp(key, "no") && (opt = find_option(&key[2])))
             option_set_value(opt, optset, "0");
         else if ((opt = find_option(key)))
             option_set_value(opt, optset, "1");
@@ -939,7 +939,7 @@ int print_file(const char *filename, int convert)
                      "converting to PostScript\n");
 
                 snprintf(pdf2ps_cmd, PATH_MAX,
-                         "gs -q -sstdout=%%stderr -sDEVICE=ps2write -sOutputFile=- "
+                         "gs -q -sstdout=%%stderr -sDEVICE=pswrite -sOutputFile=- "
                             "-dBATCH -dNOPAUSE -dPARANOIDSAFER %s",
                          file == stdin ? "-" : filename);
 
@@ -976,6 +976,11 @@ int print_file(const char *filename, int convert)
                 return print_ps(file, NULL, 0, filename);
 
         case UNKNOWN_FILE:
+            if (spooler == SPOOLER_CUPS) {
+                _log("Cannot process \"%s\": Unknown filetype.\n", filename);
+                return 0;
+            }
+
             _log("Filetype unknown, trying to convert ...\n");
             get_fileconverter_handle(buf, &fchandle, &fcpid);
 
