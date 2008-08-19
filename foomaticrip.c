@@ -939,7 +939,7 @@ int print_file(const char *filename, int convert)
                      "converting to PostScript\n");
 
                 snprintf(pdf2ps_cmd, PATH_MAX,
-                         "gs -q -sstdout=%%stderr -sDEVICE=ps2write -sOutputFile=- "
+                         "gs -q -sstdout=%%stderr -sDEVICE=pswrite -sOutputFile=- "
                             "-dBATCH -dNOPAUSE -dPARANOIDSAFER %s",
                          file == stdin ? "-" : filename);
 
