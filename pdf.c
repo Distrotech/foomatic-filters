@@ -216,7 +216,7 @@ static int render_pages_with_ghostscript(dstr_t *cmd,
     for (p = &cmd->data[end_gs_cmd -1]; isspace(*p); p--)
         ;
     if (*p == '-')
-        *p = '\0';
+        *p = ' ';
 
     dstrinsertf(cmd, end_gs_cmd, " %s ", filename);
 
