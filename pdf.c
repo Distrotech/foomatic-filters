@@ -269,7 +269,7 @@ static int print_pdf_file(const char *filename)
         return 0;
     _log("File contains %d pages\n", page_count);
 
-    optionset_copy_values(optionset("default"), optionset("currentpage"));
+    optionset_copy_values(optionset("header"), optionset("currentpage"));
     optionset_copy_values(optionset("currentpage"), optionset("previouspage"));
     firstpage = 1;
     for (i = 1; i <= page_count; i++)
