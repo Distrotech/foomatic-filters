@@ -113,7 +113,7 @@ static int wait_for_renderer()
         exit(EXIT_PRNERR_NORETRY_BAD_SETTINGS);
     }
 
-    _log("Renderer exit status: %s\n", WEXITSTATUS(status));
+    _log("Renderer exit status: %d\n", WEXITSTATUS(status));
     if (WEXITSTATUS(status) != 0)
         exit(EXIT_PRNERR_NORETRY_BAD_SETTINGS);
 
