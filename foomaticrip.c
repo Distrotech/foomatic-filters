@@ -1161,12 +1161,12 @@ int main(int argc, char** argv)
        allow duplicates, and use the last specified one */
     if (spooler != SPOOLER_LPRNG) {
         while ((str = arglist_get_value(arglist, "-p"))) {
-            strncpy_omit(job->ppdfile, str, 256, omit_shellescapes);
+            strncpy(job->ppdfile, str, 256);
             arglist_remove(arglist, "-p");
         }
     }
     while ((str = arglist_get_value(arglist, "--ppd"))) {
-        strncpy_omit(job->ppdfile, str, 256, omit_shellescapes);
+        strncpy(job->ppdfile, str, 256);
         arglist_remove(arglist, "--ppd");
     }
 
@@ -1263,7 +1263,7 @@ int main(int argc, char** argv)
         case SPOOLER_GNULPR:
             /* Get PPD file name as the last command line argument */
             if (arglist->last)
-                strncpy_omit(job->ppdfile, (char*)arglist->last->data, 256, omit_shellescapes);
+                strncpy(job->ppdfile, (char*)arglist->last->data, 256);
             break;
 
         case SPOOLER_DIRECT:
