@@ -7,6 +7,7 @@
 #include <assert.h>
 #include <regex.h>
 #include <string.h>
+#include <math.h>
 
 
 /* Values from foomatic keywords in the ppd file */
@@ -395,7 +396,7 @@ static param_t * option_find_param_index(option_t *opt, const char *name, int *i
 static choice_t * option_find_choice(option_t *opt, const char *name)
 {
     choice_t *choice;
-    assert(opt && name);   
+    assert(opt && name);
     for (choice = opt->choicelist; choice; choice = choice->next) {
         if (!strcasecmp(choice->value, name))
             return choice;
@@ -497,6 +498,13 @@ char * get_valid_param_string(option_t *opt, param_t *param, const char *str)
     return NULL;
 }
 
+char * get_valid_param_string_int(option_t *opt, param_t *param, int value)
+{
+    char str[20];
+    snprintf(str, 20, "%d", value);
+    return get_valid_param_string(opt, param, str);
+}
+
 char * get_valid_param_string_float(option_t *opt, param_t *param, float value)
 {
     char str[20];
@@ -507,16 +515,16 @@ char * get_valid_param_string_float(option_t *opt, param_t *param, float value)
 float convert_to_points(float f, const char *unit)
 {
     if (!strcasecmp(unit, "pt"))
-        return f;
+        return roundf(f);
     if (!strcasecmp(unit, "in"))
-        return f * 72.0;
+        return roundf(f * 72.0);
     if (!strcasecmp(unit, "cm"))
-        return f * 72.0 / 2.54;
+        return roundf(f * 72.0 / 2.54);
     if (!strcasecmp(unit, "mm"))
-        return f * 72.0 / 25.4;
+        return roundf(f * 72.0 / 25.4);
 
     _log("Unknown unit: \"%s\"\n", unit);
-    return f;
+    return roundf(f);
 }
 
 static char ** paramvalues_from_string(option_t *opt, const char *str)
@@ -542,9 +550,9 @@ static char ** paramvalues_from_string(option_t *opt, const char *str)
             paramvalues = calloc(opt->param_count, sizeof(char*));
             for (param = opt->paramlist, i = 0; param; param = param->next, i++) {
                 if (!strcasecmp(param->name, "width"))
-                    paramvalues[i] = get_valid_param_string_float(opt, param, width);
+                    paramvalues[i] = get_valid_param_string_int(opt, param, (int)width);
                 else if (!strcasecmp(param->name, "height"))
-                    paramvalues[i] = get_valid_param_string_float(opt, param, height);
+                    paramvalues[i] = get_valid_param_string_int(opt, param, (int)height);
                 else
                     paramvalues[i] = get_valid_param_string(opt, param, "0");
                 if (!paramvalues[i]) {
@@ -706,6 +714,10 @@ const char * option_get_value(option_t *opt, int optionset)
  * optionset, otherwise the custom_command will be used */
 int option_use_foomatic_prototype(option_t *opt)
 {
+    /* Custom options are always PostScript options */
+    if (!option_is_ps_command(opt))
+        return 1;
+
     /* if only one of them exists, take that one */
     if (opt->custom_command && !opt->proto)
         return 0;
@@ -716,10 +728,35 @@ int option_use_foomatic_prototype(option_t *opt)
 
 void build_foomatic_custom_command(dstr_t *cmd, option_t *opt, const char *values)
 {
-    dstrcpy(cmd, opt->proto);
-    /* use replace instead of printf-style because opt->proto could contain
-       other format strings */
-    dstrreplace(cmd, "%s", values);
+    if (!opt->proto && !strcmp(opt->name, "PageSize"))
+    {
+        choice_t *choice = option_find_choice(opt, "Custom");
+        char ** paramvalues = paramvalues_from_string(opt, values);
+        char width[30], height[20];
+
+        assert(choice);
+
+        /* Get rid of the trailing ".00000", it confuses ghostscript */
+        snprintf(width, 20, "%d", atoi(paramvalues[0]));
+        snprintf(height, 20, "%d", atoi(paramvalues[1]));
+
+        dstrcpy(cmd, choice->command);
+
+        if (!dstrreplace(cmd, "%0", width))
+            dstrreplace(cmd, "0", width);
+
+        if (!dstrreplace(cmd, "%1", height))
+            dstrreplace(cmd, "0", height);
+
+        free_paramvalues(opt, paramvalues);
+    }
+    else
+    {
+        dstrcpy(cmd, opt->proto);
+        /* use replace instead of printf-style because opt->proto could contain
+           other format strings */
+        dstrreplace(cmd, "%s", values);
+    }
 }
 
 void build_cups_custom_ps_command(dstr_t *cmd, option_t *opt, const char *values)

@@ -494,7 +494,15 @@ void dstrassure(dstr_t *ds, size_t alloc)
 
 void dstrcpy(dstr_t *ds, const char *src)
 {
-    size_t srclen = strlen(src);
+    size_t srclen;
+
+    if (!src) {
+        ds->len = 0;
+        ds->data[0] = '\0';
+        return;
+    }
+
+    srclen = strlen(src);
 
     if (srclen >= ds->alloc) {
         do {
@@ -636,28 +644,70 @@ size_t fgetdstr(dstr_t *ds, FILE *stream)
     return cnt;
 }
 
-void dstrreplace(dstr_t *ds, const char *find, const char *repl)
+/*
+ * Replace the first occurence of 'find' with 'repl'
+ * Returns whether 'find' has been found and replaced
+ */
+int dstrreplace(dstr_t *ds, const char *find, const char *repl)
 {
-    char *p, *next;
+    char *p;
     dstr_t *copy = create_dstr();
-    size_t findlen = strlen(find);
 
     dstrcpy(copy, ds->data);
-    dstrclear(ds);
 
-    p = copy->data;
-    while ((next = strstr(p, find))) {
-        *next = '\0';
-        next += findlen;
-
-        dstrcatf(ds, "%s", p);
+    if ((p = strstr(copy->data, find)))
+    {
+        dstrncpy(ds, copy->data, p - copy->data);
         dstrcatf(ds, "%s", repl);
-
-        p = next;
+        dstrcatf(ds, "%s", p + strlen(find));
     }
 
-    dstrcatf(ds, "%s", p);
     free_dstr(copy);
+    return p != NULL;
+}
+
+int isword(int c)
+{
+    return isalnum(c) || c == '_';
+}
+
+char * find_word(const char *string, const char *word)
+{
+    const char *p = string;
+    size_t len = strlen(word);
+
+    while ((p = strstr(p, word)))
+    {
+        const char *end = p + len;
+
+        if ((p == string || !isword(*(p -1))) &&
+            (!*end || isword(*(end +1))))
+            return (char *)p;
+
+        p++;
+    }
+
+    return NULL;
+}
+
+int dstrreplace_word(dstr_t *ds, const char *find, const char *repl)
+{
+    char *p;
+    dstr_t *copy = create_dstr();
+
+    dstrcpy(copy, ds->data);
+
+    if ((p = find_word(copy->data, find)))
+    {
+        dstrclear(ds);
+        *p = '\0';
+        dstrcatf(ds, "%s", copy->data);
+        dstrcatf(ds, "%s", repl);
+        dstrcatf(ds, "%s", p +1);
+    }
+
+    free_dstr(copy);
+    return p != NULL;
 }
 
 void dstrprepend(dstr_t *ds, const char *str)
