@@ -645,69 +645,27 @@ size_t fgetdstr(dstr_t *ds, FILE *stream)
 }
 
 /*
- * Replace the first occurence of 'find' with 'repl'
- * Returns whether 'find' has been found and replaced
+ * Replace the first occurrence of 'find' after the index 'start' with 'repl'
+ * Returns the position right after the replaced string
  */
-int dstrreplace(dstr_t *ds, const char *find, const char *repl)
+int dstrreplace(dstr_t *ds, const char *find, const char *repl, int start)
 {
     char *p;
     dstr_t *copy = create_dstr();
+    int end = -1;
 
     dstrcpy(copy, ds->data);
 
-    if ((p = strstr(copy->data, find)))
+    if ((p = strstr(&copy->data[start], find)))
     {
         dstrncpy(ds, copy->data, p - copy->data);
         dstrcatf(ds, "%s", repl);
+        end = ds->len;
         dstrcatf(ds, "%s", p + strlen(find));
     }
 
     free_dstr(copy);
-    return p != NULL;
-}
-
-int isword(int c)
-{
-    return isalnum(c) || c == '_';
-}
-
-char * find_word(const char *string, const char *word)
-{
-    const char *p = string;
-    size_t len = strlen(word);
-
-    while ((p = strstr(p, word)))
-    {
-        const char *end = p + len;
-
-        if ((p == string || !isword(*(p -1))) &&
-            (!*end || isword(*(end +1))))
-            return (char *)p;
-
-        p++;
-    }
-
-    return NULL;
-}
-
-int dstrreplace_word(dstr_t *ds, const char *find, const char *repl)
-{
-    char *p;
-    dstr_t *copy = create_dstr();
-
-    dstrcpy(copy, ds->data);
-
-    if ((p = find_word(copy->data, find)))
-    {
-        dstrclear(ds);
-        *p = '\0';
-        dstrcatf(ds, "%s", copy->data);
-        dstrcatf(ds, "%s", repl);
-        dstrcatf(ds, "%s", p +1);
-    }
-
-    free_dstr(copy);
-    return p != NULL;
+    return end;
 }
 
 void dstrprepend(dstr_t *ds, const char *str)

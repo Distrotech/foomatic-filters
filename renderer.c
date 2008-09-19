@@ -57,19 +57,19 @@ void massage_gs_commandline(dstr_t *cmd)
        will be on 2(stderr) and job ps program interpreter output on
        1(stdout). */
     if (gswithoutputredirection)
-        dstrreplace(cmd, "-sOutputFile=- ", "-sOutputFile=%stdout ");
+        dstrreplace(cmd, "-sOutputFile=- ", "-sOutputFile=%stdout ", 0);
     else
-        dstrreplace(cmd, "-sOutputFile=- ", "-sOutputFile=/dev/fd/3 ");
+        dstrreplace(cmd, "-sOutputFile=- ", "-sOutputFile=/dev/fd/3 ", 0);
 
     /* Use always buffered input. This works around a Ghostscript
        bug which prevents printing encrypted PDF files with Adobe
        Reader 8.1.1 and Ghostscript built as shared library
        (Ghostscript bug #689577, Ubuntu bug #172264) */
-    dstrreplace(cmd, " - ", " -_ ");
-    dstrreplace(cmd, " /dev/fd/0 ", " -_ ");
+    dstrreplace(cmd, " - ", " -_ ", 0);
+    dstrreplace(cmd, " /dev/fd/0 ", " -_ ", 0);
 
     /* Turn *off* -q (quiet!); now that stderr is useful! :) */
-    dstrreplace(cmd, " -q ", " ");
+    dstrreplace(cmd, " -q ", " ", 0);
 
     /* Escape any quotes, and then quote everything just to be sure...
        Escaping a single quote inside single quotes is a bit complex as the shell
@@ -90,7 +90,7 @@ void massage_gs_commandline(dstr_t *cmd)
     /* If the renderer command line contains the "echo" command, replace the
      * "echo" by the user-chosen $myecho (important for non-GNU systems where
      * GNU echo is in a special path */
-    dstrreplace(cmd, "echo", ECHO); /* TODO search for \wecho\w */
+    dstrreplace(cmd, "echo", ECHO, 0); /* TODO search for \wecho\w */
 }
 
 char * read_line(FILE *stream)

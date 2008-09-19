@@ -733,6 +733,7 @@ void build_foomatic_custom_command(dstr_t *cmd, option_t *opt, const char *value
         choice_t *choice = option_find_choice(opt, "Custom");
         char ** paramvalues = paramvalues_from_string(opt, values);
         char width[30], height[20];
+        int pos;
 
         assert(choice);
 
@@ -742,11 +743,11 @@ void build_foomatic_custom_command(dstr_t *cmd, option_t *opt, const char *value
 
         dstrcpy(cmd, choice->command);
 
-        if (!dstrreplace(cmd, "%0", width))
-            dstrreplace(cmd, "0", width);
+        if ((pos = dstrreplace(cmd, "%0", width, 0)) < 0)
+            pos = dstrreplace(cmd, "0", width, 0);
 
-        if (!dstrreplace(cmd, "%1", height))
-            dstrreplace(cmd, "0", height);
+        if ((pos = dstrreplace(cmd, "%1", height, pos) < 0))
+            dstrreplace(cmd, "0", height, pos);
 
         free_paramvalues(opt, paramvalues);
     }
@@ -755,7 +756,7 @@ void build_foomatic_custom_command(dstr_t *cmd, option_t *opt, const char *value
         dstrcpy(cmd, opt->proto);
         /* use replace instead of printf-style because opt->proto could contain
            other format strings */
-        dstrreplace(cmd, "%s", values);
+        dstrreplace(cmd, "%s", values, 0);
     }
 }
 
@@ -782,7 +783,7 @@ void build_cups_custom_jcl_command(dstr_t *cmd, option_t *opt, const char *value
     dstrcpy(cmd, opt->custom_command);
     for (param = opt->paramlist, i = 0; param; param = param->next, i++) {
         snprintf(orderstr, 8, "\\%d", param->order);
-        dstrreplace(cmd, orderstr, paramvalues[i]);
+        dstrreplace(cmd, orderstr, paramvalues[i], 0);
     }
     free_paramvalues(opt, paramvalues);
 }
@@ -1798,7 +1799,7 @@ int build_commandline(int optset, dstr_t *cmdline, int pdfcmdline)
             snprintf(p, 3, "%%%c", opt->spot);
             s = malloc(cmdvar->len +3);
             snprintf(s, cmdvar->len +3, "%s%%%c", cmdvar->data, opt->spot);
-            dstrreplace(cmdline, p, s);
+            dstrreplace(cmdline, p, s, 0);
             free(p);
             free(s);
         }
@@ -1809,7 +1810,7 @@ int build_commandline(int optset, dstr_t *cmdline, int pdfcmdline)
                 continue;
             s = malloc(strlen(opt->name) + strlen(userval) + 20);
             sprintf(s, "%s=%s %%Y", opt->name, userval);
-            dstrreplace(cmdline, "%Y", s);
+            dstrreplace(cmdline, "%Y", s, 0);
             free(s);
         }
     }
@@ -1821,7 +1822,7 @@ int build_commandline(int optset, dstr_t *cmdline, int pdfcmdline)
     if (cmdline) {
         s = strtok(letters, " ");
         do {
-            dstrreplace(cmdline, s, "");
+            dstrreplace(cmdline, s, "", 0);
         } while ((s = strtok(NULL, " ")));
     }
 
