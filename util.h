@@ -120,7 +120,7 @@ void dstrcat(dstr_t *ds, const char *src);
 void dstrcatf(dstr_t *ds, const char *src, ...);
 void dstrputc(dstr_t *ds, int c);
 size_t fgetdstr(dstr_t *ds, FILE *stream); /* returns number of characters read */
-void dstrreplace(dstr_t *ds, const char *find, const char *repl);
+int dstrreplace(dstr_t *ds, const char *find, const char *repl);
 void dstrprepend(dstr_t *ds, const char *str);
 void dstrinsert(dstr_t *ds, int idx, const char *str);
 void dstrinsertf(dstr_t *ds, int idx, const char *str, ...);
