@@ -4,11 +4,15 @@
 #include "options.h"
 #include "fileconverter.h"
 #include "renderer.h"
+#include "process.h"
 
 #include <errno.h>
 #include <unistd.h>
 #include <ctype.h>
 #include <stdlib.h>
+
+void get_renderer_handle(const dstr_t *prepend, FILE **fd, pid_t *pid);
+int close_renderer_handle(FILE *rendererhandle, pid_t rendererpid);
 
 #define LT_BEGIN_FEATURE 1
 #define LT_FOOMATIC_RIP_OPTION_SETTING 2
@@ -1216,5 +1220,50 @@ void _print_ps(stream_t *stream)
     free_dstr(psheader);
     free_dstr(psfifo);
     free_dstr(tmp);
+}
+
+/*
+ * Run the renderer command line (and if defined also the postpipe) and returns
+ * a file handle for stuffing in the PostScript data.
+ */
+void get_renderer_handle(const dstr_t *prepend, FILE **fd, pid_t *pid)
+{
+    pid_t kid3;
+    FILE *kid3in;
+    dstr_t *cmdline = create_dstr();
+
+    /* Build the command line and get the JCL commands */
+    build_commandline(optionset("currentpage"), cmdline, 0);
+    massage_gs_commandline(cmdline);
+
+    _log("\nStarting renderer with command: \"%s\"\n", cmdline->data);
+    kid3 = start_process("kid3", exec_kid3, (void *)cmdline->data, &kid3in, NULL);
+    if (kid3 < 0)
+        rip_die(EXIT_PRNERR_NORETRY_BAD_SETTINGS, "Cannot fork for kid3\n");
+
+    /* Feed the PostScript header and the FIFO contents */
+    if (prepend)
+        fwrite(prepend->data, prepend->len, 1, kid3in);
+
+    /* We are the parent, return glob to the file handle */
+    *fd = kid3in;
+    *pid = kid3;
+
+    free_dstr(cmdline);
+}
+
+/* Close the renderer process and wait until all kid processes finish */
+int close_renderer_handle(FILE *rendererhandle, pid_t rendererpid)
+{
+    int status;
+
+    _log("\nClosing renderer\n");
+    fclose(rendererhandle);
+
+    status = wait_for_process(rendererpid);
+    if (WIFEXITED(status))
+        return WEXITSTATUS(status);
+    else
+        return EXIT_PRNERR_NORETRY_BAD_SETTINGS;
 }
 

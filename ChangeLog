@@ -1,3 +1,6 @@
+2008-09-24 Lars Uebernickel <larsuebernickel@gmx.de>
+	* pdf.c, renderer.c: Put JCL data also around PDF documents
+
 2008-08-13 Lars Uebernickel <larsuebernickel@gmx.de>
 	* pdf.c: foomatic-rip inserted the -sOutputFile GhostScript command
 	  line argument at the wrong position when printing a PDF file (not from
