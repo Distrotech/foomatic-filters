@@ -45,7 +45,7 @@ void massage_gs_commandline(dstr_t *cmd)
 {
     int gswithoutputredirection = test_gs_output_redirection();
     size_t start, end;
-    
+
     extract_command(&start, &end, cmd->data, "gs");
 
     if (start == end) /* cmd doesn't call ghostscript */
