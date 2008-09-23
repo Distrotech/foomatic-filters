@@ -45,7 +45,7 @@ void massage_gs_commandline(dstr_t *cmd)
 {
     int gswithoutputredirection = test_gs_output_redirection();
     size_t start, end;
-    
+
     extract_command(&start, &end, cmd->data, "gs");
 
     if (start == end) /* cmd doesn't call ghostscript */
@@ -305,20 +305,19 @@ int exec_kid4(FILE *in, FILE *out, void *user_arg)
 
 int exec_kid3(FILE *in, FILE *out, void *user_arg)
 {
-    dstr_t *commandline = create_dstr();
+    dstr_t *commandline;
     int kid4;
     FILE *kid4in;
     int status;
+
+    commandline = create_dstr();
+    dstrcpy(commandline, (const char *)user_arg);
 
     kid4 = start_process("kid4", exec_kid4, NULL, &kid4in, NULL);
     if (kid4 < 0)
         return EXIT_PRNERR_NORETRY_BAD_SETTINGS;
 
-    build_commandline(optionset("currentpage"), commandline, 0);
-    massage_gs_commandline(commandline);
-    _log("renderer command: %s\n", commandline->data);
-
-    if (dup2(fileno(in), fileno(stdin)) < 0) {
+    if (in && dup2(fileno(in), fileno(stdin)) < 0) {
         _log("kid3: Could not dup stdin\n");
         fclose(kid4in);
         return EXIT_PRNERR_NORETRY_BAD_SETTINGS;
@@ -328,23 +327,22 @@ int exec_kid3(FILE *in, FILE *out, void *user_arg)
         fclose(kid4in);
         return EXIT_PRNERR_NORETRY_BAD_SETTINGS;
     }
-    if (debug && !redirect_log_to_stderr()) {
-        fclose(kid4in);
-        return EXIT_PRNERR_NORETRY_BAD_SETTINGS;
-    }
+    if (debug)
+    {
+        if (!redirect_log_to_stderr()) {
+            fclose(kid4in);
+            return EXIT_PRNERR_NORETRY_BAD_SETTINGS;
+        }
 
-    /*
-     * In debug mode save the data supposed to be fed into the renderer also
-     * into a file
-     */
-    if (debug) {
+        /* Save the data supposed to be fed into the renderer also into a file*/
         dstrprepend(commandline, "tee -a " LOG_FILE ".ps | ( ");
         dstrcat(commandline, ")");
     }
 
     /* Actually run the thing */
     status = run_system_process("renderer", commandline->data);
-    fclose(in);
+    if (in)
+        fclose(in);
     fclose(kid4in);
     fclose(stdin);
     fclose(stdout);
@@ -382,46 +380,5 @@ int exec_kid3(FILE *in, FILE *out, void *user_arg)
         }
     }
     return EXIT_PRNERR;
-}
-
-/*
- * Run the renderer command line (and if defined also the postpipe) and returns
- * a file handle for stuffing in the PostScript data.
- */
-void get_renderer_handle(const dstr_t *prepend, FILE **fd, pid_t *pid)
-{
-    pid_t kid3;
-    FILE *kid3in;
-
-    /* Build the command line and get the JCL commands */
-    build_commandline(optionset("currentpage"), NULL, 0);
-
-    _log("\nStarting renderer\n");
-    kid3 = start_process("kid3", exec_kid3, NULL, &kid3in, NULL);
-    if (kid3 < 0)
-        rip_die(EXIT_PRNERR_NORETRY_BAD_SETTINGS, "Cannot fork for kid3\n");
-
-    /* Feed the PostScript header and the FIFO contents */
-    if (prepend)
-        fwrite(prepend->data, prepend->len, 1, kid3in);
-
-    /* We are the parent, return glob to the file handle */
-    *fd = kid3in;
-    *pid = kid3;
-}
-
-/* Close the renderer process and wait until all kid processes finish */
-int close_renderer_handle(FILE *rendererhandle, pid_t rendererpid)
-{
-    int status;
-
-    _log("\nClosing renderer\n");
-    fclose(rendererhandle);
-
-    status = wait_for_process(rendererpid);
-    if (WIFEXITED(status))
-        return WEXITSTATUS(status);
-    else
-        return EXIT_PRNERR_NORETRY_BAD_SETTINGS;
 }
 

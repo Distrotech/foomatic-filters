@@ -2,8 +2,8 @@
 #ifndef renderer_h
 #define renderer_h
 
-void get_renderer_handle(const dstr_t *prepend, FILE **fd, pid_t *pid);
-int close_renderer_handle(FILE *rendererhandle, pid_t rendererpid);
+void massage_gs_commandline(dstr_t *cmd);
+int exec_kid3(FILE *in, FILE *out, void *user_arg);
 
 #endif
 

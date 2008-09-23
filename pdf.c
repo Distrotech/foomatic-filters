@@ -3,6 +3,7 @@
 #include "util.h"
 #include "options.h"
 #include "process.h"
+#include "renderer.h"
 
 #include <stdlib.h>
 #include <ctype.h>
@@ -84,17 +85,17 @@ static int pdf_count_pages(const char *filename)
     return pagecount;
 }
 
-pid_t rendererpid = 0;
+pid_t kid3 = 0;
 
 
 static int start_renderer(const char *cmd)
 {
-    if (rendererpid != 0)
+    if (kid3 != 0)
         wait_for_renderer();
 
-    _log("Render command: %s\n", cmd);
-    rendererpid = start_system_process("renderer", cmd, NULL, NULL);
-    if (rendererpid < 0)
+    _log("Starting renderer with command: %s\n", cmd);
+    kid3 = start_process("kid3", exec_kid3, (void *)cmd, NULL, NULL);
+    if (kid3 < 0)
         return 0;
 
     return 1;
@@ -104,20 +105,18 @@ static int wait_for_renderer()
 {
     int status;
 
-    _log("\nClosing renderer\n");
-
-    waitpid(rendererpid, &status, 0);
+    waitpid(kid3, &status, 0);
 
     if (!WIFEXITED(status)) {
-        _log("Renderer did not finish normally.\n");
+        _log("Kid3 did not finish normally.\n");
         exit(EXIT_PRNERR_NORETRY_BAD_SETTINGS);
     }
 
-    _log("Renderer exit status: %d\n", WEXITSTATUS(status));
+    _log("Kid3 exit status: %d\n", WEXITSTATUS(status));
     if (WEXITSTATUS(status) != 0)
         exit(EXIT_PRNERR_NORETRY_BAD_SETTINGS);
 
-    rendererpid = 0;
+    kid3 = 0;
     return 1;
 }
 

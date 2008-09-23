@@ -1106,7 +1106,7 @@ int main(int argc, char** argv)
     }
 
     if (getenv("PPD")) {
-        strncpy_omit(job->ppdfile, getenv("PPD"), 256, omit_specialchars);
+        strncpy(job->ppdfile, getenv("PPD"), 256);
         spooler = SPOOLER_CUPS;
     }
 
