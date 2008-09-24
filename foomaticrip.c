@@ -867,6 +867,7 @@ void write_output(void *data, size_t len)
      * - take postpipe into account
      */
     fwrite(data, len, 1, stdout);
+    fflush(stdout);
 }
 
 enum FileType {
@@ -994,6 +995,7 @@ int print_file(const char *filename, int convert)
                 rip_die(ret, "Error closing file converter\n");
             return ret;
     }
+
     fclose(file);
     return 1;
 }

@@ -341,6 +341,7 @@ int exec_kid3(FILE *in, FILE *out, void *user_arg)
 
     /* Actually run the thing */
     status = run_system_process("renderer", commandline->data);
+
     if (in)
         fclose(in);
     fclose(kid4in);
