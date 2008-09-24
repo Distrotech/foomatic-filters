@@ -85,11 +85,14 @@ jobparams_t * get_current_job()
 
 
 dstr_t *postpipe;  /* command into which the output of this filter should be piped */
+FILE *postpipe_fh = NULL;
 
 FILE * open_postpipe()
 {
     const char *p;
-    FILE *fileh;
+
+    if (postpipe_fh)
+        return postpipe_fh;
 
     if (isempty(postpipe->data))
         return stdout;
@@ -99,11 +102,11 @@ FILE * open_postpipe()
     if (*p && *p == '|')
         p += 1;
 
-    if (start_system_process("postpipe", p, &fileh, NULL) < 0)
+    if (start_system_process("postpipe", p, &postpipe_fh, NULL) < 0)
         rip_die(EXIT_PRNERR_NORETRY_BAD_SETTINGS,
                 "Cannot execute postpipe %s\n", postpipe->data);
 
-    return fileh;
+    return postpipe_fh;
 }
 
 
@@ -862,12 +865,16 @@ filtering (listed in the order of the data flow):
 
 void write_output(void *data, size_t len)
 {
-    /* TODO
-     * - all output should be written with this function
-     * - take postpipe into account
-     */
-    fwrite(data, len, 1, stdout);
-    fflush(stdout);
+    const char *p = (const char *)data;
+    size_t left = len;
+    FILE *postpipe = open_postpipe();
+
+    /* Remove leading whitespace */
+    while (isspace(*p++) && left-- > 0)
+        ;
+
+    fwrite((void *)p, left, 1, postpipe);
+    fflush(postpipe);
 }
 
 enum FileType {

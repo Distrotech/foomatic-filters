@@ -1,4 +1,10 @@
 2008-09-24 Lars Uebernickel <larsuebernickel@gmx.de>
+	* foomaticrip.c: Remove leading whitespace from jobs instead of
+	passing it on. Flush() standard output after writing leading data to
+	ensure it comes first (not after or between the output of the
+	renderer).
+
+2008-09-24 Lars Uebernickel <larsuebernickel@gmx.de>
 	* pdf.c, renderer.c: Put JCL data also around PDF documents
 
 2008-08-13 Lars Uebernickel <larsuebernickel@gmx.de>
