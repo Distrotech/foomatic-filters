@@ -264,6 +264,7 @@ static int print_pdf_file(const char *filename)
     int firstpage;
 
     page_count = pdf_count_pages(filename);
+
     if (page_count <= 0)
         return 0;
     _log("File contains %d pages\n", page_count);
