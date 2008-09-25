@@ -1,3 +1,8 @@
+2007-09-25  Till Kamppeter <till.kamppeter@gmail.com>
+
+	* beh.in: Use /tmp as temporary directory when CUPS does not
+	  supply the $TMPDIR environment variable (Ubuntu bug #268284).
+
 2008-09-24 Lars Uebernickel <larsuebernickel@gmx.de>
 	* foomaticrip.c: Remove leading whitespace from jobs instead of
 	passing it on. Flush() standard output after writing leading data to
