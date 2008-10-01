@@ -1,4 +1,8 @@
-2007-09-25  Till Kamppeter <till.kamppeter@gmail.com>
+2008-10-01 Lars Uebernickel <larsuebernickel@gmx.de>
+	* pdf.c: Use $TMPDIR for storing temporary files, and only use
+	P_tmpdir or /tmp if $TMPDIR is not writable.
+
+2008-09-25  Till Kamppeter <till.kamppeter@gmail.com>
 
 	* beh.in: Use /tmp as temporary directory when CUPS does not
 	  supply the $TMPDIR environment variable (Ubuntu bug #268284).

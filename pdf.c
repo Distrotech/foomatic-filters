@@ -32,6 +32,26 @@ char gsout [256];
 static int wait_for_renderer();
 
 
+static const char * temp_dir()
+{
+    const char *tmpdir = getenv("TMPDIR");
+
+    if (access(tmpdir, W_OK) == 0)
+    {
+        _log("Storing temporary files in %s", tmpdir);
+        return tmpdir;
+    }
+
+    if (access(P_tmpdir, W_OK) == 0)
+    {
+        _log("Storing temporary files in %s", P_tmpdir);
+        return P_tmpdir;
+    }
+
+    _log("Storing temporary files in /tmp");
+    return "/tmp";
+}
+
 int gs_stdout(void *instance, const char *str, int len)
 {
     int last;
@@ -137,7 +157,7 @@ static int pdf_extract_pages(char filename[PATH_MAX],
 
     _log("Extracting pages %d through %d\n", first, last);
 
-    snprintf(filename, PATH_MAX, "%s/foomatic-XXXXXX", P_tmpdir);
+    snprintf(filename, PATH_MAX, "%s/foomatic-XXXXXX", temp_dir());
     mktemp(filename);
     if (!filename[0])
         return 0;
@@ -308,7 +328,7 @@ int print_pdf(FILE *s,
         int fd;
         FILE *tmpfile;
 
-        snprintf(tmpfilename, PATH_MAX, "%s/foomatic-XXXXXX", P_tmpdir);
+        snprintf(tmpfilename, PATH_MAX, "%s/foomatic-XXXXXX", temp_dir());
         fd = mkstemp(tmpfilename);
         if (fd < 0) {
             _log("Could not create temporary file: %s\n", strerror(errno));
