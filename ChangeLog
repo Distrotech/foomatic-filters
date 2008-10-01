@@ -1,3 +1,7 @@
+10-01-08 Lars Uebernickel <larsuebernickel@gmx.de>
+	* pdf.c: Use $TMPDIR for storing temporary files, and only use
+	P_tmpdir or /tmp if $TMPDIR is not writable.
+
 2008-09-24 Lars Uebernickel <larsuebernickel@gmx.de>
 	* foomaticrip.c: Remove leading whitespace from jobs instead of
 	passing it on. Flush() standard output after writing leading data to
