@@ -34,22 +34,29 @@ static int wait_for_renderer();
 
 static const char * temp_dir()
 {
-    const char *tmpdir = getenv("TMPDIR");
+    static const char *tmpdir = NULL;
 
-    if (access(tmpdir, W_OK) == 0)
+    if (!tmpdir)
     {
-        _log("Storing temporary files in %s", tmpdir);
-        return tmpdir;
+        const char *dirs[] = { getenv("TMPDIR"), P_tmpdir, "/tmp", NULL };
+        const char **dir;
+
+        for (dir = dirs; *dir; dir++)
+            if (access(*dir, W_OK) != 0) {
+                tmpdir = *dir;
+                break;
+            }
+        if (tmpdir)
+        {
+            _log("Storing temporary files in %s\n", tmpdir);
+            setenv("TMPDIR", tmpdir, 1); /* for child processes */
+        }
+        else
+            rip_die(EXIT_PRNERR_NORETRY_BAD_SETTINGS,
+                    "Cannot find a writable temp dir.");
     }
 
-    if (access(P_tmpdir, W_OK) == 0)
-    {
-        _log("Storing temporary files in %s", P_tmpdir);
-        return P_tmpdir;
-    }
-
-    _log("Storing temporary files in /tmp");
-    return "/tmp";
+    return tmpdir;
 }
 
 int gs_stdout(void *instance, const char *str, int len)
