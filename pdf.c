@@ -42,7 +42,7 @@ static const char * temp_dir()
         const char **dir;
 
         for (dir = dirs; *dir; dir++)
-            if (access(*dir, W_OK) != 0) {
+            if (access(*dir, W_OK) == 0) {
                 tmpdir = *dir;
                 break;
             }
