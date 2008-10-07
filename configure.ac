@@ -43,7 +43,7 @@ AC_CHECK_FUNCS([dup2 getcwd gethostname regcomp setenv strcasecmp strchr strcspn
 
 
 ETCSEARCHPATH=${prefix}/etc:/usr/etc:/usr/local/etc
-LIBSEARCHPATH=${prefix}/lib:/usr/lib:/usr/local/lib:${prefix}/libexec:/usr/libexec:/usr/local/libexec
+LIBSEARCHPATH=${prefix}/lib:${prefix}/lib64:/usr/lib:/usr/lib64:/usr/local/lib:${prefix}/libexec:/usr/libexec:/usr/local/libexec
 
 uname=`uname`
 uversion=`uname -r | sed -e '1,$s/[[^0-9]]//g'`
