@@ -1,3 +1,13 @@
+2008-10-15 Lars Uebernickel <larsuebernickel@gmx.de>
+	* postscript.c: Let foomatic-rip not try to correct the
+‣         settings of boolean and enumerated choice options embedded in
+‣         the Prolog and Setup sections of the PostScript input data. With
+‣         the current pstops filter of CUPS we cannot determine any more
+‣         whether these options come from pstops or from the application.
+‣         Corrections of these options are only needed in the PageSetup,
+‣         anyway, for page overrides (Bug #173). [ported from foomatic-rip 3]
+
+
 2008-10-01 Lars Uebernickel <larsuebernickel@gmx.de>
 	* pdf.c: Use $TMPDIR for storing temporary files, and only use
 	P_tmpdir or /tmp if $TMPDIR is not writable.

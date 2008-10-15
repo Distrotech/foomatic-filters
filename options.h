@@ -139,6 +139,7 @@ int option_get_command(dstr_t *cmd, option_t *opt, int optset, int section);
 
 int option_accepts_value(option_t *opt, const char *value);
 int option_has_choice(option_t *opt, const char *choice);
+int option_is_custom_value(option_t *opt, const char *value);
 
 
 const char * optionset_name(int idx);
