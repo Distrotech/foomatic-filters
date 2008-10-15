@@ -1454,6 +1454,8 @@ void read_ppd_file(const char *filename)
         if (!(p = strchr(line, ':')))
             continue;
         *p = '\0';
+
+        key[0] = name[0] = text[0] = '\0';
         sscanf(line, "*%127s%*[ \t]%63[^ \t/=)]%*1[/=]%63[^\n]", key, name, text);
 
         /* get the value */
