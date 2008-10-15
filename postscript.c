@@ -761,22 +761,30 @@ void _print_ps(stream_t *stream)
                                     if (!(val = option_get_value(o, optset)))
                                         val = "";
 
-                                    if (o->type == TYPE_BOOL)
-                                        dstrcatf(pdest, "%%%%BeginFeature: *%s %s\n", o->name,
-                                                val && !strcmp(val, "1") ? "True" : "False");
-                                    else
-                                        dstrcatf(pdest, "%%%%BeginFeature: *%s %s\n", o->name, val);
+                                    /* Boolean and enumerated choice options can only be set in the
+                                     * PageSetup section */
+                                    if ((inheader && option_is_custom_value(o, value)) || !inheader)
+                                    {
+                                        if (o->type == TYPE_BOOL)
+                                            dstrcatf(pdest, "%%%%BeginFeature: *%s %s\n", o->name,
+                                                     val && !strcmp(val, "1") ? "True" : "False");
+                                        else
+                                            dstrcatf(pdest, "%%%%BeginFeature: *%s %s\n", o->name, val);
 
-                                    dstrcatf(pdest, "%s\n", tmp->data);
+                                        dstrcatf(pdest, "%s\n", tmp->data);
 
-                                    /* We have replaced this option on the FIFO */
-                                    optionreplaced = 1;
+                                        /* We have replaced this option on the FIFO */
+                                        optionreplaced = 1;
+                                    }
                                 }
-                                else {   /* Command line or JCL option */
+                                else { /* Command line or JCL option */
                                     val = option_get_value(o, optset);
-                                    dstrcatf(pdest, "%%%% FoomaticRIPOptionSetting: %s=%s\n",
-                                            o->name, val ? val : "");
-                                    optionreplaced = 1;
+
+                                    if (!inheader || option_is_custom_value(o, val)) {
+                                        dstrcatf(pdest, "%%%% FoomaticRIPOptionSetting: %s=%s\n",
+                                                 o->name, val ? val : "");
+                                        optionreplaced = 1;
+                                    }
                                 }
 
                                 if (optionreplaced) {

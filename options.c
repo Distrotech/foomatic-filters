@@ -839,6 +839,14 @@ int option_is_in_section(option_t *opt, int section)
     return 0;
 }
 
+int option_is_custom_value(option_t *opt, const char *value)
+{
+    if (opt->type == TYPE_BOOL || opt->type == TYPE_ENUM)
+        return 0;
+
+    return !option_find_choice(opt, value);
+}
+
 int option_get_command(dstr_t *cmd, option_t *opt, int optionset, int section)
 {
     const char *valstr;
@@ -1446,6 +1454,8 @@ void read_ppd_file(const char *filename)
         if (!(p = strchr(line, ':')))
             continue;
         *p = '\0';
+
+        key[0] = name[0] = text[0] = '\0';
         sscanf(line, "*%127s%*[ \t]%63[^ \t/=)]%*1[/=]%63[^\n]", key, name, text);
 
         /* get the value */
