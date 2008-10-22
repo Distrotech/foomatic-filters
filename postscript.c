@@ -687,6 +687,7 @@ void _print_ps(stream_t *stream)
                             if (*p == '*') p++;
                             strlcpy(optionname, p, 128);
                             p = strtok(NULL, " \t\r\n"); /* value */
+                            fromcomposite = 0;
                             strlcpy(value, p, 128);
                         }
                         else { /* LT_FOOMATIC_RIP_OPTION_SETTING */

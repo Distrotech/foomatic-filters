@@ -1,3 +1,11 @@
+2008-10-22  Till Kamppeter <till.kamppeter@gmail.com>
+
+	* postscript.c: Reset the "fromcomposite" variable when treating
+	  a "%%BeginFeature" line. In this case we do not do the treatment
+	  of composite options and so the variable should never remain set
+	  from a previous "%%FoomaticRIPOption" line. Fixes the problem
+	  described in comment #23 of bug #173.
+
 2008-10-15 Lars Uebernickel <larsuebernickel@gmx.de>
 	* ppd.c: In some cases, the code for the true and false settings of
 	boolean values was interchanged. E.g., if the user (or the default)
