@@ -714,8 +714,8 @@ const char * option_get_value(option_t *opt, int optionset)
  * optionset, otherwise the custom_command will be used */
 int option_use_foomatic_prototype(option_t *opt)
 {
-    /* Custom options are always PostScript options */
-    if (!option_is_ps_command(opt))
+    /* Only PostScript and JCL options can be CUPS custom options */
+    if (!option_is_ps_command(opt) && !option_is_jcl_arg(opt))
         return 1;
 
     /* if only one of them exists, take that one */
@@ -1537,7 +1537,12 @@ void read_ppd_file(const char *filename)
         }
         else if (startswith(key, "Custom") && !strcasecmp(name, "true")) {
             /* Cups custom option: *CustomFoo True: "command" */
-            opt = assure_option(&key[6]);
+            if (startswith(&key[6], "JCL")) {
+                opt = assure_option(&key[9]);
+                opt->style = 'J';
+            }
+            else
+                opt = assure_option(&key[6]);
             option_set_custom_command(opt, value->data);
             if (!strcmp(key, "CustomPageSize"))
                 option_set_custom_command(assure_option("PageRegion"), value->data);
@@ -1545,7 +1550,10 @@ void read_ppd_file(const char *filename)
         else if (startswith(key, "ParamCustom")) {
             /* Cups custom parameter:
                *ParamCustomFoo Name/Text: order type minimum maximum */
-            opt = assure_option(&key[11]);
+            if (startswith(&key[11], "JCL"))
+                opt = assure_option(&key[14]);
+            else
+                opt = assure_option(&key[11]);
             option_add_custom_param_from_string(opt, name, text, value->data);
         }
         else if (!strcmp(key, "OpenUI") || !strcmp(key, "JCLOpenUI")) {
@@ -1553,6 +1561,8 @@ void read_ppd_file(const char *filename)
             current_opt = assure_option(&name[1]);
             if (!isempty(text))
                 strlcpy(current_opt->text, text, 128);
+            if (startswith(key, "JCL"))
+                current_opt->style = 'J';
             /* Set the argument type only if not defined yet,
             a definition in "*FoomaticRIPOption" has priority */
             if (current_opt->type == TYPE_NONE)
@@ -1799,8 +1809,15 @@ int build_commandline(int optset, dstr_t *cmdline, int pdfcmdline)
         else if (option_is_jcl_arg(opt)) {
             jcl = 1;
             /* Put JCL commands onto JCL stack */
-            if (cmdvar->len)
-                dstrcatf(local_jclprepend, "%s%s\n", jclprefix, cmdvar->data);
+            if (cmdvar->len) {
+                char *s = malloc(cmdvar->len +1);
+                unhexify(s, cmdvar->len +1, cmdvar->data);
+                if (!startswith(cmdvar->data, jclprefix))
+                    dstrcatf(local_jclprepend, "%s%s\n", jclprefix, s);
+                else
+                    dstrcat(local_jclprepend, s);
+                free(s);
+            }
         }
         else if (option_is_commandline_arg(opt) && cmdline) {
             /* Insert the processed argument in the command line
