@@ -1799,8 +1799,15 @@ int build_commandline(int optset, dstr_t *cmdline, int pdfcmdline)
         else if (option_is_jcl_arg(opt)) {
             jcl = 1;
             /* Put JCL commands onto JCL stack */
-            if (cmdvar->len)
-                dstrcatf(local_jclprepend, "%s%s\n", jclprefix, cmdvar->data);
+            if (cmdvar->len) {
+                char *s = malloc(cmdvar->len +1);
+                unhexify(s, cmdvar->len +1, cmdvar->data);
+                if (!startswith(cmdvar->data, jclprefix))
+                    dstrcatf(local_jclprepend, "%s%s\n", jclprefix, s);
+                else
+                    dstrcat(local_jclprepend, s);
+                free(s);
+            }
         }
         else if (option_is_commandline_arg(opt) && cmdline) {
             /* Insert the processed argument in the command line
