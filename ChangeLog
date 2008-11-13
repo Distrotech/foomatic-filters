@@ -1,3 +1,11 @@
+2008-11-13 Lars Uebernickel <larsuebernickel@gmx.de>
+	* options.c: Don't prepend @PJL to JCL options if they already start
+	  with @PJL. Unhexify JCL commands.
+
+	* options.c: Handle CustomJCL<option> and ParamCustomJCL<option>.
+	  Prefer JCL Custom options over foomatic options (as was already done
+	  for PostScript options).
+
 2008-10-22  Till Kamppeter <till.kamppeter@gmail.com>
 
 	* postscript.c: Reset the "fromcomposite" variable when treating
