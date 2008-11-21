@@ -1938,70 +1938,105 @@ void append_page_setup_section(dstr_t *str, int optset, int comments)
         dstrcat(str, "%%EndPageSetup\n");
 }
 
+
+typedef struct page_range {
+    short even, odd;
+    unsigned first, last;
+    struct page_range *next;
+} page_range_t;
+
+static page_range_t * parse_page_ranges(const char *ranges)
+{
+    page_range_t *head, *tail = NULL;
+    char *tokens, *tok;
+    int cnt;
+
+    tokens = strdup(ranges);
+    for (tok = strtok(tokens, ","); tok; tok = strtok(NULL, ",")) {
+        page_range_t *pr = calloc(1, sizeof(page_range_t));
+
+        if (startswith(tok, "even"))
+            pr->even = 1;
+        else if (startswith(tok, "odd"))
+            pr->odd = 1;
+        else if ((cnt = sscanf(tok, "%d-%d", &pr->first, &pr->last))) {
+            /* If 'last' has not been read, this could mean only one page (no
+             * hyphen) or all pages to the end */
+            if (cnt == 1 && !endswith(tok, "-"))
+                pr->last = pr->first;
+            else if (cnt == 2 && pr->first > pr->last) {
+                unsigned tmp = pr->first;
+                pr->first = pr->last;
+                pr->last = tmp;
+            }
+        }
+        else {
+            printf("Invalid page range: %s\n", tok);
+            free(pr);
+            continue;
+        }
+
+        if (tail) {
+            tail->next = pr;
+            tail = pr;
+        }
+        else
+            tail = head = pr;
+    }
+
+    free(tokens);
+    return head;
+}
+
+static void free_page_ranges(page_range_t *ranges)
+{
+    page_range_t *pr;
+    while (ranges) {
+        pr = ranges;
+        ranges = ranges->next;
+        free(pr);
+    }
+}
+
 /* Parse a string containing page ranges and either check whether a
    given page is in the ranges or, if the given page number is zero,
    determine the score how specific this page range string is.*/
-int parse_page_ranges(const char *ranges, int page)
+int get_page_score(const char *pages, int page)
 {
-    int rangestart = 0;
-    int rangeend = 0;
-    int tmp;
+    page_range_t *ranges = parse_page_ranges(pages);
+    page_range_t *pr;
     int totalscore = 0;
     int pageinside = 0;
-    char *rangestr;
-    const char *p;
-    const char *rangeend_pos;
 
-    p = ranges;
-    rangeend_pos = ranges;
-    while (*rangeend_pos && (rangeend_pos = strchrnul(rangeend_pos, ','))) {
-
-        if (!prefixcasecmp(p, "even")) {
+    for (pr = 0; pr; pr = pr->next) {
+        if (pr->even) {
             totalscore += 50000;
             if (page % 2 == 0)
                 pageinside = 1;
         }
-        else if (!prefixcasecmp(p, "odd")) {
+        else if (pr->odd) {
             totalscore += 50000;
             if (page % 2 == 1)
                 pageinside = 1;
         }
-        else if (isdigit(*p)) {
-            rangestart = strtol(p, (char**)&p, 10);
-            if (*p == '-') {
-                p++;
-                if (isdigit(*p)) {  /* Page range is a sequence of pages */
-                    rangeend = strtol(p, NULL, 10);
-                    totalscore += abs(rangeend - rangestart) +1;
-                    if (rangeend < rangestart) {
-                        tmp = rangestart;
-                        rangestart = rangeend;
-                        rangeend = tmp;
-                    }
-                    if (page >= rangestart && page <= rangeend)
-                        pageinside = 1;
-                }
-                else {              /* Page range goes to the end of the document */
-                    totalscore += 100000;
-                    if (page >= rangestart)
-                        pageinside = 1;
-                }
-            }
-            else {                  /* Page range is a single page */
-                totalscore += 1;
-                if (page == rangestart)
-                    pageinside = 1;
-            }
+        else if (pr->first == pr->last) {   /* Single page */
+            totalscore += 1;
+            if (page == pr->first)
+                pageinside = 1;
         }
-        else {  /* Invalid range */
-            rangestr = malloc(rangeend_pos - p +1);
-            strlcpy(rangestr, p, rangeend_pos - p +1);
-            _log("   Invalid range: %s", rangestr);
-            free(rangestr);
+        else if (pr->last == 0) {           /* To the end of the document */
+            totalscore += 100000;
+            if (page >= pr->first)
+                pageinside = 1;
         }
-        rangestart = 0;
-        rangeend = 0;
+        else {                              /* Sequence of pages */
+            totalscore += pr->last - pr->first +1;
+            if (page >= pr->first && page <= pr->last)
+                pageinside = 1;
+        }
     }
+
+    free_page_ranges(ranges);
 
     if (page == 0 || pageinside)
         return totalscore;
@@ -2029,7 +2064,7 @@ void set_options_for_page(int optset, int page)
                 continue;
 
             ranges = &optsetname[6]; /* after "pages:" */
-            score = parse_page_ranges(ranges, page);
+            score = get_page_score(ranges, page);
             if (score && score < bestscore) {
                 bestscore = score;
                 bestvalue = val;

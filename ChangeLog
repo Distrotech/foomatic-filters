@@ -1,3 +1,8 @@
+2008-11-21 Lars Uebernickel <larsuebernickel@gmx.de>
+	* options.c: Fixed bug: Setting the page range of an option to
+	  multiple ranges (seperated by comma), foomatic-rip was caught in an
+	  infinte loop.
+
 2008-11-13 Lars Uebernickel <larsuebernickel@gmx.de>
 	* options.c: Don't prepend @PJL to JCL options if they already start
 	  with @PJL. Unhexify JCL commands.
