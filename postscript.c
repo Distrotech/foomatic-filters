@@ -570,19 +570,19 @@ void _print_ps(stream_t *stream)
                                 belongs into the header */
                                 dstrclear(tmp);
 
-                                /* If there was no "Prolog" but there are
-                                options for the "Prolog", push a "Prolog"
-                                with these options onto the @psfifo here */
-                                if (!prologfound) {
-                                    append_prolog_section(tmp, optset, 1);
-                                    prologfound = 1;
-                                }
                                 /* If there was no "Setup" but there are
                                 options for the "Setup", push a "Setup"
                                 with these options onto the @psfifo here */
                                 if (!setupfound) {
                                     append_setup_section(tmp, optset, 1);
                                     setupfound = 1;
+                                }
+                                /* If there was no "Prolog" but there are
+                                options for the "Prolog", push a "Prolog"
+                                with these options onto the @psfifo here */
+                                if (!prologfound) {
+                                    append_prolog_section(tmp, optset, 1);
+                                    prologfound = 1;
                                 }
                                 /* Now we push this into the header */
                                 dstrcat(psheader, tmp->data);
@@ -631,12 +631,6 @@ void _print_ps(stream_t *stream)
                                         o->notfirst = 0;
                                 }
                             }
-                            /* Insert PostScript option settings
-                            (options for section "PageSetup") */
-                            if (isdscjob) {
-                                append_page_setup_section(line, optset, 0);
-                                pagesetupfound = 1;
-                            }
                             /* Now the page header comes, so buffer the data,
                                 because we must perhaps shut down and restart
                                 the renderer */
@@ -656,6 +650,12 @@ void _print_ps(stream_t *stream)
                         inpageheader = 1;
                         postscriptsection = PS_SECTION_PAGESETUP;
                         optionsalsointoheader = (ooo110 && currentpage == 1) ? 1 : 0;
+                        /* Insert PostScript option settings
+                           (options for section "PageSetup") */
+                        if (isdscjob) {
+                            append_page_setup_section(line, optset, 0);
+                            pagesetupfound = 1;
+                        }
                     }
                     else if (nestinglevel == 0 && !ignorepageheader &&
                             startswith(line->data, "%%BeginPageSetup")) {
@@ -988,6 +988,12 @@ void _print_ps(stream_t *stream)
                             /* If there comes a page header now, ignore it */
                             ignorepageheader = 1;
                             optionsalsointoheader = 0;
+                        }
+                        /* Insert PostScript option settings (options for the
+                         * section "PageSetup" */
+                        if (isdscjob && !pagesetupfound) {
+                            append_page_setup_section(line, optset, 1);
+                            pagesetupfound = 1;
                         }
                     }
                 }

@@ -2008,7 +2008,7 @@ int get_page_score(const char *pages, int page)
     int totalscore = 0;
     int pageinside = 0;
 
-    for (pr = 0; pr; pr = pr->next) {
+    for (pr = ranges; pr; pr = pr->next) {
         if (pr->even) {
             totalscore += 50000;
             if (page % 2 == 0)
