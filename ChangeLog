@@ -1,3 +1,14 @@
+2008-11-26 Lars Uebernickel <larsuebernickel@gmx.de>
+	* options.c: When a numeric value is out of range, use the default
+	  value instead of the closest valid value (i.e. min or max). Do not
+	  truncate string options which are longer than allowed, use the
+	  default instead. Apply AllowedChars and AllowedRegExp also to
+	  Password options.
+
+	  Small bug fix: The generated regular expression for AllowedChars was
+	  missing the final '$' and therefore didn't match all cases
+	  correctly.
+
 2008-11-21 Lars Uebernickel <larsuebernickel@gmx.de>
 	* options.c: Fixed bug: Setting the page range of an option to
 	  multiple ranges (seperated by comma), foomatic-rip was caught in an
