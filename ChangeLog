@@ -9,6 +9,8 @@
 	  missing the final '$' and therefore didn't match all cases
 	  correctly.
 
+	  Bug fix: Merge JCL options correctly
+
 2008-11-21 Lars Uebernickel <larsuebernickel@gmx.de>
 	* options.c: Fixed bug: Setting the page range of an option to
 	  multiple ranges (seperated by comma), foomatic-rip was caught in an
