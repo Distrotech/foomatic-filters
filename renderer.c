@@ -169,6 +169,8 @@ static const char * jcl_options_find_keyword(char **opts, const char *line)
     if (!opts)
         return NULL;
 
+    fprintf(stderr, "--- %s\n", *opts);
+
     while (*opts)
     {
         if (jcl_keywords_equal(*opts, line))
@@ -198,6 +200,10 @@ static int write_merged_jcl_options(FILE *stream,
                                     char **opts,
                                     const char *jclstr)
 {
+    char *p = strstr(original_opts[0], jclstr);
+    char header[128];
+    char **optsp;
+
     /* No JCL options in original_opts, just prepend opts */
     if (argv_count(original_opts) == 1)
     {
@@ -213,7 +219,6 @@ static int write_merged_jcl_options(FILE *stream,
          * "@PJL ENTER LANGUAGE=..." line which has to be in the end, but it
          * also contains the "<esc>%-12345X" which has to be in the beginning
          * of the job */
-        char *p = strstr(original_opts[0], jclstr);
         if (p)
             fwrite(original_opts[0], 1, p - original_opts[0], stream);
         else
@@ -228,16 +233,18 @@ static int write_merged_jcl_options(FILE *stream,
         return 1;
     }
 
-    /* First, write the first line from original_opts, as it contains the JCL
-     * header */
-    fprintf(stream, "%s\n", *original_opts++);
+    /* Write jcl header */
+    strncpy(header, original_opts[0], p - original_opts[0]);
+    header[p - original_opts[0]] = '\0';
+    fprintf(stream, "%s", header);
+    original_opts++;
 
-    while (*opts)
-        fprintf(stream, "%s\n", *opts++);
+    for (optsp = opts; *optsp; optsp++)
+        fprintf(stream, "%s\n", *optsp);
 
-    while (*original_opts)
-        if (!jcl_options_find_keyword(opts, *original_opts))
-            fprintf(stream, "%s\n", *original_opts++);
+    for (optsp = original_opts; *optsp; optsp++)
+        if (!jcl_options_find_keyword(opts, *optsp))
+            fprintf(stream, "%s\n", *optsp);
 
 
     return 1;

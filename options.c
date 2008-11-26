@@ -427,14 +427,14 @@ char * get_valid_param_string(option_t *opt, param_t *param, const char *str)
             imin = !isempty(param->min) ? atoi(param->min) : -999999;
             imax = !isempty(param->max) ? atoi(param->max) : 1000000;
             if (i < imin) {
-                i = imin;
-                _log("Value \"%s\" for option \"%s.%s\" is too small. Using \"%s\" instead.\n",
-                    str, opt->name, param->name, param->min);
+                _log("Value \"%s\" for option \"%s.%s\" is smaller than the minimum value \"%d\"\n",
+                     str, opt->name, param->name, imin);
+                return NULL;
             }
             else if (i > imax) {
-                i = imax;
-                _log("Value \"%s\" for option \"%s.%s\" is too large. Using \"%s\" instead.\n",
-                    str, opt->name, param->name, param->max);
+                _log("Value \"%s\" for option \"%s.%s\" is larger than the maximum value \"%d\"\n",
+                     str, opt->name, param->name, imax);
+                return NULL;
             }
             result = malloc(32);
             snprintf(result, 32, "%d", i);
@@ -448,50 +448,44 @@ char * get_valid_param_string(option_t *opt, param_t *param, const char *str)
             fmin = !isempty(param->min) ? atof(param->min) : -999999.0;
             fmax = !isempty(param->max) ? atof(param->max) : 1000000.0;
             if (f < fmin) {
-                f = fmin;
-                _log("Value \"%s\" for option \"%s.%s\" is too small. Using \"%s\" instead.\n",
-                     str, opt->name, param->name, param->min);
+                _log("Value \"%s\" for option \"%s.%s\" is smaller than the minimum value \"%d\"\n",
+                     str, opt->name, param->name, fmin);
+                return NULL;
             }
             else if (f > fmax) {
-                f = fmax;
-                _log("Value \"%s\" for option \"%s.%s\" is too large. Using \"%s\" instead.\n",
-                     str, opt->name, param->name, param->max);
+                _log("Value \"%s\" for option \"%s.%s\" is larger than the maximum value \"%d\"\n",
+                     str, opt->name, param->name, fmax);
+                return NULL;
              }
             result = malloc(32);
             snprintf(result, 32, "%f", f);
             return result;
 
         case TYPE_STRING:
+        case TYPE_PASSWORD:
+        case TYPE_PASSCODE:
             if (param->allowedchars &&
                     regexec(param->allowedchars, str, 0, NULL, 0) != 0) {
-                _log("Custom string \"%s\" for \"%s.%s\" contains illegal characters.",
+                _log("Custom string \"%s\" for \"%s.%s\" contains illegal characters.\n",
                     str, opt->name, param->name);
                 return NULL;
             }
             if (param->allowedregexp &&
                     regexec(param->allowedregexp, str, 0, NULL, 0) != 0) {
-                _log("Custom string \"%s\" for \"%s.%s\" does not match the allowed regexp.",
+                _log("Custom string \"%s\" for \"%s.%s\" does not match the allowed regexp.\n",
                     str, opt->name, param->name);
                 return NULL;
             }
-            /* no break here, from here on STRING, PASSWORD and PASSCODE need
-               equal error checking */
-
-        case TYPE_PASSWORD:
-        case TYPE_PASSCODE:
             len = strlen(str);
             if (!isempty(param->min) && len < atoi(param->min)) {
-                _log("Custom value \"%s\" is too short for option \"%s.%s\".",
+                _log("Custom value \"%s\" is too short for \"%s.%s\".\n",
                     str, opt->name, param->name);
                 return NULL;
             }
             if (!isempty(param->max) && len > atoi(param->max)) {
-                result = malloc(len +1);
-                snprintf(result, atoi(param->max) +1, "%s", str);
-                _log("Custom value \"%s\" is too long for parameter \"%s\" of "
-                        "option \"%s\". Truncating to \"%s\".\n",
-                        str, param->name, opt->name, result);
-                return result;
+                _log("Custom value \"%s\" is too long for \"%s.%s\".\n",
+                    str, opt->name, param->name);
+                return NULL;
             }
             return strdup(str);
     }
@@ -700,6 +694,7 @@ char * get_valid_value_string(option_t *opt, const char *value)
         return get_valid_param_string(opt, opt->foomatic_param,
                               startswith(value, "Custom.") ? &value[7] : value);
 
+    /* Return the default value */
     return NULL;
 }
 
@@ -1208,7 +1203,7 @@ int param_set_allowed_chars(param_t *param, const char *value)
 
     param->allowedchars = malloc(sizeof(regex_t));
     unhtmlify(tmp, 128, value);
-    snprintf(rxstr, 128, "^[%s]*", tmp);
+    snprintf(rxstr, 128, "^[%s]*$", tmp);
     if (regcomp(param->allowedchars, rxstr, 0) != 0) {
         regfree(param->allowedchars);
         free(param->allowedchars);
@@ -1220,12 +1215,11 @@ int param_set_allowed_chars(param_t *param, const char *value)
 
 int param_set_allowed_regexp(param_t *param, const char *value)
 {
-    char rxstr[128], tmp[128];
+    char tmp[128];
 
     param->allowedregexp = malloc(sizeof(regex_t));
     unhtmlify(tmp, 128, value);
-    snprintf(rxstr, 128, "^[%s]*", tmp);
-    if (regcomp(param->allowedregexp, rxstr, 0) != 0) {
+    if (regcomp(param->allowedregexp, tmp, 0) != 0) {
         regfree(param->allowedregexp);
         free(param->allowedregexp);
         param->allowedregexp = NULL;
