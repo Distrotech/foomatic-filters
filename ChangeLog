@@ -1,3 +1,8 @@
+2008-11-30  Till Kamppeter <till.kamppeter@gmail.com>
+
+	* renderer.c: If there was only one PJL option in the PPD no PJL got
+	  added at all (Ubuntu bug #303691).
+
 2008-11-26 Lars Uebernickel <larsuebernickel@gmx.de>
 	* options.c: When a numeric value is out of range, use the default
 	  value instead of the closest valid value (i.e. min or max). Do not
