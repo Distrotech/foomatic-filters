@@ -254,7 +254,7 @@ void log_jcl()
 {
     char **opt;
 
-    _log("JCL: ");
+    _log("JCL: %s\n", jclbegin);
     if (jclprepend)
         for (opt = jclprepend; *opt; opt++)
             _log("%s\n", *opt);
@@ -272,12 +272,12 @@ int exec_kid4(FILE *in, FILE *out, void *user_arg)
     /* wrap the JCL around the job data, if there are any options specified...
      * Should the driver already have inserted JCL commands we merge our JCL
      * header with the one from the driver */
-    if (argv_count(jclprepend) > 1)
+    if (argv_count(jclprepend) > 0)
     {
-        if (!isspace(jclprepend[1][0]))
+        if (!isspace(jclprepend[0][0]))
         {
-            char *jclstr = strndup(jclprepend[1],
-                                   strcspn(jclprepend[1], " \t\n\r"));
+            char *jclstr = strndup(jclprepend[0],
+                                   strcspn(jclprepend[0], " \t\n\r"));
             char **jclheader = read_jcl_lines(in, jclstr);
 
             driverjcl = write_merged_jcl_options(fileh,
@@ -297,7 +297,7 @@ int exec_kid4(FILE *in, FILE *out, void *user_arg)
     copy_file(fileh, in, NULL, 0);
 
     /* A JCL trailer */
-    if (argv_count(jclprepend) > 1 && !driverjcl)
+    if (argv_count(jclprepend) > 0 && !driverjcl)
         fwrite(jclappend->data, jclappend->len, 1, fileh);
 
     fclose(in);
