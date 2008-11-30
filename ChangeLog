@@ -1,5 +1,9 @@
 2008-11-30  Till Kamppeter <till.kamppeter@gmail.com>
 
+	* postscript.c: Insert the "%%PageSetup" section directly after
+	  the DSC comment header of the page, all page drawing commands
+	  must be after the section.
+
 	* postscript.c: Inserted PostScript option settings from pstops
 	  were not corrected with custom option settings done on the
 	  command line (numerical, string, password).

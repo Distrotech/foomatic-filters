@@ -992,7 +992,7 @@ void _print_ps(stream_t *stream)
                         /* Insert PostScript option settings (options for the
                          * section "PageSetup" */
                         if (isdscjob && !pagesetupfound) {
-                            append_page_setup_section(line, optset, 1);
+                            append_page_setup_section(psfifo, optset, 1);
                             pagesetupfound = 1;
                         }
                     }
