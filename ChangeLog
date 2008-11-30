@@ -1,5 +1,11 @@
 2008-11-30  Till Kamppeter <till.kamppeter@gmail.com>
 
+	* postscript.c: Inserted PostScript option settings from pstops
+	  were not corrected with custom option settings done on the
+	  command line (numerical, string, password).
+
+	* options.c: Small fix for better readability.
+
 	* renderer.c: If there was only one PJL option in the PPD no PJL got
 	  added at all (Ubuntu bug #303691).
 

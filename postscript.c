@@ -764,7 +764,7 @@ void _print_ps(stream_t *stream)
 
                                     /* Boolean and enumerated choice options can only be set in the
                                      * PageSetup section */
-                                    if ((inheader && option_is_custom_value(o, value)) || !inheader)
+                                    if ((inheader && option_is_custom_value(o, val)) || !inheader)
                                     {
                                         if (o->type == TYPE_BOOL)
                                             dstrcatf(pdest, "%%%%BeginFeature: *%s %s\n", o->name,
