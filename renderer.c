@@ -146,34 +146,38 @@ static char ** read_jcl_lines(FILE *stream, const char *jclstr)
     return result;
 }
 
-static int jcl_keywords_equal(const char *jclline1, const char *jclline2)
+static int jcl_keywords_equal(const char *jclline1, const char *jclline2,
+                              const char *jclstr)
 {
-    char *p1, *p2;
+    char *j1, *j2, *p1, *p2;
 
-    p1 = strchrnul(skip_whitespace(jclline1), '=') -1;
+    j1 = strstr(jclline1, jclstr);
+    if (!j1) return 0;
+    p1 = strchrnul(skip_whitespace(j1), '=') - 1;
     while (isspace(*p1))
         p1--;
 
-    p2 = strchrnul(skip_whitespace(jclline1), '=') -1;
+    j2 = strstr(jclline2, jclstr);
+    if (!j2) return 0;
+    p2 = strchrnul(skip_whitespace(j2), '=') - 1;
     while (isspace(*p2))
         p2--;
 
-    return strncmp(jclline1, jclline2, p1 - jclline1) == 0;
+    return strncmp(j1, j2, p1 - j1 + 1) == 0;
 }
 
 /*
  * Finds the keyword of line in opts
  */
-static const char * jcl_options_find_keyword(char **opts, const char *line)
+static const char * jcl_options_find_keyword(char **opts, const char *line,
+                                             const char *jclstr)
 {
     if (!opts)
         return NULL;
 
-    fprintf(stderr, "--- %s\n", *opts);
-
     while (*opts)
     {
-        if (jcl_keywords_equal(*opts, line))
+        if (jcl_keywords_equal(*opts, line, jclstr))
             return *opts;
         opts++;
     }
@@ -237,15 +241,18 @@ static int write_merged_jcl_options(FILE *stream,
     strncpy(header, original_opts[0], p - original_opts[0]);
     header[p - original_opts[0]] = '\0';
     fprintf(stream, "%s", header);
-    original_opts++;
 
     for (optsp = opts; *optsp; optsp++)
-        fprintf(stream, "%s\n", *optsp);
+        if (!jcl_options_find_keyword(original_opts, *optsp, jclstr))
+	    fprintf(stream, "%s\n", *optsp);
 
-    for (optsp = original_opts; *optsp; optsp++)
-        if (!jcl_options_find_keyword(opts, *optsp))
-            fprintf(stream, "%s\n", *optsp);
-
+    for (optsp = original_opts; *optsp; optsp++) {
+        if (optsp != original_opts) p = *optsp;
+        if (jcl_options_find_keyword(opts, p, jclstr))
+	  fprintf(stream, "%s\n", jcl_options_find_keyword(opts, p, jclstr));
+	else
+            fprintf(stream, "%s\n", p);
+    }
 
     return 1;
 }
@@ -254,7 +261,7 @@ void log_jcl()
 {
     char **opt;
 
-    _log("JCL: %s\n", jclbegin);
+    _log("JCL: %s", jclbegin);
     if (jclprepend)
         for (opt = jclprepend; *opt; opt++)
             _log("%s\n", *opt);

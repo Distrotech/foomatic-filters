@@ -13,6 +13,12 @@
 	* renderer.c: If there was only one PJL option in the PPD no PJL got
 	  added at all (Ubuntu bug #303691).
 
+	* renderer.c: Fixed several bugs in the merging of PJL options.
+	  In some cases equal keywords were not found in the two JCL
+	  option sets or keywords only differing by the last character
+	  were considered equal. Also a command in the first line of the
+	  driver's PJL header got dropped.
+
 2008-11-26 Lars Uebernickel <larsuebernickel@gmx.de>
 	* options.c: When a numeric value is out of range, use the default
 	  value instead of the closest valid value (i.e. min or max). Do not
