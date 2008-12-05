@@ -8,8 +8,6 @@ See also the bugtracker at foomatic.sourceforge.net.
 
  - Write a few key lint-like and transforming tools for the xml data.
 
- - Fold foomatic-gswrapper into the foomatic-rip
-
  - Improve ascii support to lpdomatic and pdq files.  ASCII should
    simply be a matter of observing the ascii bit in the printer $dat
    and sending either crlf-ed text or postscriptifying and running
