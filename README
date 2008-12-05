@@ -122,7 +122,7 @@ contains the documentation.
 Dependencies
 ------------
 
-To build This package you need a C compiler, its standard libraries,
+To build this package you need a C compiler, its standard libraries,
 and the Ghostscript library (libgs, /usr/lib/libgs.so*). For the
 latter Ghostscript must be built in shared library mode ("make
 so"). If your libgs is provided by your operating system distribution,
