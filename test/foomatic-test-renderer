@@ -1,0 +1,53 @@
+#!/bin/sh
+
+# This is foomatic-test-renderer, a dummy renderer executable for testing
+# and debugging foomatic-rip.
+
+# To use it, create a test PPD file with lines like
+#
+# *cupsFilter:    "application/vnd.cups-postscript 0 foomatic-rip"
+# *FoomaticRIPCommandLine: "foomatic-test-renderer%A%B%C%Z"
+#
+# and use foomatic-rip with this PPD file. If you do this via a print queue
+# point the output of the queue into a file
+#
+# This program does nothing more than outputting the unchanged input data
+# and after that the command line with which it was called in a PostScript
+# comment (so one can still display the output as PostScript if the input
+# was PostScript).
+#
+# With the option "-p OPTION=VALUE" supplied one or more times, a PJL
+# header with appropriate options and also PJL to close the job will be added
+# Supply "-p" in the end of the command line to generate a PJL header
+# without option settings
+
+commandline=$*
+
+output="`cat`
+% $0 $commandline"
+
+pjl=0
+while [ -n "$*" ]; do
+    arg=$1
+    shift
+    if [ "$arg" = "-p" ]; then
+	if [ "$pjl" = "0" ]; then
+	    pjl=1
+	    printf "\033%%-12345X"
+	    #printf "@PJL\r\n"
+	fi
+	if [ -n "$1" ]; then
+            printf "@PJL SET $1\r\n"
+	    shift
+	fi
+    fi
+done
+if [ "$pjl" = "1" ]; then
+    printf "@PJL ENTER LANGUAGE=POSTSCRIPT\r\n"
+fi
+
+echo "$output"
+
+if [ "$pjl" = "1" ]; then
+    printf "\033%%-12345X@PJL EOJ\r\n"
+fi
