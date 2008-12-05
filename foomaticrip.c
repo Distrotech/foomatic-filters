@@ -854,7 +854,7 @@ filtering (listed in the order of the data flow):
          as soon as it knows its command line and restarts it when
          page-specific option settings need another command line
          or different JCL commands.
-   KID3: The rendering process. In most cases GhostScript, "cat"
+   KID3: The rendering process. In most cases Ghostscript, "cat"
          for native PostScript printers with their manufacturer's
          PPD files.
    KID4: Put together the JCL commands and the renderer's output
@@ -1388,7 +1388,7 @@ int main(int argc, char** argv)
                 strcpy(pstoraster, "gs -dQUIET -dDEBUG -dPARANOIDSAFER -dNOPAUSE -dBATCH -dNOMEDIAATTRS -sDEVICE=cups -sOutputFile=-%W -");
             }
 
-            /* build GhostScript/CUPS driver command line */
+            /* build Ghostscript/CUPS driver command line */
             snprintf(cmd, 1024, "%s | %s", pstoraster, cupsfilter);
 
             /* Set environment variables */
@@ -1429,7 +1429,7 @@ int main(int argc, char** argv)
     _log("File(s) to be printed:\n");
     _log("%s\n\n", filelist->data);
     if (getenv("GS_LIB"))
-        _log("GhostScript extra search path ('GS_LIB'): %s\n", getenv("GS_LIB"));
+        _log("Ghostscript extra search path ('GS_LIB'): %s\n", getenv("GS_LIB"));
 
     /* Process options from command line,
        but save the defaults for printing documentation pages first */

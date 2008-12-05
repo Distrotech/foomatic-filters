@@ -1,6 +1,6 @@
 
-Foomatic 3.0.2
-==============
+Foomatic 4.0.0rc1
+=================
 
 
 foomatic-filters
@@ -11,6 +11,7 @@ PostScript data into the printer's native format using a
 printer/driver specific, but spooler-independent PPD file.
 
 Till Kamppeter <till.kamppeter@gmail.com>
+Lars Uebernickel <larsuebernickel@gmx.de>
 
 http://www.openprinting.org/
 
@@ -28,28 +29,16 @@ GPL. See http://www.gnu.org/.
 Bugs
 ----
 
-If you spot a data error or any other bug, either post on the Foomatic
-developer mailing list
+If you spot a data error or any other bug, please report it on the
+OpenPrinting bug tracking system:
 
-http://lists.freestandards.org/mailman/listinfo/printing-foomatic
+http://bugs.linux-foundation.org/
 
-or post on the OpenPrinting site support forum
-
-http://forums.openprinting.org/list.php?34
+Choose "OpenPrinting" as the product and "foomatic-filters" as the component.
 
 
 Intro
 -----
-
-This is the stable version of Foomatic. See
-
-http://www.freestandards.org/en/OpenPrinting/Database/HowToContribute#programming
-
-to know more about its development.
-
-Your suggestions, bug reports, patches, ... are welcome on
-
-http://forums.openprinting.org/list.php?34
 
 For getting Foomatic PPD files for this version, go to
 
@@ -58,132 +47,108 @@ http://www.openprinting.org/
 See the README file of "foomatic-db-engine" for a (more or less)
 complete overview of Foomatic.
 
+User discussion happens on:
 
-Supported spoolers
-------------------
+http://forums.openprinting.org/list.php?34
+
+Developer mailing list:
+
+https://lists.linux-foundation.org/mailman/listinfo/printing-foomatic
+
+
+Supported printing systems/spoolers
+-----------------------------------
 
 CUPS     - Common Unix Printing System (http://www.cups.org/)
 SOLARIS  - Solaris LP (lpsched)
 LPD      - Line Printer Daemon (Does this have a home page anywhere?)
-LPRng    - LPR - New Generation (http://www.lprng.org/)
+LPRng    - LPR - New Generation (https://sourceforge.net/projects/lprng/)
 GNUlpr   - An enhanced LPD (http://sf.net/projects/lpr, development stopped)
-PPR      - Page PRinter spooler (http://ppr.sourceforge.net/)
+PPR      - Page PRinter spooler (http://ppr.sourceforge.net/, development
+           stopped)
 PDQ      - Print, Don't Queue (http://pdq.sf.net/, development stopped)
-CPS      - Coherent Printing System (http://www.tww.cx/cps.php)
+CPS      - Coherent Printing System (http://www.tww.cx/cps.php, development
+           stopped)
 ---      - Direct, spooler-less printing (http://www.openprinting.org/)
 
+As most of the supported printing systems are not actively developed
+any more, there support will be removed in a later version of
+foomatic-rip. This can even happen before 5.x. For now their support
+is deprecated and there were only few tests done during the
+development of foomatic-rip 4.x. So be prepared that there are bugs
+(patches welcome). Testing were mostly done with the de-facto standard
+CUPS and spooler-less.
 
-Programs and important files from this package
-----------------------------------------------
 
-This package contains only two scripts and its man pages: foomatic-rip
-and foomatic-gswrapper. foomatic-rip is the main
-PostScript-to-printer's-native-language filter and foomatic-gswrapper
-is an m auxiliary filter ironing out some GhostScript quirks.
+What is in this package?
+------------------------
+
+This package contains only two programs, its man pages, and a test
+suite. The programs arw foomatic-rip and beh (Backend Error
+Handler). foomatic-rip is the main
+PostScript/PDF-to-printer's-native-language filter and beh is a CUPS
+backend wrapper for fine-tuning how a CUPS queue should behave on
+failure of its backend.
 
 foomatic-rip works with all spoolers and always uses PPD files for
-printer/driver capabilities info. Manufacturer-supplied PPDs of
-PostScript printers can be used, too.
+printer/driver capabilities info. Manufacturer-supplied PPDs (in most
+cases of of PostScript printers) can be used, too.
 
-Note: The scripts appear as ".in" files in the source tree and CVS,
-because the path for the Perl interpreter is inserted by the
-"configure" script. The "configure" script makes the final files from
-them with the inserted path of the Perl interpreter.
+foomatic-rip is now written in C, in contrary to Perl in Foomatic
+3.x. This allows foomatic-rip to link directly with libraries. Besides
+the standard libraries, foomatic-rip currently only uses the
+Ghostscript library libgs. The functionality of the former
+foomatic-gswrapper is now integrated into foomatic-rip, so the
+foomatic-gswrapper is not needed any more.
 
-configure.in
+beh is still written in Perl and does not need anything else than a
+Perl interpreter.It is only for use with CUPS.
 
-  The source from which GNU autoconf generates the "configure" script
+The test/ subdirectory contains a test suite, originally developed for
+the distribution compliance tests of the LSB. It also serves as a
+regression test for further development of foomatic-rip. To execute
+the test, go into that directory and run "./testfoomaticrip" as root
+(as normal user the test series #13, CUPS queues, will not work) and
+you test the foomatic-rip installed on your system. You can modify the
+testing configuration by the variables in the beginning of the
+script. The test suite will not get installed with the "make install"
+command.
 
-acinclude.m4
-
-  Additional macros for the "configure" script
-
-make_configure
-
-  Calls aclocal and autoconf to generate "configure" from "configure.ac" 
-  and "acinclude.m4"
-
-Makefile.in
-
-  The template from which "configure" generates the Makefile
-
-install-sh
-
-  Helper script for "configure"
-
-foomatic-rip
-
-  Universal print filter (PostScript -> printer's native language) to be
-  used with all known printer spoolers (CUPS, Solaris LP, LPRng, LPD, GNUlpr,
-  PPR, PDQ, CPS, spooler-less printing). It Gets printer/driver capability
-  information from PPD files. The PPD files can either be generated from
-  the Foomatic database or they can be manufacturer-supplied PPD files
-  for PostScript printers.
-
-foomatic-gswrapper
-
-  This is not really a file conversion or print filter, but it is used
-  by foomatic-rip when it is present. This is a wrapper around 
-  Ghostscript. It regularizes options if they differ between gs
-  flavors. It also assures that the GhostScript output is not mixed up
-  with messages produced by some PostScript files (esp. files from
-  Windows). foomatic-rip auto-detects the presence of
-  foomatic-gswrapper.
-
-beh
-
-  Usually, if a CUPS backend exits with an error status other than zero
-  (for example if a printer is not turned on or not reachable on the
-  network), CUPS disables the print queue and one can only print again
-  if a system administrator re-enables the queue manually. Even restarting
-  CUPS (or rebooting) does not re-enable disabled queues.
-
-  This script makes the handling of such backend errors configurable, so
-  that the problem can easily be worked around. The execution of the backend
-  can be periodically repeated and/or the error state of the backend can
-  be kept away from CUPS, so that the queue stays active.
-
-  See instructions in the beginning of the beh script and in the USAGE file.
-
-foomatic-rip.1
-foomatic-gswrapper,1
-
-  man pages for the filter scripts.
+The main directory contains the source code of foomatic-rip, beh, and
+the infrastructure for building and installing the package. It also
+contains the documentation.
 
 
 Dependencies
 ------------
 
-To build and run this package only a Perl interpreter (5.6.0 and
-newer) is needed.
+To build This package you need a C compiler, its standard libraries,
+and the Ghostscript library (libgs, /usr/lib/libgs.so*). For the
+latter Ghostscript must be built in shared library mode ("make
+so"). If your libgs is provided by your operating system distribution,
+make sure that its C headers (package libgs.dev(el) or
+ghostscript.dev(el)) are installed.
 
-To connect to remote printers, you need additional connectivity
-software (as "rlpr", "nc", "smbspool', ...).
+To run foomatic-rip you need to have the Ghostscript library installed.
+
+To run beh a Perl interpreter (5.6.0 and newer) is needed.
+
+To connect to remote printers in non-CUPS printing environments, you
+need additional connectivity software (as "rlpr", "nc", "smbspool',
+...).
 
 
 How does it work?
 -----------------
 
-foomatic-rip is a filter which takes PostScript (and also certain
-non-PostScript formats) from standard input and translates it to the
-printer's native language. The resulting data is usually directed to
-standard output, but depending on the spooler abnd its configuration
-it can also be directed to elsewhere. The information how to do this
+foomatic-rip is a filter which takes PostScript or PDF (and for
+non-CUPS operation also certain other formats which will get converted
+to PostScript) from standard input and translates it to the printer's
+native language. The resulting data is usually directed to standard
+output, but depending on the spooler abnd its configuration it can
+also be directed to elsewhere. The information how to do this
 translation it gets from a PPD file, from command line options,
 environment variables, and spooler configuration files.
-
-foomatic-rip is designed in a way that it does neither use any
-temporary files nor reads the whole print job into memory. So even
-huge jobs can be printed without needing big resources. Data is only
-buffered in memory as long as it is not clear how to treat the
-data. This happens for example when we don't know yet whether the
-input file is PostScript, or when we are searching for embedded option
-settings. This is done by forking into up to 6 subprocesses which do
-all the tasks of the filter chain in parallel, see the overview of
-these subprocesses below.
-
-See also the numerous comments in the foomatic-rip Perl script.
-
 
 foomatic-rip does the following steps to do its work:
 
@@ -210,7 +175,7 @@ Reading the PPD file
 In one of the previous steps we have found the name of the PPD file
 assigned to the print queue currently in use. Now the PPD file is read
 to get all information needed to build the renderer's (Usually, the
-renderer is GhostScript, when no renderer is needed, as for a
+renderer is Ghostscript, when no renderer is needed, as for a
 PostScript printer, "cat" is used) command line, the available
 options, their default values, and how to apply them. After having
 parsed the PPD file we have a renderer command line and a list of
@@ -226,7 +191,7 @@ Applying user-supplied settings
 
 All option settings which the user has supplied on the command line
 are checked whether they are valid (option exists, choice in range)
-and then applied to the list of default settigs, replacing the
+and then applied to the list of default settings, replacing the
 defaults by the values given by the user. The options not mentioned on
 the command line keep their default values from the PPD file.
 
@@ -247,7 +212,7 @@ Print files
 
 With some spoolers the job(s) to be printed is supplied in (a)
 file(s), in this case we close standard input and open the file on the
-stabdard input handler. This way the following steps read from the
+standard input handler. This way the following steps read from the
 file instead of from standard input. The rest of the foomatic-rip
 process is repeated for every input file, to print them one after the
 other.
@@ -262,15 +227,34 @@ following steps will be omitted then.
 
 Print the job
 
-After all the preparation, the PostScript job is examined for traces
-of option settings supposed to be applied to the renderer's command
-line or to the JCL (Job Coomand Language, for example PJL) header
-which is sent to the printer before the renderer's output is sent.
-PPD-aware applications and spoolers stuff option settings directly
-into the file, they do not necessarily send PPD options by the command
-line. There is also stuffed in PostScript code to apply option
-settings given by the command line of the printing command ("lpr",
-"lp", ...) and to set the defaults given in the PPD file.
+Jobs are usually expected to be sent in PostScript or PDF format
+(handling of other formats in non-CUPS environment will be shown
+later). PostScript is the standard format for print jobs under Unix
+and Linux for many years. Currently, we are on the way to move to PDF
+as standard format
+(http://www.linuxfoundation.org/en/OpenPrinting/PDF_as_Standard_Print_Job_Format).
+Therefore we accept both formats. In most cases Ghostscript is the
+renderer which understands both formats equally. So we do not convert
+PDF to PostScript if either the renderer command line starts with "gs
+..." as then Ghostscript is the renderer and no pre-processing of
+incoming PostScript happens or we have a dedicated commad line
+prototype for PDF defined in the PPD file
+("*FoomaticRIPCommandLinePDF:" keyword). In addition there must be no
+option at all which is implemented by inserting active PostScript code
+(not only comments starting with "%") into a PostScript input data
+stream.  If these criteria are not fulfilled, the PDF job will be
+converted to PostScript.
+
+After all the preparation, and if the job is PostScript the data
+stream is examined for traces of option settings supposed to be
+applied to the renderer's command line or to the JCL (Job Command
+Language, for example PJL) header which is sent to the printer before
+the renderer's output is sent.  PPD-aware applications and spoolers
+stuff option settings directly into the file, they do not necessarily
+send PPD options by the command line. There is also stuffed in
+PostScript code to apply option settings given by the command line of
+the printing command ("lpr", "lp", ...) and to set the defaults given
+in the PPD file.
 
 Examination strategy: We read lines from standard input until the
 first %%Page: comment appears and save them as @psheader. This is the
@@ -332,18 +316,29 @@ setting in the first occurence of the option's code, as this one is
 the one added by CUPS, later occurences come from applications and
 should not be touched.
 
-If the input is not PostScript (if there is no "%!" after
-$maxlinestopsstart lines) a file conversion filter will automatically
-be applied to the incoming data, so that we will process the resulting
-PostScript here. This way we have always PostScript data here and so
-we can apply the printer/driver features described in the PPD
-file. For the file conversion filter two subprocesses are started, the
-task of the first one is to pass the already buffered lines into the
-filter and then to continue reading standard input (without parsing
-the data) to pass the rest of the job to the filter. The second
-subprocess is the filter itself, getting its standard input from the
-first subprocess and the giving its standard output to the main
-process. This way the main process has again PostScript as its
+If the input data is PDF then we do not search for options in the data
+stream nor do we try to insert settings, as this is not forseen by
+PDF. As told above, data in PDF format is only passed on as PDF if
+there are no options in the PPD file which are implemented by
+PostScript code to be embedded in the data stream. All options are
+command line or JCL options. If there are page-dependent option
+changes we always restart the renderer with the changed JCL and
+command line options. We tell the renderer by command line options
+which pages he has to print.
+
+If we are in a non-CUPS environment and the input is neither
+PostScript nor PDF (if there is no "%!" after $maxlinestopsstart
+lines) a file conversion filter (input format -> PostScript) will
+automatically be applied to the incoming data, so that we will process
+the resulting PostScript here. This way we have always PostScript data
+here and so we can apply the printer/driver features described in the
+PPD file. For the file conversion filter two subprocesses are started,
+the task of the first one is to pass the already buffered lines into
+the filter and then to continue reading standard input (without
+parsing the data) to pass the rest of the job to the filter. The
+second subprocess is the filter itself, getting its standard input
+from the first subprocess and the giving its standard output to the
+main process. This way the main process has again PostScript as its
 standard input.
 
 Supported file conversion filters are "a2ps", "enscript", "mpage", and
@@ -353,25 +348,25 @@ used when one prints the documentation pages, as they are created as
 plain text, when CUPS is the spooler "pstops" is executed after the
 filter so that the default option settings from the PPD file and
 CUPS-specific options as N-up get applied. On regular printouts one
-gets always PostScript when CUPS or PPR is the spooler, so the filter
-is only used for regular printouts under LPD, LPRng, GNUlpr, PDQ, or
-without spooler.
+gets always PostScript or PDF when CUPS is the spooler and PostScript
+in the case of PPR, so the filter is only used for regular printouts
+under LPD, LPRng, GNUlpr, PDQ, or without spooler.
 
-The main process keeps always parsing the PostScript onput, it
-launches the renderer in one subprocess and launches and additional
-subprocess for bracketing the renderer's output with the JCL commands
-and putting the resulting data to standard output or to the postpipe.
+The main process keeps always parsing the PostScript input or feeding
+through the PDF input, it launches the renderer in one subprocess and
+launches an additional subprocess for bracketing the renderer's output
+with the JCL commands and putting the resulting data to standard
+output or to the postpipe.
 
 
 Overview of the subprocesses
 ----------------------------
 
 To do the filtering without loading the whole file into memory we work
-on a data stream, we read the data line by line analyse it to decide what
+on a data stream, we read the data line by line, analyse it to decide what
 filters to use and start the filters if we have found out which we need.
 We buffer the data only as long as we didn't determine which filters to
-use for this piece of data and with which options. There are no temporary
-files used.
+use for this piece of data and with which options.
 
 foomatic-rip splits into up to 6 parallel processes to do the whole
 filtering (listed in the order of the data flow):
@@ -391,7 +386,7 @@ filtering (listed in the order of the data flow):
          as soon as it knows its command line and restarts it when
          page-specific option settings need another command line
          or different JCL commands.
-   KID3: The rendering process. In most cases GhostScript, "cat"
+   KID3: The rendering process. In most cases Ghostscript, "cat"
          for native PostScript printers with their manufacturer's
          PPD files.
    KID4: Put together the JCL commands and the renderer's output

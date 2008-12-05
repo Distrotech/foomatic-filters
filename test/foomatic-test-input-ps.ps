@@ -1,0 +1,54 @@
+%!PS-Adobe-3.0
+%%BoundingBox: 0 0 612 792
+%%Pages: 4
+%%LanguageLevel: 1
+%%DocumentData: Clean7Bit
+%%DocumentNeededResources: font Helvetica Helvetica-Bold Times-Roman
+%%Creator: Till Kamppeter, The Linux Foundation
+%%CreationDate: D:20071017174200+0100
+%%Title: PostScript test file for testing/debugging foomatic-rip
+%%EndComments
+%%BeginProlog
+/PAGE {
+/pagenumber exch def
+% Black frame magic from CUPS test page
+initclip newpath clippath pathbbox
+/pageTop exch def
+/pageRight exch def
+/pageBottom exch def
+/pageLeft exch def
+4 setlinewidth
+0 setgray closepath stroke
+% "Test Page N" in upper left corner
+pageLeft 4 add pageTop 30 sub moveto
+/Helvetica-Bold findfont
+24 scalefont setfont
+( Test Page ) show
+pagenumber 1 string cvs show
+} bind def
+%%EndProlog
+% The content of the page is kept simple, so that one sees insertions done
+% by foomatic-rip or any pre filter easily. Simply make a black frame around
+% the imageable area and write "Test page N" in Helvetica Bold 24pt in the upper
+% left corner of each page
+%%Page: 1 1
+gsave
+1 PAGE
+grestore
+showpage
+%%Page: 2 2
+gsave
+2 PAGE
+grestore
+showpage
+%%Page: 3 3
+gsave
+3 PAGE
+grestore
+showpage
+%%Page: 4 4
+gsave
+4 PAGE
+grestore
+showpage
+%%EOF

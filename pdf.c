@@ -75,7 +75,7 @@ int gs_stderr(void *instance, const char *str, int len)
     char *buf = malloc(len +1);
     strncpy(buf, str, len);
     buf[len] = '\0';
-    _log("GhostScript: %s", buf);
+    _log("Ghostscript: %s", buf);
     free(buf);
     return len;
 }
@@ -267,13 +267,13 @@ static int render_pages(const char *filename, int firstpage, int lastpage)
 
     extract_command(&start, &end, cmd->data, "gs");
     if (start == end)
-        /* command is not GhostScript */
+        /* command is not Ghostscript */
         result = render_pages_with_generic_command(cmd,
                                                    filename,
                                                    firstpage,
                                                    lastpage);
     else
-        /* GhostScript command, tell it which pages we want to render */
+        /* Ghostscript command, tell it which pages we want to render */
         result = render_pages_with_ghostscript(cmd,
                                                start,
                                                end,
