@@ -1,3 +1,12 @@
+2008-12-05  Till Kamppeter <till.kamppeter@gmail.com>
+
+	* README: Updated for Foomatic 4.x
+
+	* test/*: Added test suite based on the LSB tests for foomatic-rip
+
+	* README, USAGE, foomatic-rip.1.in, foomaticrip.c, options.c, pdf.c.
+	  spooler.c: s/GhostScript/Ghostscript/
+
 2008-11-30  Till Kamppeter <till.kamppeter@gmail.com>
 
 	* postscript.c: Insert the "%%PageSetup" section directly after

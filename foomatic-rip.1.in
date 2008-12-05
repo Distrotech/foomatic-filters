@@ -55,7 +55,7 @@ input to the printer's native language (usually put to standard
 output).
 
 .Topic
-The translation is done with an external renderer, usually GhostScript
+The translation is done with an external renderer, usually Ghostscript
 (\fBgs(1)\fR). If no translation is needed (PostScript printer) the
 renderer's command line reduces to \fBcat(1)\fR. The way how this
 translation is done is described in a \fBPPD file\fR.

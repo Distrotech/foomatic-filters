@@ -1715,7 +1715,7 @@ int ppd_supports_pdf()
     if (!isempty(cmd_pdf))
         return 1;
 
-    /* GhostScript also accepts PDF, use that if it is in the normal command
+    /* Ghostscript also accepts PDF, use that if it is in the normal command
      * line */
     if (startswith(cmd, "gs"))
     {

@@ -25,7 +25,7 @@ const char *spooler_name(int spooler)
 
 /*  This piece of PostScript code (initial idea 2001 by Michael
     Allerhand (michael.allerhand at ed dot ac dot uk, vastly
-    improved by Till Kamppeter in 2002) lets GhostScript output
+    improved by Till Kamppeter in 2002) lets Ghostscript output
     the page accounting information which CUPS needs on standard
     error.
     Redesign by Helge Blischke (2004-11-17):
