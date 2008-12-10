@@ -1,3 +1,10 @@
+2008-12-10  Till Kamppeter <till.kamppeter@gmail.com>
+
+	* foomaticrip.c, foomaticrip.h, options.c: The PostScript code of
+	  PostScript options did not get inserted when the spooler is CUPS
+	  and foomatic-rip had to convert incoming PDF to PostScript
+	  (Ubuntu bug #299918).
+
 2008-12-05  Till Kamppeter <till.kamppeter@gmail.com>
 
 	* README: Updated for Foomatic 4.x

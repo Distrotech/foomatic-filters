@@ -1877,8 +1877,9 @@ void append_prolog_section(dstr_t *str, int optset, int comments)
         dstrcat(str, "%%BeginProlog\n");
     }
 
-    /* Generate the option code (not necessary when CUPS is spooler) */
-    if (spooler != SPOOLER_CUPS) {
+    /* Generate the option code (not necessary when CUPS is spooler and
+       PostScript data is not converted from PDF) */
+    if ((spooler != SPOOLER_CUPS) || pdfconvertedtops) {
         _log("Inserting option code into \"Prolog\" section.\n");
         build_commandline(optset, NULL, 0);
         dstrcat(str, prologprepend->data);
@@ -1902,8 +1903,10 @@ void append_setup_section(dstr_t *str, int optset, int comments)
         _log("Inserting PostScript code for CUPS' page accounting\n");
         dstrcat(str, accounting_prolog);
     }
-    /* Generate the option code (not necessary when CUPS is spooler) */
-    else {
+
+    /* Generate the option code (not necessary when CUPS is spooler and
+       PostScript data is not converted from PDF) */
+    if ((spooler != SPOOLER_CUPS) || pdfconvertedtops) {
         _log("Inserting option code into \"Setup\" section.\n");
         build_commandline(optset, NULL, 0);
         dstrcat(str, setupprepend->data);

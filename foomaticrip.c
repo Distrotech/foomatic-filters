@@ -119,6 +119,7 @@ int spooler = SPOOLER_DIRECT;
 int do_docs = 0;
 int dontparse = 0;
 int jobhasjcl;
+int pdfconvertedtops;
 
 /* Variable for PPR's backend interface name (parallel, tcpip, atalk, ...) */
 char backend [64];
@@ -933,6 +934,8 @@ int print_file(const char *filename, int convert)
     if (file != stdin)
         rewind(file);
 
+    if (convert) pdfconvertedtops = 0;
+
     switch (type) {
         case PDF_FILE:
             _log("Filetype: PDF\n");
@@ -946,6 +949,7 @@ int print_file(const char *filename, int convert)
                 _log("Driver does not understand PDF input, "
                      "converting to PostScript\n");
 
+		pdfconvertedtops = 1;
                 snprintf(pdf2ps_cmd, PATH_MAX,
                          "gs -q -sstdout=%%stderr -sDEVICE=pswrite -sOutputFile=- "
                             "-dBATCH -dNOPAUSE -dPARANOIDSAFER %s",
