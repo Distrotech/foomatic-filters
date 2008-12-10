@@ -118,6 +118,7 @@ extern int debug;
 extern int do_docs;
 extern char printer_model[];
 extern int dontparse;
+extern int pdfconvertedtops;
 
 #endif
 
