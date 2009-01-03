@@ -437,6 +437,10 @@ void _print_ps(stream_t *stream)
                                 _log("Document created with OpenOffice.org 1.1.x\n");
                                 ooo110 = 1;
                             }
+                        } else if (!strcmp(p, "StarOffice 8")) {
+                            p += 12;
+			    _log("Document created with StarOffice 8\n");
+			    ooo110 = 1;
                         }
                     }
                     else if (nestinglevel == 0 && startswith(line->data, "%%BeginProlog")) {

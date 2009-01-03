@@ -1,3 +1,9 @@
+2009-01-03  Till Kamppeter <till.kamppeter@gmail.com>
+
+	* postscript.c: Do the workaround for PostScript input of
+	  OpenOffice 1.1.x also for StarOffice 8 (Thanks to Martin Jacobs,
+	  martin dot jacobs at arcor dot de, for the patch).
+
 2008-12-10  Till Kamppeter <till.kamppeter@gmail.com>
 
 	* foomaticrip.c, foomaticrip.h, options.c: The PostScript code of
