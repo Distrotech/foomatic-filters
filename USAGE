@@ -157,7 +157,7 @@ By default, foomatic-filters is installed into subdirectories of
 /usr/local (e. g. /usr/local/bin/foomatic-rip), to get it into
 subdirectories of /usr (/usr/bin/foomatic-rip), enter:
 
-   ./configure --prefix=/usr
+   ./configure --prefix=/usr --sysconfdir=/etc
    make
    make install
 
