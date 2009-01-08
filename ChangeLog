@@ -1,3 +1,14 @@
+2009-01-08  Till Kamppeter <till.kamppeter@gmail.com>
+
+	* README, USAGE: Version 4.0.0.
+
+	* STANDARD_installation: Tell also that "sudo make install" works
+	  to run "make install" as root.
+
+	* Makefile.am: Fixed cleaning rules. Many transient files did not
+	  get removed.
+	  Fixed "make inplace" and uninstalling rules.
+
 2009-01-03  Till Kamppeter <till.kamppeter@gmail.com>
 
 	* postscript.c: Do the workaround for PostScript input of

@@ -7,7 +7,9 @@ make
 make -n install
 set +x
 if [ "`id -u`" != 0 ] ; then
-	echo "run make install as root"
+	echo "run make install as root:"
 	echo "su root -c 'make install'"
+	echo "   OR   "
+	echo "sudo make install"
 	exit 1
 fi

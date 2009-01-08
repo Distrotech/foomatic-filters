@@ -77,9 +77,8 @@ install-ppr:	install-bin
 
 install-bin:	install-etc
 	${SRC}/mkinstalldirs $(DESTDIR)$(BINDIR)
-	(for FILE in $(BINFILES) ; do \
+	(for FILE in $(bin_PROGRAMS) ; do \
 		${INSTALL} -m 755 $$FILE $(DESTDIR)$(BINDIR) ; done)
-	${INSTALL} -m 755 foomatic-rip $(DESTDIR)$(BINDIR) 
 
 install-etc:
 	${SRC}/mkinstalldirs $(DESTDIR)$(ETCDIR)/direct
@@ -94,23 +93,23 @@ install-man:
 
 # Clean up the source directory
 clean:	remove-trash
-	rm -f *.o foomatic-rip
-	rm -f .testing-stamp
+	rm -f *.o foomatic-rip foomatic-rip.1 beh 
+	rm -f .testing-stamp stamp-h1
 	rm -f test/*.out
 
 distclean:	clean
 	rm -f $(AC_OUTPUT_FILES) config.log config.status config.cache configure.lineno
-	rm -rf autom*.cache confdefs.h
-	rm -f tests/Makefile
+	rm -rf autom*.cache confdefs.h config.h
+	rm -f Makefile test/Makefile
 	rm -rf .deps
 
 maintainer-clean:	distclean
-	rm -f configure aclocal.m4
-
+	rm -f configure config.h.in Makefile.in aclocal.m4 INSTALL VERSION.full
+	rm -f depcomp missing 
 # Remove editor backup and temporary files
 remove-trash:
 	for m in $(TRASHFILES); do \
-	  find . -name "$$m" -exec rm "{}" \; ; \
+	  find . -name "$$m" -xtype f -exec rm -f "{}" \; ; \
 	done
 
 # Uninstall an installed Foomatic
@@ -121,7 +120,7 @@ uninstall-main:	uninstall-bin uninstall-man
 
 uninstall-bin:
 	( cd $(DESTDIR)$(BINDIR) && \
-	  rm -f $(BINFILES) \
+	  rm -f $(bin_PROGRAMS) \
 	)
 
 uninstall-etc:
@@ -145,13 +144,13 @@ uninstall-ppr:
 	rmdir $(DESTDIR)$(PPR) || :
 
 uninstall-man:	check-config
-	for m in $(BINFILES); do \
+	for m in $(bin_PROGRAMS); do \
 	  rm -f $(DESTDIR)$(MANDIR)/man1/$$m.*; \
 	done
 
 # Various testing/debugging/etc targets
 inplace:	all
-	chmod a+rx $(BINFILES)
+	chmod a+rx $(bin_PROGRAMS)
 
 testing tests:	inplace
 	cd tests ; $(MAKE)
