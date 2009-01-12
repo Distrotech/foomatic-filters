@@ -1,3 +1,7 @@
+2009-01-12  Till Kamppeter <till.kamppeter@gmail.com>
+
+	* acinclude.m4: Eliminated warnings when generating ./configure
+
 2009-01-08  Till Kamppeter <till.kamppeter@gmail.com>
 
 	* README, USAGE: Version 4.0.0.
