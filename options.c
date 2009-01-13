@@ -687,7 +687,7 @@ char * get_valid_value_string(option_t *opt, const char *value)
         if (paramvalues) {
             res = paramvalues_to_string(opt, paramvalues);
             free(paramvalues);
-            return res;
+            return (startswith(res, "Custom.") ? strdup(&res[7]) : strdup(res));
         }
     }
     else if (opt->foomatic_param)
@@ -1206,7 +1206,6 @@ int param_set_allowed_chars(param_t *param, const char *value)
     snprintf(rxstr, 128, "^[%s]*$", tmp);
     if (regcomp(param->allowedchars, rxstr, 0) != 0) {
         regfree(param->allowedchars);
-        free(param->allowedchars);
         param->allowedchars = NULL;
         return 0;
     }
@@ -1221,7 +1220,6 @@ int param_set_allowed_regexp(param_t *param, const char *value)
     unhtmlify(tmp, 128, value);
     if (regcomp(param->allowedregexp, tmp, 0) != 0) {
         regfree(param->allowedregexp);
-        free(param->allowedregexp);
         param->allowedregexp = NULL;
         return 0;
     }
@@ -1239,7 +1237,7 @@ void option_set_custom_command(option_t *opt, const char *cmd)
 param_t * option_add_custom_param_from_string(option_t *opt,
     const char *name, const char *text, const char *str)
 {
-    param_t *param = malloc(sizeof(param_t));
+    param_t *param = calloc(1, sizeof(param_t));
     param_t *p;
     char typestr[33];
     int n;
