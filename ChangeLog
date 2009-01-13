@@ -1,5 +1,10 @@
 2009-01-13  Till Kamppeter <till.kamppeter@gmail.com>
 
+	* options.c: Custom JCL options were not inserted correctly
+	  (thanks to Bin Li from Ricoh for reporting this). Fixed also
+	  that "None" as argument for a string or password option is
+	  considered as the empty string.
+
 	* options.c: String and password option settings got inserted into
 	  the command line or the PostScript code with the "Custom."
 	  prefix (thanks to Bin Li from Ricoh for reporting this). Fixed
