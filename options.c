@@ -866,21 +866,21 @@ int option_get_command(dstr_t *cmd, option_t *opt, int optionset, int section)
         return 1;
     }
 
-    if (opt->type == TYPE_STRING && !strcasecmp(valstr, "None")) {
-        /* TODO Is "none" always mapped to the empty string? */
-        return 1;
-    }
+    /* Consider "None" as the empty string for string and password options */
+    if ((opt->type == TYPE_STRING || opt->type == TYPE_PASSWORD) &&
+	!strcasecmp(valstr, "None"))
+        valstr = "";
+
+    /* Custom value */
+    if (option_use_foomatic_prototype(opt))
+	build_foomatic_custom_command(cmd, opt, valstr);
     else {
-        /* Custom value */
-        if (option_use_foomatic_prototype(opt))
-            build_foomatic_custom_command(cmd, opt, valstr);
-        else {
-            dstrcpy(cmd, opt->custom_command);
-            if (option_get_section(opt) == SECTION_JCLSETUP)
-                build_cups_custom_jcl_command(cmd, opt, valstr);
-            else
-                build_cups_custom_ps_command(cmd, opt, valstr);
-        }
+	dstrcpy(cmd, opt->custom_command);
+	if ((option_get_section(opt) == SECTION_JCLSETUP) ||
+	    (opt->style == 'J'))
+	    build_cups_custom_jcl_command(cmd, opt, valstr);
+	else
+	  build_cups_custom_ps_command(cmd, opt, valstr);
     }
 
     return cmd->len != 0;
