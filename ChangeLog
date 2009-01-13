@@ -1,3 +1,13 @@
+2009-01-13  Till Kamppeter <till.kamppeter@gmail.com>
+
+	* options.c: String and password option settings got inserted into
+	  the command line or the PostScript code with the "Custom."
+	  prefix (thanks to Bin Li from Ricoh for reporting this). Fixed
+	  also a segmentation fault due to missing initialization of
+	  components of the param_t data structure by the
+	  option_add_custom_param_from_string() function. Removed also
+	  some unneeded free() calls.
+
 2009-01-12  Till Kamppeter <till.kamppeter@gmail.com>
 
 	* acinclude.m4: Eliminated warnings when generating ./configure
