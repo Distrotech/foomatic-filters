@@ -134,7 +134,7 @@ static char ** read_jcl_lines(FILE *stream, const char *jclstr)
         if (cnt >= alloc -1)
         {
             alloc *= 2;
-            result = realloc(result, alloc);
+            result = realloc(result, alloc * sizeof(char *));
         }
         result[cnt] = line;
         cnt++;
@@ -163,6 +163,7 @@ static int jcl_keywords_equal(const char *jclline1, const char *jclline2,
     while (isspace(*p2))
         p2--;
 
+    if (p1 - j1 != p2 - j2) return 0;
     return strncmp(j1, j2, p1 - j1 + 1) == 0;
 }
 

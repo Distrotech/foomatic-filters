@@ -1,3 +1,10 @@
+2009-01-29  Till Kamppeter <till.kamppeter@gmail.com>
+
+	* renderer.c: If there were very many JCL lines in the driver's
+	  output or coming together by JCL options, the JCL merging
+	  process (kid4) segfaulted (Ubuntu bug LP: #321164,
+	  https://launchpad.net/bugs/321164).
+
 2009-01-14  Till Kamppeter <till.kamppeter@gmail.com>
 
 	* Tagged branch for release 4.0.0.
