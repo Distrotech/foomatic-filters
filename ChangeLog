@@ -1,3 +1,11 @@
+2009-02-02  Till Kamppeter <till.kamppeter@gmail.com>
+
+	* renderer.c: When foomatic-rip looked for JCL options in the
+	  binary output of the driver to merge them with JCL options from
+	  the PPD file, it read binary data into a C string, which causes
+	  problems when this data contains zeroes. Finally fixes Ubuntu bug
+	  LP: #303691.
+
 2009-01-29  Till Kamppeter <till.kamppeter@gmail.com>
 
 	* renderer.c: If there were very many JCL lines in the driver's
