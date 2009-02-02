@@ -93,7 +93,7 @@ void massage_gs_commandline(dstr_t *cmd)
     dstrreplace(cmd, "echo", ECHO, 0); /* TODO search for \wecho\w */
 }
 
-char * read_line(FILE *stream)
+char * read_line(FILE *stream, size_t *readbytes)
 {
     char *line;
     size_t alloc = 64, len = 0;
@@ -106,21 +106,32 @@ char * read_line(FILE *stream)
             alloc *= 2;
             line = realloc(line, alloc);
         }
-        if (c == '\n')
-            break;
         line[len] = (char)c;
         len++;
+        if (c == '\n')
+            break;
     }
 
     line[len] = '\0';
+    *readbytes = len;
     return line;
+}
+
+write_binary_data(FILE *stream, const char *data, size_t bytes)
+{
+    int i;
+    for (i=0; i < bytes; i++)
+    {
+	fputc(data[i], stream);
+    }
 }
 
 /*
  * Read all lines containing 'jclstr' from 'stream' (actually, one more) and
  * return them in a zero terminated array.
  */
-static char ** read_jcl_lines(FILE *stream, const char *jclstr)
+static char ** read_jcl_lines(FILE *stream, const char *jclstr,
+			      size_t *readbinarybytes)
 {
     char *line;
     char **result;
@@ -129,7 +140,7 @@ static char ** read_jcl_lines(FILE *stream, const char *jclstr)
     result = malloc(alloc * sizeof(char *));
 
     /* read from the renderer output until the first non-JCL line appears */
-    while ((line = read_line(stream)))
+    while ((line = read_line(stream, readbinarybytes)))
     {
         if (cnt >= alloc -1)
         {
@@ -137,11 +148,14 @@ static char ** read_jcl_lines(FILE *stream, const char *jclstr)
             result = realloc(result, alloc * sizeof(char *));
         }
         result[cnt] = line;
-        cnt++;
         if (!strstr(line, jclstr))
             break;
+        /* Remove newline from the end of a line containing JCL */
+        result[cnt][*readbinarybytes - 1] = '\0';
+        cnt++;
     }
 
+    cnt++;
     result[cnt] = NULL;
     return result;
 }
@@ -203,6 +217,7 @@ static void argv_write(FILE *stream, char **argv, const char *sep)
 static int write_merged_jcl_options(FILE *stream,
                                     char **original_opts,
                                     char **opts,
+                                    size_t readbinarybytes,
                                     const char *jclstr)
 {
     char *p = strstr(original_opts[0], jclstr);
@@ -214,7 +229,7 @@ static int write_merged_jcl_options(FILE *stream,
     {
         fprintf(stream, "%s", jclbegin);
         argv_write(stream, opts, "\n");
-        fprintf(stream, "%s\n", original_opts[0]);
+        write_binary_data(stream, original_opts[0], readbinarybytes);
         return 0;
     }
 
@@ -234,7 +249,7 @@ static int write_merged_jcl_options(FILE *stream,
         if (p)
             fprintf(stream, "%s\n", p);
 
-        fprintf(stream, "%s\n", original_opts[1]);
+        write_binary_data(stream, original_opts[1], readbinarybytes);
         return 1;
     }
 
@@ -247,13 +262,14 @@ static int write_merged_jcl_options(FILE *stream,
         if (!jcl_options_find_keyword(original_opts, *optsp, jclstr))
 	    fprintf(stream, "%s\n", *optsp);
 
-    for (optsp = original_opts; *optsp; optsp++) {
+    for (optsp = original_opts; *(optsp + 1); optsp++) {
         if (optsp != original_opts) p = *optsp;
         if (jcl_options_find_keyword(opts, p, jclstr))
 	  fprintf(stream, "%s\n", jcl_options_find_keyword(opts, p, jclstr));
 	else
             fprintf(stream, "%s\n", p);
     }
+    write_binary_data(stream, *optsp, readbinarybytes);
 
     return 1;
 }
@@ -274,6 +290,7 @@ int exec_kid4(FILE *in, FILE *out, void *user_arg)
 {
     FILE *fileh = open_postpipe();
     int driverjcl;
+    size_t readbinarybytes;
 
     log_jcl();
 
@@ -286,11 +303,12 @@ int exec_kid4(FILE *in, FILE *out, void *user_arg)
         {
             char *jclstr = strndup(jclprepend[0],
                                    strcspn(jclprepend[0], " \t\n\r"));
-            char **jclheader = read_jcl_lines(in, jclstr);
+            char **jclheader = read_jcl_lines(in, jclstr, &readbinarybytes);
 
             driverjcl = write_merged_jcl_options(fileh,
                                                  jclheader,
                                                  jclprepend,
+                                                 readbinarybytes,
                                                  jclstr);
 
             free(jclstr);
