@@ -148,13 +148,14 @@ static char ** read_jcl_lines(FILE *stream, const char *jclstr,
             result = realloc(result, alloc * sizeof(char *));
         }
         result[cnt] = line;
-        cnt++;
         if (!strstr(line, jclstr))
             break;
-	/* Remove newline from the end of a line containing JCL */
-	result[cnt][*readbinarybytes - 1] = '\0';
+        /* Remove newline from the end of a line containing JCL */
+        result[cnt][*readbinarybytes - 1] = '\0';
+        cnt++;
     }
 
+    cnt++;
     result[cnt] = NULL;
     return result;
 }
