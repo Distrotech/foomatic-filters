@@ -342,7 +342,9 @@ char ** argv_split(const char *string, const char *separators, int *cntp)
     for (i = 0; i < cnt; i++)
     {
         size_t len = strcspn(string, separators);
-        *argvp = strndup(string, len);
+        *argvp = malloc(len +1);
+        strncpy(*argvp, string, len);
+        *argvp[len] = '\0';
         string = next_token(string, separators);
         argvp++;
     }
