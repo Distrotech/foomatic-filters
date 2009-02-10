@@ -1,3 +1,9 @@
+2009-02-09  Lars Uebernickel <larsuebernickel@gmx.de>
+
+	* fileconverter.h, foomaticrip.c, renderer.c, util.c: Made
+	  foomatic-rip building under Mac OS X, mainly by replacing
+	  functions which are GNU-only.
+
 2009-02-02  Till Kamppeter <till.kamppeter@gmail.com>
 
 	* renderer.c: When foomatic-rip looked for JCL options in the
