@@ -167,14 +167,18 @@ static int jcl_keywords_equal(const char *jclline1, const char *jclline2,
 
     j1 = strstr(jclline1, jclstr);
     if (!j1) return 0;
-    p1 = strchrnul(skip_whitespace(j1), '=') - 1;
-    while (isspace(*p1))
+    if (!(p1 = strchr(skip_whitespace(j1), '=')))
+        p1 = j1[strlen(j1)];
+    p1--;
+    while (p1 > j1 && isspace(*p1))
         p1--;
 
     j2 = strstr(jclline2, jclstr);
     if (!j2) return 0;
-    p2 = strchrnul(skip_whitespace(j2), '=') - 1;
-    while (isspace(*p2))
+    if (!(p2 = strchr(skip_whitespace(j2), '=')))
+        p2 = j2[strlen(j2)];
+    p2--;
+    while (p2 > j2 && isspace(*p2))
         p2--;
 
     if (p1 - j1 != p2 - j2) return 0;
@@ -301,9 +305,15 @@ int exec_kid4(FILE *in, FILE *out, void *user_arg)
     {
         if (!isspace(jclprepend[0][0]))
         {
-            char *jclstr = strndup(jclprepend[0],
-                                   strcspn(jclprepend[0], " \t\n\r"));
-            char **jclheader = read_jcl_lines(in, jclstr, &readbinarybytes);
+            char *jclstr, **jclheader;
+            size_t pos;
+
+            pos = strcspn(jclprepend[0], " \t\n\r");
+            jclstr = malloc(pos +1);
+            strncpy(jclstr, jclprepend[0], pos);
+            jclstr[pos] = '\0';
+
+            jclheader = read_jcl_lines(in, jclstr, &readbinarybytes);
 
             driverjcl = write_merged_jcl_options(fileh,
                                                  jclheader,
