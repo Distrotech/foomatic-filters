@@ -327,7 +327,7 @@ char ** argv_split(const char *string, const char *separators, int *cntp)
 {
     unsigned cnt;
     int i;
-    char **argv, **argvp;
+    char **argv;
 
     if (!string)
         return NULL;
@@ -338,15 +338,15 @@ char ** argv_split(const char *string, const char *separators, int *cntp)
     argv = malloc((cnt +1) * sizeof(char *));
     argv[cnt] = NULL;
 
-    argvp = argv;
     for (i = 0; i < cnt; i++)
     {
         size_t len = strcspn(string, separators);
-        *argvp = malloc(len +1);
-        strncpy(*argvp, string, len);
-        *argvp[len] = '\0';
+	char *s;
+        s = malloc(len + 1);
+        strncpy(s, string, len);
+        s[len] = '\0';
+	argv[i] = s;
         string = next_token(string, separators);
-        argvp++;
     }
 
     if (cntp)
