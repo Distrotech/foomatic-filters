@@ -17,9 +17,12 @@
  */
 int test_gs_output_redirection()
 {
-    char * gstestcommand = GS_PATH " -dQUIET -dPARANOIDSAFER -dNOPAUSE -dBATCH -dNOMEDIAATTRS "
-        "-sDEVICE=pswrite -sstdout=%stderr -sOutputFile=/dev/null -c '(hello\n) print flush' 2>&1";
+    char gstestcommand[PATH_MAX];
     char output[10] = "";
+
+    snprintf(gstestcommand, PATH_MAX, "%s -dQUIET -dPARANOIDSAFER -dNOPAUSE "
+             "-dBATCH -dNOMEDIAATTRS -sDEVICE=pswrite -sstdout=%%stderr "
+             "-sOutputFile=/dev/null -c '(hello\n) print flush' 2>&1", gspath);
 
     FILE *pd = popen(gstestcommand, "r");
     if (!pd) {
@@ -85,9 +88,13 @@ void massage_gs_commandline(dstr_t *cmd)
 
     dstrremove(gscmd, start, 2);     /* Remove 'gs' */
     if (gswithoutputredirection)
-        dstrprepend(gscmd, GS_PATH" -sstdout=%stderr ");
-    else {
-        dstrprepend(gscmd, GS_PATH);
+    {
+        dstrprepend(gscmd, " -sstdout=%stderr ");
+        dstrprepend(gscmd, gspath);
+    }
+    else
+    {
+        dstrprepend(gscmd, gspath);
         dstrcat(gscmd, " 3>&1 1>&2");
     }
 
@@ -105,7 +112,7 @@ void massage_gs_commandline(dstr_t *cmd)
     /* If the renderer command line contains the "echo" command, replace the
      * "echo" by the user-chosen $myecho (important for non-GNU systems where
      * GNU echo is in a special path */
-    dstrreplace(cmd, "echo", ECHO, 0); /* TODO search for \wecho\w */
+    dstrreplace(cmd, "echo", echopath, 0); /* TODO search for \wecho\w */
 }
 
 char * read_line(FILE *stream, size_t *readbytes)

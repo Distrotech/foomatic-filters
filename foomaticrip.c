@@ -147,6 +147,14 @@ int debug = 0;
  * systems. */
 char execpath [PATH_MAX] = "";
 
+/* Path to the GhostScript which foomatic-rip shall use */
+char gspath[PATH_MAX] = "gs";
+
+/* What 'echo' program to use.  It needs -e and -n.  Linux's builtin
+and regular echo work fine; non-GNU platforms may need to install
+gnu echo and put gecho here or something. */
+char echopath[PATH_MAX] = "echo";
+
 /* CUPS raster drivers are searched here */
 char cupsfilterpath[PATH_MAX] = "/usr/local/lib/cups/filter:"
                                 "/usr/local/libexec/cups/filter:"
@@ -167,6 +175,10 @@ void config_set_option(const char *key, const char *value)
         strlcpy(modern_shell, value, 32);
     else if (strcmp(key, "textfilter") == 0)
         set_fileconverter(value);
+    else if (strcmp(key, "gspath") == 0)
+        strlcpy(gspath, value, PATH_MAX);
+    else if (strcmp(key, "echo") == 0)
+        strlcpy(echopath, value, PATH_MAX);
 }
 
 void config_from_file(const char *filename)

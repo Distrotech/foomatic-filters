@@ -20,17 +20,6 @@
 #define LOG_FILE "/tmp/foomatic-rip"
 #endif
 
-/* What 'echo' program to use.  It needs -e and -n.  Linux's builtin
-and regular echo work fine; non-GNU platforms may need to install
-gnu echo and put gecho here or something. */
-#ifndef ECHO
-#define ECHO "echo"
-#endif
-
-#ifndef GS_PATH
-#define GS_PATH "gs"
-#endif
-
 
 /* Constants used by this filter
  *
@@ -119,6 +108,8 @@ extern int do_docs;
 extern char printer_model[];
 extern int dontparse;
 extern int pdfconvertedtops;
+extern char gspath[PATH_MAX];
+extern char echopath[PATH_MAX];
 
 #endif
 
