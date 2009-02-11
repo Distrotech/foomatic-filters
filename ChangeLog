@@ -1,3 +1,7 @@
+2009-02-11  Lars Uebernickel <larsuebernickel@gmx.de>
+	* renderer.c: Fixed several bugs in the argument replacements in
+	massage_gs_commandline.
+
 2009-02-09  Lars Uebernickel <larsuebernickel@gmx.de>
 
 	* fileconverter.h, foomaticrip.c, renderer.c, util.c: Made
