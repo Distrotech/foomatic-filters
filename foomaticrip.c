@@ -141,12 +141,6 @@ dstr_t *jclappend;
  * WARNING: This logfile is a security hole; do not use in production. */
 int debug = 0;
 
-/* What path to use for filter programs and such. Your printer driver must be
- * in the path, as must be the renderer, $enscriptcommand, and possibly other
- * stuff. The default path is often fine on Linux, but may not be on other
- * systems. */
-char execpath [PATH_MAX] = "";
-
 /* Path to the GhostScript which foomatic-rip shall use */
 char gspath[PATH_MAX] = "gs";
 
@@ -167,8 +161,14 @@ void config_set_option(const char *key, const char *value)
 {
     if (strcmp(key, "debug") == 0)
         debug = atoi(value);
-    else if (strcmp(key, "execpath") == 0)
-        strlcpy(execpath, value, PATH_MAX);
+
+    /* What path to use for filter programs and such. Your printer driver must be
+     * in the path, as must be the renderer, $enscriptcommand, and possibly other
+     * stuff. The default path is often fine on Linux, but may not be on other
+     * systems. */
+    else if (strcmp(key, "execpath") == 0 && !isempty(value))
+        setenv("PATH", value, 1);
+
     else if (strcmp(key, "cupsfilterpath") == 0)
         strlcpy(cupsfilterpath, value, PATH_MAX);
     else if (strcmp(key, "preferred_shell") == 0)
@@ -191,11 +191,12 @@ void config_from_file(const char *filename)
     if (fh == NULL)
         return; /* no error here, only read config file if it is present */
 
-    while (fgets(line, 256, fh) != NULL) {
+    while (fgets(line, 256, fh) != NULL)
+    {
         key = strtok(line, " :\t\r\n");
         if (key == NULL || key[0] == '#')
             continue;
-        value = strtok(NULL, " :\t\r\n#");
+        value = strtok(NULL, " \t\r\n#");
         config_set_option(key, value);
     }
     fclose(fh);
@@ -1089,9 +1090,6 @@ int main(int argc, char** argv)
 
 
     config_from_file(CONFIG_PATH "/filter.conf");
-
-    if (!isempty(execpath))
-        setenv("PATH", execpath, 1);
 
     /* Command line options for verbosity */
     if (arglist_remove_flag(arglist, "-v"))

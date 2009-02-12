@@ -1,4 +1,9 @@
 2009-02-11  Lars Uebernickel <larsuebernickel@gmx.de>
+	* foomaticrip.c: The value of the "execpath" variable in the config
+	file was not used fully: Only the characters leading up to the first
+	':' were copied into the programs $PATH environment variable.
+
+2009-02-11  Lars Uebernickel <larsuebernickel@gmx.de>
 	* renderer.c: Fixed several bugs in the argument replacements in
 	massage_gs_commandline.
 	* foomaticrip.c: Use "gspath" and "echopath" from the config file.
