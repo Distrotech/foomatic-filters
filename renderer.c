@@ -17,9 +17,12 @@
  */
 int test_gs_output_redirection()
 {
-    char * gstestcommand = GS_PATH " -dQUIET -dPARANOIDSAFER -dNOPAUSE -dBATCH -dNOMEDIAATTRS "
-        "-sDEVICE=pswrite -sstdout=%stderr -sOutputFile=/dev/null -c '(hello\n) print flush' 2>&1";
+    char gstestcommand[PATH_MAX];
     char output[10] = "";
+
+    snprintf(gstestcommand, PATH_MAX, "%s -dQUIET -dPARANOIDSAFER -dNOPAUSE "
+             "-dBATCH -dNOMEDIAATTRS -sDEVICE=pswrite -sstdout=%%stderr "
+             "-sOutputFile=/dev/null -c '(hello\n) print flush' 2>&1", gspath);
 
     FILE *pd = popen(gstestcommand, "r");
     if (!pd) {
@@ -45,52 +48,71 @@ void massage_gs_commandline(dstr_t *cmd)
 {
     int gswithoutputredirection = test_gs_output_redirection();
     size_t start, end;
+    dstr_t *gscmd, *cmdcopy;
 
     extract_command(&start, &end, cmd->data, "gs");
-
     if (start == end) /* cmd doesn't call ghostscript */
         return;
 
+    gscmd = create_dstr();
+    dstrncpy(gscmd, &cmd->data[start], end - start);
+
     /* If Ghostscript does not support redirecting the standard output
-       of the PostScript program to standard error with
-       '-sstdout=%stderr', sen the job output data to fd 3; errors
-       will be on 2(stderr) and job ps program interpreter output on
-       1(stdout). */
+       of the PostScript program to standard error with '-sstdout=%stderr', sen
+       the job output data to fd 3; errors will be on 2(stderr) and job ps
+       program interpreter output on 1(stdout). */
     if (gswithoutputredirection)
-        dstrreplace(cmd, "-sOutputFile=- ", "-sOutputFile=%stdout ", 0);
+        dstrreplace(gscmd, "-sOutputFile=- ", "-sOutputFile=%stdout ", 0);
     else
-        dstrreplace(cmd, "-sOutputFile=- ", "-sOutputFile=/dev/fd/3 ", 0);
+        dstrreplace(gscmd, "-sOutputFile=- ", "-sOutputFile=/dev/fd/3 ", 0);
 
     /* Use always buffered input. This works around a Ghostscript
-       bug which prevents printing encrypted PDF files with Adobe
-       Reader 8.1.1 and Ghostscript built as shared library
-       (Ghostscript bug #689577, Ubuntu bug #172264) */
-    dstrreplace(cmd, " - ", " -_ ", 0);
-    dstrreplace(cmd, " /dev/fd/0 ", " -_ ", 0);
+       bug which prevents printing encrypted PDF files with Adobe Reader 8.1.1
+       and Ghostscript built as shared library (Ghostscript bug #689577, Ubuntu
+       bug #172264) */
+    if (dstrendswith(gscmd, " -"))
+        dstrcat(gscmd, "_");
+    else
+        dstrreplace(gscmd, " - ", " -_ ", 0);
+    dstrreplace(gscmd, " /dev/fd/0", " -_ ", 0);
 
     /* Turn *off* -q (quiet!); now that stderr is useful! :) */
-    dstrreplace(cmd, " -q ", " ", 0);
+    dstrreplace(gscmd, " -q ", " ", 0);
 
     /* Escape any quotes, and then quote everything just to be sure...
-       Escaping a single quote inside single quotes is a bit complex as the shell
-       takes everything literal there. So we have to assemble it by concatinating
-       different quoted strings.
-       Finally we get e.g.: 'x'"'"'y' or ''"'"'xy' or 'xy'"'"'' or ... */
+       Escaping a single quote inside single quotes is a bit complex as the
+       shell takes everything literal there. So we have to assemble it by
+       concatinating different quoted strings.  Finally we get e.g.: 'x'"'"'y'
+       or ''"'"'xy' or 'xy'"'"'' or ... */
     /* dstrreplace(cmd, "'", "'\"'\"'"); TODO tbd */
 
-
-    dstrremove(cmd, start, 2);     /* Remove 'gs' */
+    dstrremove(gscmd, start, 2);     /* Remove 'gs' */
     if (gswithoutputredirection)
-        dstrinsert(cmd, start, GS_PATH" -sstdout=%stderr ");
-    else {
-        dstrinsert(cmd, start, GS_PATH);
-        dstrinsert(cmd, end, " 3>&1 1>&2");
+    {
+        dstrprepend(gscmd, " -sstdout=%stderr ");
+        dstrprepend(gscmd, gspath);
     }
+    else
+    {
+        dstrprepend(gscmd, gspath);
+        dstrcat(gscmd, " 3>&1 1>&2");
+    }
+
+    /* put gscmd back into cmd, between 'start' and 'end' */
+    cmdcopy = create_dstr();
+    dstrcpy(cmdcopy, cmd->data);
+
+    dstrncpy(cmd, cmdcopy->data, start);
+    dstrcat(cmd, gscmd->data);
+    dstrcat(cmd, &cmdcopy->data[end]);
+
+    free_dstr(gscmd);
+    free_dstr(cmdcopy);
 
     /* If the renderer command line contains the "echo" command, replace the
      * "echo" by the user-chosen $myecho (important for non-GNU systems where
      * GNU echo is in a special path */
-    dstrreplace(cmd, "echo", ECHO, 0); /* TODO search for \wecho\w */
+    dstrreplace(cmd, "echo", echopath, 0); /* TODO search for \wecho\w */
 }
 
 char * read_line(FILE *stream, size_t *readbytes)
