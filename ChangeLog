@@ -1,3 +1,7 @@
+2009-03-07  Till Kamppeter <till.kamppeter@gmail.com>
+
+	* foomaticrip.c: Fixed buffer overflow (bug #311).
+
 2009-02-11  Lars Uebernickel <larsuebernickel@gmx.de>
 	* foomaticrip.c: The value of the "execpath" variable in the config
 	file was not used fully: Only the characters leading up to the first
