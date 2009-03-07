@@ -149,7 +149,7 @@ Put a line
 
 into the PPD file, right after \fB*PPD-Adobe: "4.3"\fR, where
 \fI<command>\fR is a command into which you wnat to re-direct the
-output data. Due to the restictions of PPD files \fB<\fR, \fB>\fR, and
+output data. Due to the restrictions of PPD files \fB<\fR, \fB>\fR, and
 \fB"\fR are not allowed in the \fI<command>\fR, replace them as
 follows:
 
@@ -183,7 +183,7 @@ listening on port \fB9100\fR you need this:
 \fB*FoomaticRIPPostPipe: "| /usr/bin/nc -w 1 printer 9100"\fR
 
 Note the "-w 1" in the "nc" command line, it makes "nc" exiting
-immediately after the data is tranferred to the printer.
+immediately after the data is transferred to the printer.
 
 \fB*FoomaticRIPPostPipe: "| rlpr -Plp@printserver"\fR
 

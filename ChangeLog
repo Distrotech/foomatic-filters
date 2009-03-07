@@ -1,5 +1,12 @@
 2009-03-07  Till Kamppeter <till.kamppeter@gmail.com>
 
+	* foomatic-rip.1.in: Fixed typos.
+
+	* renderer.c: When doing the massaging of the remderer command line
+	  foomatic-rip inserts 'gs' at the wrong place in command lines of
+	  Foomatic 3.x-generated PPD files for the "Postscript" driver, leading
+	  to duplicate calls of Ghostscript (bug #316).
+
 	* foomaticrip.c: Fixed buffer overflow (bug #311).
 
 2009-02-11  Lars Uebernickel <larsuebernickel@gmx.de>
