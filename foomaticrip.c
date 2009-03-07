@@ -937,7 +937,7 @@ int print_file(const char *filename, int convert)
         }
     }
 
-    n = fread(buf, 1, sizeof(buf), file);
+    n = fread(buf, 1, sizeof(buf) - 1, file);
     buf[n] = '\0';
     type = guess_file_type(buf, n, &startpos);
     if (startpos > 0) {

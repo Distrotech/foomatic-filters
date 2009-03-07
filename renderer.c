@@ -86,7 +86,7 @@ void massage_gs_commandline(dstr_t *cmd)
        or ''"'"'xy' or 'xy'"'"'' or ... */
     /* dstrreplace(cmd, "'", "'\"'\"'"); TODO tbd */
 
-    dstrremove(gscmd, start, 2);     /* Remove 'gs' */
+    dstrremove(gscmd, 0, 2);     /* Remove 'gs' */
     if (gswithoutputredirection)
     {
         dstrprepend(gscmd, " -sstdout=%stderr ");
