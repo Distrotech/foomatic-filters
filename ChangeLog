@@ -1,3 +1,8 @@
+2009-03-08  Till Kamppeter <till.kamppeter@gmail.com>
+
+	* renderer.c: Fixed segmentation fault in JCL option handling (bugs
+	  #311 and #317).
+
 2009-03-07  Till Kamppeter <till.kamppeter@gmail.com>
 
 	* foomatic-rip.1.in: Fixed typos.
@@ -7,7 +12,7 @@
 	  Foomatic 3.x-generated PPD files for the "Postscript" driver, leading
 	  to duplicate calls of Ghostscript (bug #316).
 
-	* foomaticrip.c: Fixed buffer overflow (bug #311).
+	* foomaticrip.c: Fixed buffer overflow mentioned in bug #311.
 
 2009-02-11  Lars Uebernickel <larsuebernickel@gmx.de>
 	* foomaticrip.c: The value of the "execpath" variable in the config
