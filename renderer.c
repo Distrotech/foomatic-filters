@@ -190,16 +190,14 @@ static int jcl_keywords_equal(const char *jclline1, const char *jclline2,
     j1 = strstr(jclline1, jclstr);
     if (!j1) return 0;
     if (!(p1 = strchr(skip_whitespace(j1), '=')))
-        p1 = j1[strlen(j1)];
-    p1--;
+        p1 = j1 + strlen(j1) - 1;
     while (p1 > j1 && isspace(*p1))
         p1--;
 
     j2 = strstr(jclline2, jclstr);
     if (!j2) return 0;
     if (!(p2 = strchr(skip_whitespace(j2), '=')))
-        p2 = j2[strlen(j2)];
-    p2--;
+        p2 = j2 + strlen(j2) - 1;
     while (p2 > j2 && isspace(*p2))
         p2--;
 
