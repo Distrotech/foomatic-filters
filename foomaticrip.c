@@ -285,15 +285,19 @@ char * extract_next_option(char *str, char **pagerange, char **key, char **value
 /* processes job->optstr */
 void process_cmdline_options()
 {
-    char *p, *nextopt, *pagerange, *key, *value;
+    char *p, *cmdlineopts, *nextopt, *pagerange, *key, *value;
     option_t *opt, *opt2;
     int optset;
     char tmp [256];
 
-    for (nextopt = extract_next_option(job->optstr->data, &pagerange, &key, &value);
+    _log("Printing system options:\n");
+    cmdlineopts = strdup(job->optstr->data);
+    for (nextopt = extract_next_option(cmdlineopts, &pagerange, &key, &value);
         key;
         nextopt = extract_next_option(nextopt, &pagerange, &key, &value))
     {
+        /* Consider only options which are not in the PPD file here */
+        if ((opt = find_option(key)) != NULL) continue;
         if (value)
             _log("Pondering option '%s=%s'\n", key, value);
         else
@@ -316,13 +320,6 @@ void process_cmdline_options()
         if (pagerange) {
             snprintf(tmp, 256, "pages:%s", pagerange);
             optset = optionset(tmp);
-
-            opt = find_option(key);
-            if (opt && (option_get_section(opt) != SECTION_ANYSETUP &&
-                        option_get_section(opt) != SECTION_PAGESETUP)) {
-                _log("This option (%s) is not a \"PageSetup\" or \"AnySetup\" option, so it cannot be restricted to a page range.\n", key);
-                continue;
-            }
         }
         else
             optset = optionset("userval");
@@ -401,38 +398,66 @@ void process_cmdline_options()
                     for Collate and StapleLocation?  These may be here...
                 */
             }
-            else {
-                /* Various non-standard printer-specific options */
-                if ((opt = find_option(key))) {
-                    if (!option_set_value(opt, optset, value)) {
-                        _log("  invalid choice \"%s\", using \"%s\" instead\n", 
-                                value, option_get_value(opt, optset));
-                    }
-                }
-                else if (spooler == SPOOLER_PPR_INT) {
-                    /* Unknown option, pass it to PPR's backend interface */
-                    if (!backendoptions)
-                        backendoptions = create_dstr();
-                    dstrcatf(backendoptions, "%s=%s ", key, value);
-                }
-                else
-                    _log("Unknown option %s=%s.\n", key, value);
-            }
+	    else if (spooler == SPOOLER_PPR_INT) {
+	        /* Unknown option, pass it to PPR's backend interface */
+	        if (!backendoptions)
+		    backendoptions = create_dstr();
+		dstrcatf(backendoptions, "%s=%s ", key, value);
+	    }
+	    else
+	        _log("Unknown option %s=%s.\n", key, value);
         }
         /* Custom paper size */
         else if ((opt = find_option("PageSize")) && option_set_value(opt, optset, key)) {
             /* do nothing, if the value could be set, it has been set */
         }
-        /* Standard bool args:
-           landscape; what to do here?
-           duplex; we should just handle this one OK now? */
-        else if (!prefixcasecmp(key, "no") && (opt = find_option(&key[2])))
-            option_set_value(opt, optset, "0");
-        else if ((opt = find_option(key)))
-            option_set_value(opt, optset, "1");
         else
             _log("Unknown boolean option \"%s\".\n", key);
     }
+    free(cmdlineopts);
+
+    _log("Options from the PPD file:\n");
+    cmdlineopts = strdup(job->optstr->data);
+    for (nextopt = extract_next_option(cmdlineopts, &pagerange, &key, &value);
+        key;
+        nextopt = extract_next_option(nextopt, &pagerange, &key, &value))
+    {
+        /* Consider only PPD file options here */
+        if ((opt = find_option(key)) == NULL) continue; 
+        if (value)
+            _log("Pondering option '%s=%s'\n", key, value);
+        else
+            _log("Pondering option '%s'\n", key);
+
+        if (pagerange) {
+            snprintf(tmp, 256, "pages:%s", pagerange);
+            optset = optionset(tmp);
+
+            if (opt && (option_get_section(opt) != SECTION_ANYSETUP &&
+                        option_get_section(opt) != SECTION_PAGESETUP)) {
+                _log("This option (%s) is not a \"PageSetup\" or \"AnySetup\" option, so it cannot be restricted to a page range.\n", key);
+                continue;
+            }
+        }
+        else
+            optset = optionset("userval");
+
+        if (value) {
+	    /* Various non-standard printer-specific options */
+	    if (!option_set_value(opt, optset, value)) {
+	        _log("  invalid choice \"%s\", using \"%s\" instead\n", 
+		     value, option_get_value(opt, optset));
+	    }
+        }
+        /* Standard bool args:
+           landscape; what to do here?
+           duplex; we should just handle this one OK now? */
+        else if (!prefixcasecmp(key, "no"))
+            option_set_value(opt, optset, "0");
+        else
+            option_set_value(opt, optset, "1");
+    }
+    free(cmdlineopts);
 }
 
 /* checks whether a pdq driver declaration file should be build

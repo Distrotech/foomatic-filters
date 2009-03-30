@@ -253,7 +253,9 @@ option_t * find_option(const char *name)
         return find_option("PageSize");
 
     for (opt = optionlist; opt; opt = opt->next) {
-        if (!strcasecmp(opt->name, name))
+      if ((!strcasecmp(opt->name, name)) ||
+	  ((!strcasecmp(opt->name, &name[2])) &&
+	   (!prefixcasecmp(name, "no"))))
             return opt;
     }
     return NULL;
@@ -427,12 +429,12 @@ char * get_valid_param_string(option_t *opt, param_t *param, const char *str)
             imin = !isempty(param->min) ? atoi(param->min) : -999999;
             imax = !isempty(param->max) ? atoi(param->max) : 1000000;
             if (i < imin) {
-                _log("Value \"%s\" for option \"%s.%s\" is smaller than the minimum value \"%d\"\n",
+                _log("Value \"%s\" for option \"%s\", parameter \"%s\" is smaller than the minimum value \"%d\"\n",
                      str, opt->name, param->name, imin);
                 return NULL;
             }
             else if (i > imax) {
-                _log("Value \"%s\" for option \"%s.%s\" is larger than the maximum value \"%d\"\n",
+                _log("Value \"%s\" for option \"%s\", parameter \"%s\" is larger than the maximum value \"%d\"\n",
                      str, opt->name, param->name, imax);
                 return NULL;
             }
@@ -448,12 +450,12 @@ char * get_valid_param_string(option_t *opt, param_t *param, const char *str)
             fmin = !isempty(param->min) ? atof(param->min) : -999999.0;
             fmax = !isempty(param->max) ? atof(param->max) : 1000000.0;
             if (f < fmin) {
-                _log("Value \"%s\" for option \"%s.%s\" is smaller than the minimum value \"%d\"\n",
+                _log("Value \"%s\" for option \"%s\", parameter \"%s\" is smaller than the minimum value \"%d\"\n",
                      str, opt->name, param->name, fmin);
                 return NULL;
             }
             else if (f > fmax) {
-                _log("Value \"%s\" for option \"%s.%s\" is larger than the maximum value \"%d\"\n",
+                _log("Value \"%s\" for option \"%s\", parameter \"%s\" is larger than the maximum value \"%d\"\n",
                      str, opt->name, param->name, fmax);
                 return NULL;
              }
@@ -466,24 +468,24 @@ char * get_valid_param_string(option_t *opt, param_t *param, const char *str)
         case TYPE_PASSCODE:
             if (param->allowedchars &&
                     regexec(param->allowedchars, str, 0, NULL, 0) != 0) {
-                _log("Custom string \"%s\" for \"%s.%s\" contains illegal characters.\n",
+                _log("Custom string \"%s\" for \"%s\", parameter \"%s\" contains illegal characters.\n",
                     str, opt->name, param->name);
                 return NULL;
             }
             if (param->allowedregexp &&
                     regexec(param->allowedregexp, str, 0, NULL, 0) != 0) {
-                _log("Custom string \"%s\" for \"%s.%s\" does not match the allowed regexp.\n",
+                _log("Custom string \"%s\" for \"%s\", parameter \"%s\" does not match the allowed regexp.\n",
                     str, opt->name, param->name);
                 return NULL;
             }
             len = strlen(str);
             if (!isempty(param->min) && len < atoi(param->min)) {
-                _log("Custom value \"%s\" is too short for \"%s.%s\".\n",
+                _log("Custom value \"%s\" is too short for option \"%s\", parameter \"%s\".\n",
                     str, opt->name, param->name);
                 return NULL;
             }
             if (!isempty(param->max) && len > atoi(param->max)) {
-                _log("Custom value \"%s\" is too long for \"%s.%s\".\n",
+                _log("Custom value \"%s\" is too long for option \"%s\", parameter \"%s\".\n",
                     str, opt->name, param->name);
                 return NULL;
             }
@@ -548,7 +550,7 @@ static char ** paramvalues_from_string(option_t *opt, const char *str)
                 else if (!strcasecmp(param->name, "height"))
                     paramvalues[i] = get_valid_param_string_int(opt, param, (int)height);
                 else
-                    paramvalues[i] = get_valid_param_string(opt, param, "0");
+                    paramvalues[i] = !isempty(param->min) ? param->min : "-999999";
                 if (!paramvalues[i]) {
                     free_paramvalues(opt, paramvalues);
                     return NULL;
