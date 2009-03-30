@@ -253,7 +253,9 @@ option_t * find_option(const char *name)
         return find_option("PageSize");
 
     for (opt = optionlist; opt; opt = opt->next) {
-        if (!strcasecmp(opt->name, name))
+      if ((!strcasecmp(opt->name, name)) ||
+	  ((!strcasecmp(opt->name, &name[2])) &&
+	   (!prefixcasecmp(name, "no"))))
             return opt;
     }
     return NULL;
