@@ -1,5 +1,11 @@
 2009-03-30  Till Kamppeter <till.kamppeter@gmail.com>
 
+	* options.c: Custom page sizes were not accepted if one of the three
+	  parameters "WidthOffset", "HeightOffset", or "Orientation" of the
+	  "PageSize" option in the PPD file did not allow 0 as value.
+	  Made error messages for the parameters of custom options more
+	  readable.
+	
 	* foomaticrip.c, options.c: If there are printing system options
 	  (like "media" of CUPS) and PPD options (like "PageSize") on the
 	  command line and they do the same thing (like choosing the paper
