@@ -722,7 +722,8 @@ void _print_ps(stream_t *stream)
                         attribute-to-filter option passing in CUPS is kind of
                         funky, especially wrt boolean options. */
                         _log("Found: %s", line->data);
-                        if ((o = find_option(optionname))) {
+                        if ((o = find_option(optionname)) &&
+			    (o->type != TYPE_NONE)) {
                             _log("   Option: %s=%s%s\n", optionname, fromcomposite ? "From" : "", value);
                             if (spooler == SPOOLER_CUPS &&
                                 linetype == LT_BEGIN_FEATURE &&
