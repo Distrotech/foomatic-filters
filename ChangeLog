@@ -1,3 +1,11 @@
+2009-04-19  Till Kamppeter <till.kamppeter@gmail.com>
+
+	* postscript.c: Fixed segfault when the PPD contains only a
+	  default value but not an option for it (like
+	  "*DefaultResolution: 600dpi" and the client inserts this as an
+	  option setting into the PostScript input data stream (Windows
+	  clients do so). Bug #324.
+
 2009-03-30  Till Kamppeter <till.kamppeter@gmail.com>
 
 	* options.c: Custom page sizes were not accepted if one of the three
