@@ -1,5 +1,7 @@
 2009-04-19  Till Kamppeter <till.kamppeter@gmail.com>
 
+	* Tagged branch for release 4.0.1.
+
 	* foomatic-rip.1.in: Added documentation for the configuration file
 	  (/etc/foomatic/filter.conf, bug #312), minor text fixes.
 
