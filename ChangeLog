@@ -1,5 +1,8 @@
 2009-04-19  Till Kamppeter <till.kamppeter@gmail.com>
 
+	* foomatic-rip.1.in: Added documentation for the configuration file
+	  (/etc/foomatic/filter.conf, bug #312), minor text fixes.
+
 	* postscript.c: Fixed segfault when the PPD contains only a
 	  default value but not an option for it (like
 	  "*DefaultResolution: 600dpi" and the client inserts this as an

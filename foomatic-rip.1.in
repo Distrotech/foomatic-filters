@@ -7,7 +7,7 @@ foomatic-rip \- Universal print filter/RIP wrapper
 .SH SYNOPSIS
 
 .SS \fRGeneral Options:
-.BI \fBfoomatic-rip\fR\ \fB[-v]\ [-q]\ [-d]\fP \fI\ <filter\ specific\ options>
+.BI \fBfoomatic-rip\fR\ \fB[-v]\ [-q]\fP \fI\ <spooler-specific\ options>
 
 .SS \fRSpooler-less printing/CPS (older versions) filter:
 .BI \fBfoomatic-rip\fR\ \fB[\fB-P\fR \ \fI<printer>\fR \ 
@@ -50,7 +50,7 @@ foomatic-rip is a universal print filter which works with every known free
 software printer spooler. It has the following features:
 
 .Topic 
-It translates PostScript (and also other file formats) from standard
+It translates PostScript and PDF (and also other file formats) from standard
 input to the printer's native language (usually put to standard
 output).
 
@@ -63,7 +63,7 @@ translation is done is described in a \fBPPD file\fR.
 .Topic
 Printer capabilities, how to handle user options, and how to build the
 renderer command line is always described by \fBPPD files\fR, these
-PPD files can come from \fBFoomatic\fR or can be the ones supplied by
+PPD files usually come from \fBFoomatic\fR or can be the ones supplied by
 the manufacturers of PostScript printers. The PPD files are the same
 for all spoolers.
 
@@ -75,7 +75,7 @@ called by the command line options and environment variables which
 were supplied by the spooler.
 
 .Topic
-Non-PostScript files are translated to PostScript before they are
+Non-PostScript/PDF files are translated to PostScript before they are
 passed to the renderer. This is usually done by \fBa2ps(1)\fR,
 \fBenscript(1)\fR, or \fBmpage(1)\fR. foomatic-rip auto-detects which
 program is installed, but manual configuration is also possible.
@@ -106,13 +106,6 @@ This opens a security loophole and should not be used in production.
 \fRquiet mode - minimal information output
 
 .TP 10
-.B \-d
-\fRidentical to the 'opts' option, but option information is
-left in text format.  This is useful for running foomatic-rip
-from the command line to determine what the printer option are.
-The PPD file will need to be specified using the --ppd option.
-
-.TP 10
 .BI \-P \ <printer>
 \fI<printer>\fR is the configured printer which should be used for this job.
 
@@ -137,8 +130,8 @@ specified \fI<printer>\fR.
 The file(s) to be printed.
 
 .P
-\fBfoomatic-rip\fR will print from standard input unless a file to
-print is specified on the command line.
+\fBfoomatic-rip\fR will print from standard input unless at least one file to
+be printed is specified on the command line.
 If your printer PPD file is stored as \fI@sysconfdir@/direct/<printer>.ppd\fR
 or \fI~/.foomatic/direct/<printer>.ppd\fR you can use it by simply specifying "-P \fI<printer>\fR".
 
@@ -199,10 +192,62 @@ See the documentation on the OpenPrinting Web site:
 http://www.openprinting.org/
 \fR
 
+.SH "CONFIGURATION FILE"
+
+The file \fB@sysconfdir@/foomatic/filter.conf\fR is read whenever
+foomatic-rip is executed. It allows to configure the behavior of
+foomatic-rip as follows (lines beginning with \fB#\fR are comments and
+therefore get ignored):
+
+.TP 10
+.BI textfilter: \ <command>
+\fRSelects the filter for input files which are not PostScript or PDF.
+\fI<command>\fR is one of \fBa2ps\fR, \fBenscript\fR, or \fBmpage\fR.
+foomatic-rip auitomatically selects the needed command line options.
+
+.TP 10
+.B debug: 0|1
+\fRTurns on (\fB1\fR) or off (\fB0\fR) the debug mode. This is equivalent to
+supplying the \fB--debug\fR command line option. Default setting is \fB0\fR.
+
+.TP 10
+.B ps_accounting: 0|1
+\fRTurns on (\fB1\fR) or off (\fB0\fR) inserting PostScript code for page
+accounting into PostScript jobs. The inserted PostScript code makes
+Ghostscript generating accounting output on stderr and CUPS can this way
+log each page which got printed. The code will only be inserted if CUPS
+is the spooler. Default setting is \fB1\fR.
+
+.TP 10
+.BI echo: \ [<path>/]<executable>
+\fRSets the path to an \fBecho(1)\fR executable which supports \fB-n\fR.
+
+.TP 10
+.BI gspath: \ [<path>/]<executable>
+\fRSets the path to the Ghostscript (\fBgs(1)\fR) executable. To be used if
+Ghostscript is at a non-standard location or if an alternative Ghostscript
+should be used.
+
+.TP 10
+.BI execpath: \ <path>[:<path>]...
+\fRSets the \fB$PATH\fR variable to be used by foomatic-rip.
+
+.TP 10
+.BI cupsfilterpath: \ <path>[:<path>]...
+\fRSets the directories (colon-separated) in which foomatic-rip searches for
+CUPS filters.
+
+.TP 10
+.BI preferred_shell: \ [<path>/]<executable>
+\fRSets the preferred shell to use when executing FoomaticRIPCommandLine and
+friends. Several PPD files use shell constructs that require a more
+modern shell like \fBbash\fR, \fBzsh\fR, or \fBksh\fR.
+
+
 .SH FILES
 .PD 0
 .TP 0
-@sysconfdir@/cups/<printer>.ppd
+@sysconfdir@/cups/ppd/<printer>.ppd
 .TP 0
 @sysconfdir@/lpd/<printer>.ppd
 .TP 0
@@ -213,6 +258,12 @@ http://www.openprinting.org/
 @sysconfdir@/direct/<printer>.ppd
 
 The PPD files of the currently defined printers
+
+.TP 8
+@sysconfdir@/foomatic/filter.conf
+
+Configuration file for foomatic-rip
+
 .PD 0
 
 .\".SH SEE ALSO
