@@ -1,3 +1,9 @@
+2009-04-23  Till Kamppeter <till.kamppeter@gmail.com>
+
+	* Re-tagged branch for release 4.0.1.
+
+	* VERSION, README, USAGE, configure.ac: Updated.
+
 2009-04-19  Till Kamppeter <till.kamppeter@gmail.com>
 
 	* Tagged branch for release 4.0.1.
