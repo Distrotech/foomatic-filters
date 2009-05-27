@@ -139,7 +139,7 @@ char * read_line(FILE *stream, size_t *readbytes)
     return line;
 }
 
-write_binary_data(FILE *stream, const char *data, size_t bytes)
+void write_binary_data(FILE *stream, const char *data, size_t bytes)
 {
     int i;
     for (i=0; i < bytes; i++)

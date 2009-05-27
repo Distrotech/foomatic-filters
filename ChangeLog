@@ -1,3 +1,8 @@
+2009-05-27  Till Kamppeter <till.kamppeter@gmail.com>
+
+	* renderer.c: Fixed no-return-in-nonvoid-function compiler warning
+	  caused by the write_binary_data() function (bug #348).
+
 2009-04-23  Till Kamppeter <till.kamppeter@gmail.com>
 
 	* Re-tagged branch for release 4.0.1.
