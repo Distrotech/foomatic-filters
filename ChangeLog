@@ -1,3 +1,7 @@
+2009-05-31  Till Kamppeter <till.kamppeter@gmail.com>
+
+	* configure.ac: Add support for cups-config (bug #349).
+
 2009-05-27  Till Kamppeter <till.kamppeter@gmail.com>
 
 	* renderer.c: Fixed no-return-in-nonvoid-function compiler warning

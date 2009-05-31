@@ -66,14 +66,30 @@ fi
 # Check for /etc/printcap
 AC_PATH_DIR(PRINTCAP,printcap,/etc/printcap,$ETCSEARCHPATH)
 
-# Check for /usr/lib/cups
-AC_PATH_DIR(CUPS,cups,/usr/lib/cups,$LIBSEARCHPATH)
+dnl Check for cups-config
+AC_PATH_PROG(CUPS_CONFIG,cups-config)
 
-# Check for /usr/lib/cups/filter
-AC_PATH_DIR(CUPS_FILTERS,cups/filter,/usr/lib/cups/filter,$LIBSEARCHPATH)
+dnl Use cups-config to find CUPS directories
+if test -n "$CUPS_CONFIG" && test -z "$CUPS_SERVERBIN"; then
+	CUPS_SERVERBIN=`cups-config --serverbin 2>/dev/null`
+fi
+if test -n "$CUPS_SERVERBIN"; then
+   	CUPS=$CUPS_SERVERBIN
+	CUPS_FILTERS="$CUPS_SERVERBIN/filter"
+	CUPS_BACKENDS="$CUPS_SERVERBIN/backend"
+	AC_SUBST(CUPS)
+	AC_SUBST(CUPS_FILTERS)
+	AC_SUBST(CUPS_BACKENDS)
+else
+	# Check for /usr/lib/cups
+	AC_PATH_DIR(CUPS,cups,/usr/lib/cups,$SERVERBIB$LIBSEARCHPATH)
 
-# Check for /usr/lib/cups/backend
-AC_PATH_DIR(CUPS_BACKENDS,cups/backend,/usr/lib/cups/backend,$LIBSEARCHPATH)
+	# Check for /usr/lib/cups/filter
+	AC_PATH_DIR(CUPS_FILTERS,cups/filter,/usr/lib/cups/filter,$FILTERS$LIBSEARCHPATH)
+
+	# Check for /usr/lib/cups/backend
+	AC_PATH_DIR(CUPS_BACKENDS,cups/backend,/usr/lib/cups/backend,$BACKENDS$LIBSEARCHPATH)
+fi
 
 # Check for /usr/lib/ppr
 AC_PATH_DIR(PPR,ppr,/usr/lib/ppr,$LIBSEARCHPATH)
