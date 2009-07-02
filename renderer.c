@@ -248,7 +248,7 @@ static int write_merged_jcl_options(FILE *stream,
 {
     char *p = strstr(original_opts[0], jclstr);
     char header[128];
-    char **optsp;
+    char **optsp1 = NULL, **optsp2 = NULL;
 
     /* No JCL options in original_opts, just prepend opts */
     if (argv_count(original_opts) == 1)
@@ -284,18 +284,30 @@ static int write_merged_jcl_options(FILE *stream,
     header[p - original_opts[0]] = '\0';
     fprintf(stream, "%s", header);
 
-    for (optsp = opts; *optsp; optsp++)
-        if (!jcl_options_find_keyword(original_opts, *optsp, jclstr))
-	    fprintf(stream, "%s\n", *optsp);
-
-    for (optsp = original_opts; *(optsp + 1); optsp++) {
-        if (optsp != original_opts) p = *optsp;
+    /* Insert the JCL commands from the PPD file right before the first
+       "@PJL SET ..." line from the, if there are no "@PJL SET ..." lines,
+       directly before "@PJL ENTER LANGUAGE ...", otherwise after the JCL
+       commands from the driver */
+    for (optsp1 = original_opts; *(optsp1 + 1); optsp1++) {
+        if (optsp2 == NULL &&
+	    ((strstr(*optsp1, "ENTER LANGUAGE") != NULL) ||
+	     (strncasecmp(*optsp1, "@PJL SET ", 9) == 0))) {
+	    for (optsp2 = opts; *optsp2; optsp2++)
+	        if (!jcl_options_find_keyword(original_opts, *optsp2, jclstr))
+		    fprintf(stream, "%s\n", *optsp2);
+	}
+        if (optsp1 != original_opts) p = *optsp1;
         if (jcl_options_find_keyword(opts, p, jclstr))
 	  fprintf(stream, "%s\n", jcl_options_find_keyword(opts, p, jclstr));
 	else
             fprintf(stream, "%s\n", p);
     }
-    write_binary_data(stream, *optsp, readbinarybytes);
+    if (optsp2 == NULL)
+        for (optsp2 = opts; *optsp2; optsp2++)
+            if (!jcl_options_find_keyword(original_opts, *optsp2, jclstr))
+	        fprintf(stream, "%s\n", *optsp2);
+
+    write_binary_data(stream, *optsp1, readbinarybytes);
 
     return 1;
 }

@@ -1,3 +1,15 @@
+2009-07-01  Till Kamppeter <till.kamppeter@gmail.com>
+
+	* foomaticrip.c: Do not use JCL which is preceeded to the input
+	  data. We can generate it on our own and even merge it with the JCL
+	  coming from the driver.
+
+	* renderer.c: Make sure that "@PJL SET ..." commands from the PPD
+	  file do not get nmerged into the driver's PJL header too early,
+	  expecially not before "@PJL JOB ..." lines, as then the commands
+	  get ignored. This happened especially with the "InputSlot"
+	  option for the "cdnj500" driver.
+
 2009-06-24  Till Kamppeter <till.kamppeter@gmail.com>
 
 	* Tagged branch for release 4.0.2.

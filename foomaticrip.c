@@ -965,10 +965,13 @@ int print_file(const char *filename, int convert)
     n = fread(buf, 1, sizeof(buf) - 1, file);
     buf[n] = '\0';
     type = guess_file_type(buf, n, &startpos);
-    if (startpos > 0) {
+    /* We do not use any JCL preceeded to the inputr data, as it is simply
+       the PJL commands from the PPD file, and these commands we can also
+       generate, end we even merge them with PJl from the driver */
+    /*if (startpos > 0) {
         jobhasjcl = 1;
         write_output(buf, startpos);
-    }
+    }*/
     if (file != stdin)
         rewind(file);
 
