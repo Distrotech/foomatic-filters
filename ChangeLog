@@ -1,5 +1,9 @@
 2009-08-19  Till Kamppeter <till.kamppeter@gmail.com>
 
+	* Tagged branch for release 4.0.3.
+
+	* VERSION, README, USAGE, configure.ac: Updated for release 4.0.3.
+
 	* foomaticrip.c: If PDF input has to be converted to PostScript
 	  due to a PPD which does not support PDF (like the PPDs of the
 	  Foomatic "Postscript" driver), we try at first to use "pdftops"
