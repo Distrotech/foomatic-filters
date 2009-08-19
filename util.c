@@ -11,6 +11,33 @@
 
 const char* shellescapes = "|<>&!$\'\"#*?()[]{}";
 
+const char * temp_dir()
+{
+    static const char *tmpdir = NULL;
+
+    if (!tmpdir)
+    {
+        const char *dirs[] = { getenv("TMPDIR"), P_tmpdir, "/tmp", NULL };
+        const char **dir;
+
+        for (dir = dirs; *dir; dir++)
+            if (access(*dir, W_OK) == 0) {
+                tmpdir = *dir;
+                break;
+            }
+        if (tmpdir)
+        {
+            _log("Storing temporary files in %s\n", tmpdir);
+            setenv("TMPDIR", tmpdir, 1); /* for child processes */
+        }
+        else
+            rip_die(EXIT_PRNERR_NORETRY_BAD_SETTINGS,
+                    "Cannot find a writable temp dir.");
+    }
+
+    return tmpdir;
+}
+
 int prefixcmp(const char *str, const char *prefix)
 {
     return strncmp(str, prefix, strlen(prefix));

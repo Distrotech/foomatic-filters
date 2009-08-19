@@ -986,25 +986,39 @@ int print_file(const char *filename, int convert)
                 char pdf2ps_cmd[PATH_MAX];
                 FILE *out, *in;
                 int renderer_pid;
+		char tmpfilename[PATH_MAX] = "";
 
                 _log("Driver does not understand PDF input, "
                      "converting to PostScript\n");
 
 		pdfconvertedtops = 1;
+
+		/* If reading from stdin, write everything into a temporary file */
+		if (file == stdin)
+                {
+		    int fd;
+		    FILE *tmpfile;
+		    
+		    snprintf(tmpfilename, PATH_MAX, "%s/foomatic-XXXXXX", temp_dir());
+		    fd = mkstemp(tmpfilename);
+		    if (fd < 0) {
+		        _log("Could not create temporary file: %s\n", strerror(errno));
+		        return EXIT_PRNERR_NORETRY_BAD_SETTINGS;
+		    }
+		    tmpfile = fdopen(fd, "r+");
+		    copy_file(tmpfile, stdin, buf, n);
+		    fclose(tmpfile);
+		    
+		    filename = tmpfilename;
+		}
+
                 snprintf(pdf2ps_cmd, PATH_MAX,
+			 "pdftops -level2 -origpagesizes %s - 2>/dev/null || "
                          "gs -q -sstdout=%%stderr -sDEVICE=pswrite -sOutputFile=- "
-                            "-dBATCH -dNOPAUSE -dPARANOIDSAFER %s",
-                         file == stdin ? "-" : filename);
+                            "-dBATCH -dNOPAUSE -dPARANOIDSAFER %s 2>/dev/null",
+                         filename, filename);
 
                 renderer_pid = start_system_process("pdf-to-ps", pdf2ps_cmd, &in, &out);
-
-                if (file == stdin)
-                {
-                    fwrite(buf, 1, n, in);
-                    while ((n = fread(buf, 1, sizeof(buf), file)))
-                        fwrite(buf, 1, n, in);
-                    fclose(in);
-                }
 
                 if (dup2(fileno(out), fileno(stdin)) < 0)
                     rip_die(EXIT_PRNERR_NORETRY_BAD_SETTINGS,
@@ -1195,12 +1209,13 @@ int main(int argc, char** argv)
         spooler = SPOOLER_LPRNG;
         if ((str = strstr(getenv("PRINTCAP_ENTRY"), "ppd=")))
             str += 4;
-        else if ((str = strstr(getenv("PRINTCAP_ENTRY"), "ppdfile=")));
-        str += 8;
+        else if ((str = strstr(getenv("PRINTCAP_ENTRY"), "ppdfile=")))
+	    str += 8;
         if (str) {
             while (isspace(*str)) str++;
             p = job->ppdfile;
-            while (*str != '\0' && !isspace(*str) && *str != '\n') {
+            while (*str != '\0' && !isspace(*str) && *str != '\n' &&
+		   *str != ':') {
                 if (isprint(*str) && strchr(shellescapes, *str) == NULL)
                     *p++ = *str;
                 str++;
@@ -1309,8 +1324,9 @@ int main(int argc, char** argv)
             init_cups(arglist, filelist, job);
             break;
 
-        case SPOOLER_LPD:
         case SPOOLER_LPRNG:
+	    if (job->ppdfile[0] != '\0') break;
+        case SPOOLER_LPD:
         case SPOOLER_GNULPR:
             /* Get PPD file name as the last command line argument */
             if (arglist->last)

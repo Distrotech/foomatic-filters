@@ -13,6 +13,7 @@
 extern const char* shellescapes;
 
 int isempty(const char *string);
+const char * temp_dir();
 int prefixcmp(const char *str, const char *prefix);
 int prefixcasecmp(const char *str, const char *prefix);
 

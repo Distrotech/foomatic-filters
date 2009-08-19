@@ -1,3 +1,30 @@
+2009-08-19  Till Kamppeter <till.kamppeter@gmail.com>
+
+	* foomaticrip.c: If PDF input has to be converted to PostScript
+	  due to a PPD which does not support PDF (like the PPDs of the
+	  Foomatic "Postscript" driver), we try at first to use "pdftops"
+	  (Poppler) and only if this fails we use Ghostscript. This is
+	  because Ghostscript blows up PDFs to huge PostScript
+	  files (which many PostScript printers failed on), whereas
+	  Poppler's output stays compact. As "pdftops" does not support
+	  reading from stdin, we create a temporary file with the input
+	  before starting to convert. Note that "pdftops" will get only
+	  used if it has the "-origpagesizes" option (Poppler 0.11.x or
+	  newer), as otherwise documents with pages of different sizes do
+	  not get converted correctly (bug #365).
+
+	* pdf.c, util.c, util.h: Moved temp_dir() function from pdf.c to util.c
+	  as it is now also needed by foomaticrip.c.
+
+	* foomaticrip.c: Fixed LPRng support (bug #337): PPD file names
+	  were not read correctly from /etc/printcap (PRINTCAP_ENTRY
+	  environment variable), starting 8 characters after the beginning
+	  of the path and not stopping at a colon. Also the last command
+	  line argument of the foomatic-rip call was always considered the
+	  name of the PPD file, even if the PPD file name was already
+	  determined by the PRINTCAP_ENTRY environment variable or the
+	  "--ppd" command line argument.
+
 2009-07-01  Till Kamppeter <till.kamppeter@gmail.com>
 
 	* foomaticrip.c: Do not use JCL which is preceeded to the input
