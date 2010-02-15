@@ -10,9 +10,6 @@ Filter scripts used by the printer spoolers to convert the incoming
 PostScript data into the printer's native format using a
 printer/driver specific, but spooler-independent PPD file.
 
-Till Kamppeter <till.kamppeter@gmail.com>
-Lars Uebernickel <larsuebernickel@gmx.de>
-
 http://www.openprinting.org/
 
 This README contains mainly info for developers. See the file USAGE if
@@ -22,8 +19,18 @@ you want to know how to use Foomatic.
 Copying
 -------
 
-This package and also the other Foomatic packages are under the
-GPL. See http://www.gnu.org/.
+This package is free software and can be redistributed and/or modified
+under the terms of the GNU General Public License; either version 2 of
+the License, or (at your option) any later version.
+
+
+Authors
+-------
+
+Till Kamppeter <till.kamppeter@gmail.com>
+Lars Uebernickel <larsuebernickel@gmx.de>
+Grant Taylor <gtaylor@picante.com>
+Helge Blischke <h.blischke@srz.de>
 
 
 Bugs

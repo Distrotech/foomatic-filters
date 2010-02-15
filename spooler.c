@@ -1,3 +1,25 @@
+/* spooler.c
+ *
+ * Copyright (C) 2008 Till Kamppeter <till.kamppeter@gmail.com>
+ * Copyright (C) 2008 Lars Uebernickel <larsuebernickel@gmx.de>
+ *
+ * This file is part of foomatic-rip.
+ *
+ * Foomatic-rip is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * Foomatic-rip is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the
+ * Free Software Foundation, Inc., 59 Temple Place - Suite 330,
+ * Boston, MA 02111-1307, USA.
+ */
 
 #include "spooler.h"
 #include "foomaticrip.h"
@@ -267,7 +289,7 @@ void init_cups(list_t *arglist, dstr_t *filelist, jobparams_t *job)
         }
     }
 
-    accounting_prolog = ps_accounting ? accounting_prolog_code : NULL;
+    accounting_prolog = accounting_prolog_code;
 
     /* On which queue are we printing?
        CUPS gives the PPD file the same name as the printer queue,

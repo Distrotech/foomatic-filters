@@ -1,3 +1,25 @@
+/* foomaticrip.c
+ *
+ * Copyright (C) 2008 Till Kamppeter <till.kamppeter@gmail.com>
+ * Copyright (C) 2008 Lars Uebernickel <larsuebernickel@gmx.de>
+ *
+ * This file is part of foomatic-rip.
+ *
+ * Foomatic-rip is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * Foomatic-rip is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the
+ * Free Software Foundation, Inc., 59 Temple Place - Suite 330,
+ * Boston, MA 02111-1307, USA.
+ */
 
 #include "foomaticrip.h"
 #include "util.h"
@@ -1012,11 +1034,19 @@ int print_file(const char *filename, int convert)
 		    filename = tmpfilename;
 		}
 
+		/* If the spooler is CUPS we remove the /usr/lib/cups/filter
+		   (CUPS filter directory, can be different, but ends with
+		   "/cups/filter") which CUPS adds to the beginning of $PATH,
+		   so that Poppler's/XPDF's pdftops filter is called and not
+		   the one of CUPS, as the one of CUPS has a different command
+		   line and does undesired page management operations */
                 snprintf(pdf2ps_cmd, PATH_MAX,
-			 "pdftops -level2 -origpagesizes %s - 2>/dev/null || "
-                         "gs -q -sstdout=%%stderr -sDEVICE=pswrite -sOutputFile=- "
-                            "-dBATCH -dNOPAUSE -dPARANOIDSAFER %s 2>/dev/null",
-                         filename, filename);
+			 "%spdftops -level2 -origpagesizes %s - 2>/dev/null || "
+			 "gs -q -sstdout=%%stderr -sDEVICE=pswrite -sOutputFile=- "
+			 "-dBATCH -dNOPAUSE -dPARANOIDSAFER %s 2>/dev/null",
+			 (spooler == SPOOLER_CUPS ?
+			  "PATH=${PATH#*/cups/filter:} " : ""),
+			 filename, filename);
 
                 renderer_pid = start_system_process("pdf-to-ps", pdf2ps_cmd, &in, &out);
 

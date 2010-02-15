@@ -1,3 +1,25 @@
+/* options.c
+ *
+ * Copyright (C) 2008 Till Kamppeter <till.kamppeter@gmail.com>
+ * Copyright (C) 2008 Lars Uebernickel <larsuebernickel@gmx.de>
+ *
+ * This file is part of foomatic-rip.
+ *
+ * Foomatic-rip is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * Foomatic-rip is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with this library; if not, write to the
+ * Free Software Foundation, Inc., 59 Temple Place - Suite 330,
+ * Boston, MA 02111-1307, USA.
+ */
 
 #include "foomaticrip.h"
 #include "options.h"
@@ -863,7 +885,8 @@ int option_get_command(dstr_t *cmd, option_t *opt, int optionset, int section)
 
     /* If the value is set to a predefined choice */
     choice = option_find_choice(opt, valstr);
-    if (choice) {
+    if (choice && (*choice->command ||
+		   ((opt->type != TYPE_INT) && (opt->type != TYPE_FLOAT)))) {
         dstrcpy(cmd, choice->command);
         return 1;
     }
@@ -1511,9 +1534,9 @@ void read_ppd_file(const char *filename)
         else if (strcmp(key, "FoomaticRIPCommandLinePDF") == 0) {
             unhtmlify(cmd_pdf, 1024, value->data);
         }
-        else if (strcmp(key, "FoomaticNoPageAccounting") == 0) {
+        else if (strcmp(key, "FoomaticRIPNoPageAccounting") == 0) {
             /* Boolean value */
-            if (strcasecmp(value->data, "true") != 0) {
+            if (strcasecmp(value->data, "true") == 0) {
                 /* Driver is not compatible with page accounting according to the
                    Foomatic database, so turn it off for this driver */
                 ps_accounting = 0;
@@ -1899,7 +1922,7 @@ void append_setup_section(dstr_t *str, int optset, int comments)
     }
 
     /* PostScript code to generate accounting messages for CUPS */
-    if (spooler == SPOOLER_CUPS) {
+    if (spooler == SPOOLER_CUPS && ps_accounting == 1) {
         _log("Inserting PostScript code for CUPS' page accounting\n");
         dstrcat(str, accounting_prolog);
     }

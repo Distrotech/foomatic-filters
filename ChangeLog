@@ -1,3 +1,48 @@
+2010-02-12  Till Kamppeter <till.kamppeter@gmail.com>
+
+	* pdf.c, configure.ac: Removed dependency on libgs by calling
+	  Ghostscript via the command line. This makes packaging for Linux
+	  distributions easier and also building on Mac OS X and Solaris
+	  gets simplified (Bugs #303, #382, #384).
+
+2010-02-05  Till Kamppeter <till.kamppeter@gmail.com>
+
+	* options.c, spooler.c: Made suppression of CUPS accounting PostScript
+	  code into a PostScript data stream actually working:
+	  PPD keyword is "*FoomaticRIPCommandLinePDF", value must be "true",
+	  and check of the ps_accounting variable must be done after parsing
+	  the PPD file (Ubuntu bug #513690).
+
+2010-02-03  Till Kamppeter <till.kamppeter@gmail.com>
+
+	* postscript.c: Added NULL pointer check to avoid segfault when
+	  custom margins option is added to the PPD file via the
+	  alignmargins script (Bug #413, Debian bug #539676).
+
+2010-02-02  Till Kamppeter <till.kamppeter@gmail.com>
+
+	* foomaticrip.c: If incoming PDF needs to get converted to
+	  PostScript remove /usr/lib/cups/filter from $PATH, so that
+	  "pdftops" of Poppler or XPDF gets called and not "pdftops" of
+	  CUPS. The latter has another command line and does undesired page
+	  management operations (Ubuntu bug #463059).
+
+2010-01-19  Lars Uebernickel <larsuebernickel@gmx.de>
+
+	* *.[ch], README: Added license headers to all source files and
+	  clarified in the README that the license is GPLv2 or later.
+
+2010-01-16  Till Kamppeter <till.kamppeter@gmail.com>
+
+	* options.c: Fixed the previous revision to have bug #399 also
+	  fixed for float options.
+
+2010-01-15  Till Kamppeter <till.kamppeter@gmail.com>
+
+	* options.c: When building the driver command line do not use the
+	  empty code fields of automatically generated choices of
+	  numerical options of Foomatic-based PPDs (bug #399).
+
 2009-08-19  Till Kamppeter <till.kamppeter@gmail.com>
 
 	* Tagged branch for release 4.0.3.
