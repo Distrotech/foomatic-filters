@@ -1,5 +1,5 @@
 
-Foomatic 4.0.3
+Foomatic 4.0.4
 ==============
 
 
@@ -102,14 +102,14 @@ printer/driver capabilities info. Manufacturer-supplied PPDs (in most
 cases of of PostScript printers) can be used, too.
 
 foomatic-rip is now written in C, in contrary to Perl in Foomatic
-3.x. This allows foomatic-rip to link directly with libraries. Besides
-the standard libraries, foomatic-rip currently only uses the
-Ghostscript library libgs. The functionality of the former
-foomatic-gswrapper is now integrated into foomatic-rip, so the
-foomatic-gswrapper is not needed any more.
+3.x. This allows foomatic-rip to link directly with
+libraries. foomatic-rip currently uses only the standard
+libraries. The functionality of the former foomatic-gswrapper is now
+integrated into foomatic-rip, so the foomatic-gswrapper is not needed
+any more.
 
 beh is still written in Perl and does not need anything else than a
-Perl interpreter.It is only for use with CUPS.
+Perl interpreter. It is only for use with CUPS.
 
 The test/ subdirectory contains a test suite, originally developed for
 the distribution compliance tests of the LSB. It also serves as a
@@ -129,14 +129,7 @@ contains the documentation.
 Dependencies
 ------------
 
-To build this package you need a C compiler, its standard libraries,
-and the Ghostscript library (libgs, /usr/lib/libgs.so*). For the
-latter Ghostscript must be built in shared library mode ("make
-so"). If your libgs is provided by your operating system distribution,
-make sure that its C headers (package libgs.dev(el) or
-ghostscript.dev(el)) are installed.
-
-To run foomatic-rip you need to have the Ghostscript library installed.
+To build this package you need a C compiler, and its standard libraries.
 
 To run beh a Perl interpreter (5.6.0 and newer) is needed.
 

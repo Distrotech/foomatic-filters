@@ -1,3 +1,11 @@
+2010-02-15  Till Kamppeter <till.kamppeter@gmail.com>
+
+	* Tagged branch for release 4.0.4.
+
+	* VERSION, README, USAGE, configure.ac: Updated for release 4.0.4.
+
+	* README, USAGE: Reflected that libgs is not needed any more.
+
 2010-02-12  Till Kamppeter <till.kamppeter@gmail.com>
 
 	* pdf.c, configure.ac: Removed dependency on libgs by calling

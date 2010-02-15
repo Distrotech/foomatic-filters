@@ -1,5 +1,5 @@
 
-Foomatic 4.0.3
+Foomatic 4.0.4
 ==============
 
 foomatic-filters
@@ -78,14 +78,7 @@ foomatic-filters needs the Ghostscript library for foomatic-rip and
 the Perl interpreter for beh (Backend Error Handler) and the test
 suite.
 
-To build foomatic-rip you need a C compiler, its standard libraries,
-and the Ghostscript library (libgs, /usr/lib/libgs.so*). For the
-latter Ghostscript must be built in shared library mode ("make
-so"). If your libgs is provided by your operating system distribution,
-make sure that its C headers (package libgs.dev(el) or
-ghostscript.dev(el)) are installed.
-
-To run foomatic-rip you need to have the Ghostscript library installed.
+To build foomatic-rip you need a C compiler and its standard libraries.
 
 To run beh (Backend Error Handler) or the test suite a Perl interpreter
 (5.6.0 and newer) is needed.
