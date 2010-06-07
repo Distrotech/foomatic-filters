@@ -1,3 +1,32 @@
+2010-06-07  Till Kamppeter <till.kamppeter@gmail.com>
+
+	* USAGE: Finally completed the documentation update to reflect that
+	  the Ghostscript library is not needed any more.
+
+	* configure.ac, util.h, util.c: Added implementation of strcasestr()
+	  function for non-GNU systems (completes fix of bug #303, thanks
+	  to Tim Mooney for this fix).
+
+	* foomaticrip.c, foomaticrip.h, pdf.c: Let foomatic-rip actually
+	  error out if something goes wrong. It simply continued or closed
+	  silently (exit status 0) on the following events: Failure of
+	  print_file() function call, failure of Ghostscript to determine
+	  the number of pages of a PDF input file (causes Ubuntu bug
+	  #570522), failure to start Ghostscript to render a PDF file,
+	  failure to create a temporary file for extracting selected pages
+	  from a PDF file, failure to run Ghostscript to extract pages from
+	  a PDF file, page count result being a negative number.
+
+	* foomaticrip.c: Use EXIT_PRINTED constant and not hard-coded "0"
+	  as exit value when terminating successfully.
+
+	* foomaticrip.h: Correct definition of EXIT_STARVED constant.
+
+2010-03-26  Till Kamppeter <till.kamppeter@gmail.com>
+
+	* options.c, options.h: Made some strings longer, to avoid space
+	  problems.
+
 2010-02-15  Till Kamppeter <till.kamppeter@gmail.com>
 
 	* Tagged branch for release 4.0.4.

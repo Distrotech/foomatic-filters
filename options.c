@@ -34,10 +34,10 @@
 
 /* Values from foomatic keywords in the ppd file */
 char printer_model [256];
-char printer_id [128];
+char printer_id [256];
 char driver [128];
-char cmd [1024];
-char cmd_pdf [1024];
+char cmd [4096];
+char cmd_pdf [4096];
 dstr_t *postpipe = NULL;  /* command into which the output of this
                              filter should be piped */
 int ps_accounting = 1;
@@ -751,7 +751,7 @@ void build_foomatic_custom_command(dstr_t *cmd, option_t *opt, const char *value
     {
         choice_t *choice = option_find_choice(opt, "Custom");
         char ** paramvalues = paramvalues_from_string(opt, values);
-        char width[30], height[20];
+        char width[30], height[30];
         int pos;
 
         assert(choice);
@@ -1215,7 +1215,7 @@ void option_set_choice(option_t *opt, const char *name, const char *text,
     }
 
     if (!startswith(code, "%% FoomaticRIPOptionSetting"))
-        unhtmlify(choice->command, 1024, code);
+        unhtmlify(choice->command, 65536, code);
 }
 
 /*
@@ -1529,10 +1529,10 @@ void read_ppd_file(const char *filename)
             unhtmlify(postpipe->data, postpipe->alloc, value->data);
         }
         else if (strcmp(key, "FoomaticRIPCommandLine") == 0) {
-            unhtmlify(cmd, 1024, value->data);
+            unhtmlify(cmd, 4096, value->data);
         }
         else if (strcmp(key, "FoomaticRIPCommandLinePDF") == 0) {
-            unhtmlify(cmd_pdf, 1024, value->data);
+            unhtmlify(cmd_pdf, 4096, value->data);
         }
         else if (strcmp(key, "FoomaticRIPNoPageAccounting") == 0) {
             /* Boolean value */
@@ -1742,7 +1742,7 @@ int ppd_supports_pdf()
      * line */
     if (startswith(cmd, "gs"))
     {
-        strncpy(cmd_pdf, cmd, 1024);
+        strncpy(cmd_pdf, cmd, 4096);
         return 1;
     }
 

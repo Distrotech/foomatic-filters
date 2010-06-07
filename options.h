@@ -55,7 +55,7 @@
 typedef struct choice_s {
     char value [128];
     char text [128];
-    char command[1024];
+    char command[65536];
     struct choice_s *next;
 } choice_t;
 
@@ -125,8 +125,8 @@ extern char jcltointerpreter[256];
 extern char jclend[256];
 extern char jclprefix[256];
 
-extern char cmd[1024];
-extern char cmd_pdf[1024];
+extern char cmd[4096];
+extern char cmd_pdf[4096];
 
 extern int ps_accounting;
 

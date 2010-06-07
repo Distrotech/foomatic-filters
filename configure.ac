@@ -39,7 +39,7 @@ AC_FUNC_REALLOC
 AC_TYPE_SIGNAL
 AC_FUNC_STRTOD
 AC_FUNC_VPRINTF
-AC_CHECK_FUNCS([dup2 getcwd gethostname regcomp setenv strcasecmp strchr strcspn strdup strncasecmp strndup strrchr strstr strtol])
+AC_CHECK_FUNCS([dup2 getcwd gethostname regcomp setenv strcasecmp strchr strcspn strdup strncasecmp strndup strrchr strstr strcasestr strtol])
 
 
 ETCSEARCHPATH=${prefix}/etc:/usr/etc:/usr/local/etc

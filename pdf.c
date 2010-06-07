@@ -52,10 +52,8 @@ static int pdf_count_pages(const char *filename)
 	     gspath, filename);
 
     FILE *pd = popen(gscommand, "r");
-    if (!pd) {
-      _log("Failed to execute ghostscript to determine number of input pages!\n");
-        return 0;
-    }
+    if (!pd)
+      rip_die(EXIT_STARVED, "Failed to execute ghostscript to determine number of input pages!\n");
 
     fread(output, 1, 31, pd);
     pclose(pd);
@@ -77,7 +75,7 @@ static int start_renderer(const char *cmd)
     _log("Starting renderer with command: %s\n", cmd);
     kid3 = start_process("kid3", exec_kid3, (void *)cmd, NULL, NULL);
     if (kid3 < 0)
-        return 0;
+        rip_die(EXIT_STARVED, "Could not start renderer\n");
 
     return 1;
 }
@@ -118,7 +116,7 @@ static int pdf_extract_pages(char filename[PATH_MAX],
     snprintf(filename, PATH_MAX, "%s/foomatic-XXXXXX", temp_dir());
     mktemp(filename);
     if (!filename[0])
-        return 0;
+        rip_die(EXIT_STARVED, "Unable to create temporary file!\n");
 
     snprintf(filename_arg, PATH_MAX, "-sOutputFile=%s", filename);
     snprintf(first_arg, 50, "-dFirstPage=%d", first);
@@ -132,10 +130,8 @@ static int pdf_extract_pages(char filename[PATH_MAX],
 	     gspath, filename_arg, first_arg, last_arg, pdffilename);
 
     FILE *pd = popen(gscommand, "r");
-    if (!pd) {
-        _log("Could not run ghostscript to extract the pages!\n");
-        return 0;
-    }
+    if (!pd)
+        rip_die(EXIT_STARVED, "Could not run ghostscript to extract the pages!\n");
     pclose(pd);
 
     return 1;
@@ -158,7 +154,7 @@ static int render_pages_with_generic_command(dstr_t *cmd,
     else
     {
         if (!pdf_extract_pages(tmpfile, filename, firstpage, lastpage))
-            return 0;
+            rip_die(EXIT_STARVED, "Could not run ghostscript to extract the pages!\n");
         dstrcatf(cmd, " < %s", tmpfile);
     }
 
@@ -237,7 +233,7 @@ static int print_pdf_file(const char *filename)
     page_count = pdf_count_pages(filename);
 
     if (page_count <= 0)
-        return 0;
+        rip_die(EXIT_JOBERR, "Unable to determine number of pages, page count: %d\n", page_count);
     _log("File contains %d pages\n", page_count);
 
     optionset_copy_values(optionset("header"), optionset("currentpage"));

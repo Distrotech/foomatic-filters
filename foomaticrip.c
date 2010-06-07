@@ -1602,7 +1602,8 @@ int main(int argc, char** argv)
            PostScript file (all before the first page begins). */
         optionset_copy_values(optionset("userval"), optionset("header"));
 
-        print_file(filename, 1);
+        if (!print_file(filename, 1))
+	    rip_die(EXIT_PRNERR_NORETRY, "Could not print file %s\n", filename);
         filename = strtok_r(NULL, " ", &p);
     }
 
@@ -1639,6 +1640,6 @@ int main(int argc, char** argv)
 
     list_free(arglist);
 
-    return 0;
+    return EXIT_PRINTED;
 }
 

@@ -138,6 +138,29 @@ int omit_shellescapes(int c) { return strchr(shellescapes, c) != NULL; }
 int omit_specialchars(int c) { return omit_unprintables(c) || omit_shellescapes(c); }
 int omit_whitespace(int c) { return c == ' ' || c == '\t'; }
 
+#ifndef HAVE_STRCASESTR
+char *
+strcasestr (const char *haystack, const char *needle)
+{
+    char *p, *startn = 0, *np = 0;
+
+    for (p = haystack; *p; p++) {
+        if (np) {
+	    if (toupper(*p) == toupper(*np)) {
+	        if (!*++np)
+		    return startn;
+	    } else
+	        np = 0;
+	} else if (toupper(*p) == toupper(*needle)) {
+	    np = needle + 1;
+	    startn = p;
+	}
+    }
+
+    return 0;
+}
+#endif
+
 size_t strlcpy(char *dest, const char *src, size_t size)
 {
     char *pdest = dest;

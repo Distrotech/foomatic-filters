@@ -28,6 +28,7 @@
 #define _GNU_SOURCE
 #endif
 
+#include "config.h"
 #include <string.h>
 #include <stdio.h>
 
@@ -57,6 +58,11 @@ int omit_unprintables(int c);
 int omit_shellescapes(int c);
 int omit_specialchars(int c);
 int omit_whitespace(int c);
+
+#ifndef HAVE_STRCASESTR
+/* strcasestr() is not available under Solaris */
+char * strcasestr (const char *haystack, const char *needle);
+#endif
 
 /* TODO check for platforms which already have strlcpy and strlcat */
 

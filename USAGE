@@ -74,9 +74,8 @@ Installation
 Foomatic runs on all systems where one can run the Perl
 interpreter and Ghostscript.
 
-foomatic-filters needs the Ghostscript library for foomatic-rip and
-the Perl interpreter for beh (Backend Error Handler) and the test
-suite.
+foomatic-filters the Perl interpreter for beh (Backend Error Handler)
+and the test suite.
 
 To build foomatic-rip you need a C compiler and its standard libraries.
 
@@ -138,9 +137,8 @@ package in some distributions):
 a normal user.
 
 The "configure" script will auto-detect where the programs have to be
-installed and where the Perl interpreter and the Ghostscript library
-are located. If "configure" fails because of something not being
-installed, do
+installed and where the Perl interpreter is located. If "configure"
+fails because of something not being installed, do
 
    rm -rf config.cache autom*.cache
 

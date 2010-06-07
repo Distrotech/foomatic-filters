@@ -56,7 +56,7 @@
 #define EXIT_JOBERR 3                           /* job is defective */
 #define EXIT_SIGNAL 4                           /* terminated after catching signal */
 #define EXIT_ENGAGED 5                          /* printer is otherwise engaged (connection refused) */
-#define EXIT_STARVED = 6;                       /* starved for system resources */
+#define EXIT_STARVED 6                          /* starved for system resources */
 #define EXIT_PRNERR_NORETRY_ACCESS_DENIED 7     /* bad password? bad port permissions? */
 #define EXIT_PRNERR_NOT_RESPONDING 8            /* just doesn't answer at all (turned off?) */
 #define EXIT_PRNERR_NORETRY_BAD_SETTINGS 9      /* interface settings are invalid */
