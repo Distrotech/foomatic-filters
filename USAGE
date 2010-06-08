@@ -74,8 +74,8 @@ Installation
 Foomatic runs on all systems where one can run the Perl
 interpreter and Ghostscript.
 
-foomatic-filters the Perl interpreter for beh (Backend Error Handler)
-and the test suite.
+foomatic-filters needs the Perl interpreter for beh (Backend Error
+Handler) and the test suite.
 
 To build foomatic-rip you need a C compiler and its standard libraries.
 
