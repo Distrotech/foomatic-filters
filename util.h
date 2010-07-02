@@ -58,6 +58,7 @@ int omit_unprintables(int c);
 int omit_shellescapes(int c);
 int omit_specialchars(int c);
 int omit_whitespace(int c);
+int omit_whitespace_newline(int c);
 
 #ifndef HAVE_STRCASESTR
 /* strcasestr() is not available under Solaris */

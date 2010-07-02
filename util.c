@@ -137,6 +137,7 @@ int omit_unprintables(int c) { return c>= '\x00' && c <= '\x1f'; }
 int omit_shellescapes(int c) { return strchr(shellescapes, c) != NULL; }
 int omit_specialchars(int c) { return omit_unprintables(c) || omit_shellescapes(c); }
 int omit_whitespace(int c) { return c == ' ' || c == '\t'; }
+int omit_whitespace_newline(int c) { return omit_whitespace(c) || c == '\n'; }
 
 #ifndef HAVE_STRCASESTR
 char *

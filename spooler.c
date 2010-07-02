@@ -410,7 +410,7 @@ int configfile_find_option(const char *configfile, const char *key, char *dest, 
         if (!prefixcmp(line, "default")) {
             p = strchr(line, ':');
             if (p) {
-                strncpy_omit(dest, p + 1, destsize, omit_whitespace);
+                strncpy_omit(dest, p + 1, destsize, omit_whitespace_newline);
                 if (dest[0])
                     break;
             }
