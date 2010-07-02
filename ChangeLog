@@ -1,3 +1,24 @@
+2010-07-02  Till Kamppeter <till.kamppeter@gmail.com>
+
+	* spooler.c: Config file for the default printer in spooler-less
+	  (direct) printing mode was not read correctly. Thanks to Lutz
+	  Sammer (johns98 at web dot de) for reporting this problem.
+
+	* spooler.c: Fixed error message output if a printer's PPD is missing
+	  in spooler-less mode. There was a segfault due to the printer name
+	  not specified in the _log() function call. Thanks to Lutz Sammer
+	  for reporting this problem.
+
+	* util.c: The isempty() function did not consider NULL as an empty
+	  string. This caused segfaults when a string is considered non-empty
+	  but in fact it is NULL. Thanks to Lutz Sammer for reporting this
+	  problem.
+
+	* util.c: strncpy_tochar() did not check whether the input string
+	  is empty and returned a pointer one character beyond the input
+	  string, leading to segfaults in the code calling this function.
+	  Thanks to Lutz Sammer for reporting this problem.
+
 2010-06-08  Till Kamppeter <till.kamppeter@gmail.com>
 
 	* USAGE: Documentation correction.

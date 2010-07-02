@@ -410,7 +410,7 @@ int configfile_find_option(const char *configfile, const char *key, char *dest, 
         if (!prefixcmp(line, "default")) {
             p = strchr(line, ':');
             if (p) {
-                strncpy_omit(dest, p, destsize, omit_whitespace);
+                strncpy_omit(dest, p + 1, destsize, omit_whitespace);
                 if (dest[0])
                     break;
             }
@@ -479,7 +479,7 @@ void init_direct_cps_pdq(list_t *arglist, dstr_t *filelist, jobparams_t *job)
 
         /* Search for the PPD file */
         if (!find_ppdfile(user_default_path, job)) {
-            _log("There is no readable PPD file for the printer %s, is it configured?\n");
+            _log("There is no readable PPD file for the printer %s, is it configured?\n", job->printer);
             exit(EXIT_PRNERR_NORETRY_BAD_SETTINGS);
         }
     }

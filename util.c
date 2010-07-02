@@ -110,7 +110,7 @@ void strlower(char *dest, size_t destlen, const char *src)
 
 int isempty(const char *string)
 {
-    return string && string[0] == '\0';
+    return !string || string[0] == '\0';
 }
 
 const char * strncpy_omit(char* dest, const char* src, size_t n, int (*omit_func)(int))
@@ -271,6 +271,9 @@ const char * strncpy_tochar(char *dest, const char *src, size_t max, const char 
 {
     const char *psrc = src;
     char *pdest = dest;
+    if (!*psrc) {
+       return NULL;
+    }
     while (*psrc && --max > 0 && !strchr(stopchars, *psrc)) {
         *pdest = *psrc;
         pdest++;
