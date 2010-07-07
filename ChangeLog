@@ -1,3 +1,17 @@
+2010-07-07  Till Kamppeter <till.kamppeter@gmail.com>
+
+	* options.c: Make substitution of zeros by the the user-defined
+	  page size in the prototype string for the custom page size
+	  working. Before, only substitution of %0 and %1 worked reliably.
+	  Thanks to Lutz Sammer (johns98 at web dot de) for reporting this
+	  problem.
+
+	* options.c: Make custom page size settings also work if the custom
+	  size is set via embedded PostScript code and the comment to mark
+	  the selected option setting is only "%% FoomaticRIPOptionSetting:
+	  PageSize=Custom", without the size and unit parameters. Thanks to
+	  Lutz Sammer for reporting this problem.
+
 2010-07-02  Till Kamppeter <till.kamppeter@gmail.com>
 
 	* spooler.c: Config file for the default printer in spooler-less

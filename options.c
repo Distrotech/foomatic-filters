@@ -677,7 +677,8 @@ char * get_valid_value_string(option_t *opt, const char *value)
     /* Check if "value" is a predefined choice (except for "Custom", which is
      * not really a predefined choice, but an error if used without further
      * parameters) */
-    if (strcmp(value, "Custom") != 0 && (choice = option_find_choice(opt, value)))
+    if ((strcmp(value, "Custom") != 0 || strcmp(opt->name, "PageSize") == 0) &&
+	(choice = option_find_choice(opt, value)))
         return strdup(choice->value);
 
     if (opt->type == TYPE_ENUM) {
@@ -765,7 +766,7 @@ void build_foomatic_custom_command(dstr_t *cmd, option_t *opt, const char *value
         if ((pos = dstrreplace(cmd, "%0", width, 0)) < 0)
             pos = dstrreplace(cmd, "0", width, 0);
 
-        if ((pos = dstrreplace(cmd, "%1", height, pos) < 0))
+        if (dstrreplace(cmd, "%1", height, pos) < 0)
             dstrreplace(cmd, "0", height, pos);
 
         free_paramvalues(opt, paramvalues);
