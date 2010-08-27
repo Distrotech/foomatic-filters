@@ -1,5 +1,10 @@
 2010-08-27  Till Kamppeter <till.kamppeter@gmail.com>
 
+	* options.c: Made sure that the unhtmlify() function does not write
+	  the zero byte to mark the string end beyond the buffer. Also use a
+	  much larger buffer for parsing "*FoomaticRIPOptionPrototype:" in
+	  the PPD file (bug #515).
+
 	* util.c: In strncpy_tochar() use the isempty() function to check
 	  whether the input string is empty (bug #514).
 

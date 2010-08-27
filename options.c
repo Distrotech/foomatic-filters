@@ -1088,8 +1088,9 @@ static void unhtmlify(char *dest, size_t size, const char *src)
     const char *repl;
     struct tm *t = localtime(&job->time);
     char tmpstr[10];
+    size_t s;
 
-    while (*psrc && pdest - dest < size) {
+    while (*psrc && pdest - dest < size - 1) {
 
         if (*psrc == '&') {
             psrc++;
@@ -1154,8 +1155,12 @@ static void unhtmlify(char *dest, size_t size, const char *src)
             }
 
             if (repl) {
-                strncpy(pdest, repl, size - (pdest - dest));
-                pdest += strlen(repl);
+	        s = size - (pdest - dest) - 1;
+                strncpy(pdest, repl, s);
+		if (s < strlen(repl))
+		  pdest += s;
+		else
+		  pdest += strlen(repl);
                 psrc = strchr(psrc, ';') +1;
             }
             else {
@@ -1601,8 +1606,8 @@ void read_ppd_file(const char *filename)
             /* "*FoomaticRIPOptionPrototype <option>: <code>"
                Used for numerical and string options only */
             opt = assure_option(name);
-            opt->proto = malloc(128);
-            unhtmlify(opt->proto, 128, value->data);
+            opt->proto = malloc(65536);
+            unhtmlify(opt->proto, 65536, value->data);
         }
         else if (!strcmp(key, "FoomaticRIPOptionRange")) {
             /* *FoomaticRIPOptionRange <option>: <min> <max>
