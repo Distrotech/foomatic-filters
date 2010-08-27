@@ -272,7 +272,7 @@ const char * strncpy_tochar(char *dest, const char *src, size_t max, const char 
 {
     const char *psrc = src;
     char *pdest = dest;
-    if (!*psrc) {
+    if (isempty(psrc)) {
        return NULL;
     }
     while (*psrc && --max > 0 && !strchr(stopchars, *psrc)) {
