@@ -1,3 +1,11 @@
+2010-11-11  Till Kamppeter <till.kamppeter@gmail.com>
+
+	* fileconverter.c: Make the check for the text filter actually
+	  work. Before, the text filter choice from the configuration file
+	  was simply taken for good and not checked whether it is supported.
+	  Thanks to Abel Abraham Camarillo Ojeda (spam at verlet dot org)
+	  for reporting this problem (bug #551).
+
 2010-08-27  Till Kamppeter <till.kamppeter@gmail.com>
 
 	* options.c: Made sure that the unhtmlify() function does not write
