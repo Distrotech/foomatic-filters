@@ -1,10 +1,15 @@
 2010-11-11  Till Kamppeter <till.kamppeter@gmail.com>
 
+	* util.c: The temp_dir() function did not take into account that
+	  getenv() can return NULL. In such a case the fallback to /tmp
+	  did not work. Thanks to Abel Abraham Camarillo Ojeda (spam at
+	  verlet dot org) for the patch (bug #552).
+
 	* fileconverter.c: Make the check for the text filter actually
 	  work. Before, the text filter choice from the configuration file
 	  was simply taken for good and not checked whether it is supported.
 	  Thanks to Abel Abraham Camarillo Ojeda (spam at verlet dot org)
-	  for reporting this problem (bug #551).
+	  for the patch (bug #551).
 
 2010-08-27  Till Kamppeter <till.kamppeter@gmail.com>
 

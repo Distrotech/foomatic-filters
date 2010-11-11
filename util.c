@@ -39,14 +39,15 @@ const char * temp_dir()
 
     if (!tmpdir)
     {
-        const char *dirs[] = { getenv("TMPDIR"), P_tmpdir, "/tmp", NULL };
-        const char **dir;
+        const char *dirs[] = { getenv("TMPDIR"), P_tmpdir, "/tmp" };
+        int i;
 
-        for (dir = dirs; *dir; dir++)
-            if (access(*dir, W_OK) == 0) {
-                tmpdir = *dir;
+        for (i = 0; i < (sizeof(dirs) / sizeof(dirs[0])); i++) {
+            if (access(dirs[i], W_OK) == 0) {
+                tmpdir = dirs[i];
                 break;
             }
+        }
         if (tmpdir)
         {
             _log("Storing temporary files in %s\n", tmpdir);
@@ -162,6 +163,7 @@ strcasestr (const char *haystack, const char *needle)
 }
 #endif
 
+#ifndef __OpenBSD__
 size_t strlcpy(char *dest, const char *src, size_t size)
 {
     char *pdest = dest;
@@ -201,6 +203,7 @@ size_t strlcat(char *dest, const char *src, size_t size)
 
     return len + (psrc - src);
 }
+#endif /* ! __OpenBSD__ */
 
 void strrepl(char *str, const char *chars, char repl)
 {
