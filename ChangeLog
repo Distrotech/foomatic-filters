@@ -1,3 +1,10 @@
+2010-12-10  Till Kamppeter <till.kamppeter@gmail.com>
+
+	* foomaticrip.c: Make file type detection also work if the PostScript
+	  or PDF input is preceeded by PJL with an additional '%' character.
+	  Thanks to Alexpro for reporting this as Ubuntu bug #688551 and
+	  supplying the patch.
+
 2010-11-11  Till Kamppeter <till.kamppeter@gmail.com>
 
 	* util.c: The temp_dir() function did not take into account that

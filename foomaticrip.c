@@ -946,16 +946,22 @@ enum FileType {
 
 int guess_file_type(const char *begin, size_t len, int *startpos)
 {
-    const char * p;
+    const char * p, * end;
+    p = begin;
+    end = begin + len;
 
-    p = memchr(begin, '%', len);
-    if (!p)
-        return UNKNOWN_FILE;
-    *startpos = p - begin;
-    if (!memcmp(p, "%!", 2))
-        return PS_FILE;
-    else if (!memcmp(p, "%PDF-1.", 7))
-        return PDF_FILE;
+    while (p < end)
+    {
+        p = memchr(p, '%', end - p);
+	if (!p)
+	    return UNKNOWN_FILE;
+	*startpos = p - begin;
+	if ((end - p) > 2 && !memcmp(p, "%!", 2))
+	    return PS_FILE;
+	else if ((end - p) > 7 && !memcmp(p, "%PDF-1.", 7))
+	    return PDF_FILE;
+	++ p;
+    }
     *startpos = 0;
     return UNKNOWN_FILE;
 }
