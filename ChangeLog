@@ -1,3 +1,15 @@
+2010-12-15  Till Kamppeter <till.kamppeter@gmail.com>
+
+	* options.c: Allow length limitation for the substitution of the special
+	  entities "&job;", "&user;", "&host;", "&title;", and "&options;":
+	  The maximum length can be supplied via the PPD keywords
+	  "*FoomaticRIP<Item>EntityMaxLength: <mexlength>" (for example
+	  "*FoomaticRIPUserEntityMaxLength: 8") or by adding a number to the
+	  individual entities (for example "&user8;"). If the string to
+	  insert for the entity is longer than the limit, it gets cut off to
+	  the limit. Feature requested by Uli Wehner from Ricoh
+	  (http://forums.linux-foundation.org/read.php?30,13134).
+
 2010-12-10  Till Kamppeter <till.kamppeter@gmail.com>
 
 	* foomaticrip.c: Make file type detection also work if the PostScript

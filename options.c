@@ -42,6 +42,11 @@ dstr_t *postpipe = NULL;  /* command into which the output of this
                              filter should be piped */
 int ps_accounting = 1;
 char cupsfilter [256];
+int jobentitymaxlen = 0;
+int userentitymaxlen = 0;
+int hostentitymaxlen = 0;
+int titleentitymaxlen = 0;
+int optionsentitymaxlen = 0;
 
 /* JCL prefix to put before the JCL options
  (Can be modified by a "*JCLBegin:" keyword in the ppd file): */
@@ -1084,84 +1089,123 @@ static void unhtmlify(char *dest, size_t size, const char *src)
 {
     jobparams_t *job = get_current_job();
     char *pdest = dest;
-    const char *psrc = src;
+    const char *psrc = src, *p = NULL;
     const char *repl;
     struct tm *t = localtime(&job->time);
     char tmpstr[10];
-    size_t s;
+    size_t s, l, n;
 
     while (*psrc && pdest - dest < size - 1) {
 
         if (*psrc == '&') {
             psrc++;
             repl = NULL;
+            p = NULL;
+            l = 0;
 
             /* Replace HTML/XML entities by the original characters */
-            if (!prefixcmp(psrc, "apos;"))
+            if (!prefixcmp(psrc, "apos")) {
                 repl = "\'";
-            else if (!prefixcmp(psrc, "quot;"))
+                p = psrc + 4;
+            } else if (!prefixcmp(psrc, "quot")) {
                 repl = "\"";
-            else if (!prefixcmp(psrc, "gt;"))
+                p = psrc + 4;
+            } else if (!prefixcmp(psrc, "gt")) {
                 repl = ">";
-            else if (!prefixcmp(psrc, "lt;"))
+                p = psrc + 2;
+            } else if (!prefixcmp(psrc, "lt")) {
                 repl = "<";
-            else if (!prefixcmp(psrc, "amp;"))
+                p = psrc + 2;
+            } else if (!prefixcmp(psrc, "amp")) {
                 repl = "&";
+                p = psrc + 3;
 
             /* Replace special entities by job->data */
-            else if (!prefixcmp(psrc, "job;"))
+            } else if (!prefixcmp(psrc, "job")) {
                 repl = job->id;
-            else if (!prefixcmp(psrc, "user;"))
+                p = psrc + 3;
+                if (jobentitymaxlen != 0)
+                    l = jobentitymaxlen;
+            } else if (!prefixcmp(psrc, "user")) {
                 repl = job->user;
-            else if (!prefixcmp(psrc, "host;"))
+                p = psrc + 4;
+                if (userentitymaxlen != 0)
+                    l = userentitymaxlen;
+            } else if (!prefixcmp(psrc, "host")) {
                 repl = job->host;
-            else if (!prefixcmp(psrc, "title;"))
+                p = psrc + 4;
+                if (hostentitymaxlen != 0)
+                    l = hostentitymaxlen;
+            } else if (!prefixcmp(psrc, "title")) {
                 repl = job->title;
-            else if (!prefixcmp(psrc, "copies;"))
+                p = psrc + 5;
+                if (titleentitymaxlen != 0)
+                    l = titleentitymaxlen;
+            } else if (!prefixcmp(psrc, "copies")) {
                 repl = job->copies;
-            else if (!prefixcmp(psrc, "rbinumcopies;")) {
+                p = psrc + 6;
+            } else if (!prefixcmp(psrc, "rbinumcopies")) {
                 if (job->rbinumcopies > 0) {
                     snprintf(tmpstr, 10, "%d", job->rbinumcopies);
                     repl = tmpstr;
                 }
                 else
                     repl = job->copies;
+                p = psrc + 12;
             }
-            else if (!prefixcmp(psrc, "options;"))
+            else if (!prefixcmp(psrc, "options")) {
                 repl = job->optstr->data;
-            else if (!prefixcmp(psrc, "year;")) {
+                p = psrc + 7;
+                if (optionsentitymaxlen != 0)
+                    l = optionsentitymaxlen;
+            } else if (!prefixcmp(psrc, "year")) {
                 sprintf(tmpstr, "%04d", t->tm_year + 1900);
                 repl = tmpstr;
+                p = psrc + 4;
             }
-            else if (!prefixcmp(psrc, "month;")) {
+            else if (!prefixcmp(psrc, "month")) {
                 sprintf(tmpstr, "%02d", t->tm_mon + 1);
                 repl = tmpstr;
+                p = psrc + 5;
             }
-            else if (!prefixcmp(psrc, "date;")) {
+            else if (!prefixcmp(psrc, "date")) {
                 sprintf(tmpstr, "%02d", t->tm_mday);
                 repl = tmpstr;
+                p = psrc + 4;
             }
-            else if (!prefixcmp(psrc, "hour;")) {
+            else if (!prefixcmp(psrc, "hour")) {
                 sprintf(tmpstr, "%02d", t->tm_hour);
                 repl = tmpstr;
+                p = psrc + 4;
             }
-            else if (!prefixcmp(psrc, "min;")) {
+            else if (!prefixcmp(psrc, "min")) {
                 sprintf(tmpstr, "%02d", t->tm_min);
                 repl = tmpstr;
+                p = psrc + 3;
             }
-            else if (!prefixcmp(psrc, "sec;")) {
+            else if (!prefixcmp(psrc, "sec")) {
                 sprintf(tmpstr, "%02d", t->tm_sec);
                 repl = tmpstr;
+                p = psrc + 3;
             }
-
+            if (p) {
+                n = strtol(p, (char **)(&p), 0);
+                if (n != 0)
+                    l = n;
+                if (*p != ';')
+                    repl = NULL;
+            } else
+                repl = NULL;
             if (repl) {
-	        s = size - (pdest - dest) - 1;
+                if ((l == 0) || (l > strlen(repl)))
+                    l = strlen(repl);
+                s = size - (pdest - dest) - 1;
                 strncpy(pdest, repl, s);
-		if (s < strlen(repl))
-		  pdest += s;
-		else
-		  pdest += strlen(repl);
-                psrc = strchr(psrc, ';') +1;
+                if (s < l)
+                    pdest += s;
+                else
+                    pdest += l;
+                psrc = p + 1;
             }
             else {
                 *pdest = '&';
@@ -1703,6 +1747,26 @@ void read_ppd_file(const char *filename)
             _log("You are using an old Foomatic 2.0 PPD file, which is no "
                  "longer supported by Foomatic >4.0. Exiting.\n");
             exit(1); /* TODO exit more gracefully */
+        }
+        else if (!strcmp(key, "FoomaticRIPJobEntityMaxLength")) {
+            /*  "*FoomaticRIPJobEntityMaxLength: <length>" */
+            sscanf(value->data, "%d", &jobentitymaxlen);
+        }
+        else if (!strcmp(key, "FoomaticRIPUserEntityMaxLength")) {
+            /*  "*FoomaticRIPUserEntityMaxLength: <length>" */
+            sscanf(value->data, "%d", &userentitymaxlen);
+        }
+        else if (!strcmp(key, "FoomaticRIPHostEntityMaxLength")) {
+            /*  "*FoomaticRIPHostEntityMaxLength: <length>" */
+            sscanf(value->data, "%d", &hostentitymaxlen);
+        }
+        else if (!strcmp(key, "FoomaticRIPTitleEntityMaxLength")) {
+            /*  "*FoomaticRIPTitleEntityMaxLength: <length>" */
+            sscanf(value->data, "%d", &titleentitymaxlen);
+        }
+        else if (!strcmp(key, "FoomaticRIPOptionsEntityMaxLength")) {
+            /*  "*FoomaticRIPOptionsEntityMaxLength: <length>" */
+            sscanf(value->data, "%d", &optionsentitymaxlen);
         }
     }
 
