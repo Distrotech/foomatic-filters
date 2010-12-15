@@ -1,5 +1,9 @@
 2010-12-15  Till Kamppeter <till.kamppeter@gmail.com>
 
+	* Tagged branch for release 4.0.6.
+
+	* VERSION, README, USAGE, configure.ac: Updated for release 4.0.6.
+
 	* options.c: Allow length limitation for the substitution of the special
 	  entities "&job;", "&user;", "&host;", "&title;", and "&options;":
 	  The maximum length can be supplied via the PPD keywords
