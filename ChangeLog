@@ -1,5 +1,11 @@
 2010-12-15  Till Kamppeter <till.kamppeter@gmail.com>
 
+	* foomaticrip.c: Run strtok() on a copy of the list of input files
+	  for the first check, as strtok() modifies the string it parses,
+	  overwriting the delimiters with zeros. Before, the list of input
+	  files only showed its first entry when being parsed again for
+	  actually printing the files (Ubuntu bug #676680).
+
 	* Tagged branch for release 4.0.6.
 
 	* VERSION, README, USAGE, configure.ac: Updated for release 4.0.6.

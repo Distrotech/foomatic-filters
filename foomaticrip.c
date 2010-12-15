@@ -1383,7 +1383,7 @@ int main(int argc, char** argv)
         dstrcpyf(filelist, "<STDIN>");
 
     /* Check filelist */
-    p = strtok(filelist->data, " ");
+    p = strtok(strdup(filelist->data), " ");
     while (p) {
         if (strcmp(p, "<STDIN>") != 0) {
             if (p[0] == '-')
