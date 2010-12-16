@@ -1,3 +1,7 @@
+2010-12-16  Till Kamppeter <till.kamppeter@gmail.com>
+
+	* README: Corrected e-mail address of Helge Bliscke.
+
 2010-12-15  Till Kamppeter <till.kamppeter@gmail.com>
 
 	* foomaticrip.c: Run strtok() on a copy of the list of input files
@@ -872,7 +876,7 @@
 	  page accounting PostScript code in foomatic-rip overriding
 	  already exisiting /EndPage procedures. Added output of error
 	  code when foomatic-rip dies. Thanks to Helge Blischke
-	  (h dot blischke at srz dot de) for all these fixes and
+	  (h dot blischke at acm dot org) for all these fixes and
 	  enhancements.
 
 2004-09-14  Till Kamppeter <till.kamppeter@gmx.net>
