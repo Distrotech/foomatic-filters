@@ -79,7 +79,7 @@ CPS      - Coherent Printing System (http://www.tww.cx/cps.php, development
 ---      - Direct, spooler-less printing (http://www.openprinting.org/)
 
 As most of the supported printing systems are not actively developed
-any more, there support will be removed in a later version of
+any more, support for them will be removed in a later version of
 foomatic-rip. This can even happen before 5.x. For now their support
 is deprecated and there were only few tests done during the
 development of foomatic-rip 4.x. So be prepared that there are bugs
@@ -182,7 +182,7 @@ parsed the PPD file we have a renderer command line and a list of
 options with the range of possible settings and a default setting. For
 LPRng, LPD, GNUlpr, and spooler-less printing we get also the
 so-called postpipe here, defining a shell command line into which
-foomatic-rip should firect its output. If no postpipe is found, the
+foomatic-rip should direct its output. If no postpipe is found, the
 output data goes to standard output. The postpipe allows to print to
 destinations which are not directly supported by the spooler.
 
@@ -210,8 +210,8 @@ listing would be the job which the user has sent.
 
 Print files
 
-With some spoolers the job(s) to be printed is supplied in (a)
-file(s), in this case we close standard input and open the file on the
+With some spoolers the jobs to be printed are supplied in files.
+In this case we close standard input and open the file on the
 standard input handler. This way the following steps read from the
 file instead of from standard input. The rest of the foomatic-rip
 process is repeated for every input file, to print them one after the

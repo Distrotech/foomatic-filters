@@ -1,3 +1,8 @@
+2010-12-23  Till Kamppeter <till.kamppeter@gmail.com>
+
+	* README: Corrected several typos. Thanks to Christopher Yeleighton
+	  (giecrilj at stegny dot 2a dot pl) for the patch (bug #598).
+
 2010-12-16  Till Kamppeter <till.kamppeter@gmail.com>
 
 	* README: Corrected e-mail address of Helge Bliscke.
