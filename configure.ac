@@ -1,8 +1,8 @@
 #                                               -*- Autoconf -*-
 # Process this file with autoconf to produce a configure script.
 
-AC_PREREQ(2.61)
-AC_INIT(foomatic-rip, "4.0.6")
+AC_PREREQ([2.61])
+AC_INIT(foomatic-rip, [4.0.6])
 AM_INIT_AUTOMAKE([no-define])
 AC_CONFIG_SRCDIR([options.c])
 
@@ -56,7 +56,7 @@ if test x$uname = xIRIX; then
   LIBSEARCHPATH="/usr/freeware/lib32:/usr/freeware/lib:$LIBSEARCHPATH"
 fi
 
-dnl Check for Perl
+# Check for Perl
 AC_PATH_PROG(PERL,perl)
 
 if test -z "$PERL"; then
@@ -64,12 +64,12 @@ if test -z "$PERL"; then
 fi
 
 # Check for /etc/printcap
-AC_PATH_DIR(PRINTCAP,printcap,/etc/printcap,$ETCSEARCHPATH)
+FM_PATH_DIR(PRINTCAP,printcap,/etc/printcap,$ETCSEARCHPATH)
 
-dnl Check for cups-config
+# Check for cups-config
 AC_PATH_PROG(CUPS_CONFIG,cups-config)
 
-dnl Use cups-config to find CUPS directories
+# Use cups-config to find CUPS directories
 if test -n "$CUPS_CONFIG" && test -z "$CUPS_SERVERBIN"; then
 	CUPS_SERVERBIN=`cups-config --serverbin 2>/dev/null`
 fi
@@ -82,23 +82,23 @@ if test -n "$CUPS_SERVERBIN"; then
 	AC_SUBST(CUPS_BACKENDS)
 else
 	# Check for /usr/lib/cups
-	AC_PATH_DIR(CUPS,cups,/usr/lib/cups,$SERVERBIB$LIBSEARCHPATH)
+	FM_PATH_DIR(CUPS,cups,/usr/lib/cups,$SERVERBIB$LIBSEARCHPATH)
 
 	# Check for /usr/lib/cups/filter
-	AC_PATH_DIR(CUPS_FILTERS,cups/filter,/usr/lib/cups/filter,$FILTERS$LIBSEARCHPATH)
+	FM_PATH_DIR(CUPS_FILTERS,cups/filter,/usr/lib/cups/filter,$FILTERS$LIBSEARCHPATH)
 
 	# Check for /usr/lib/cups/backend
-	AC_PATH_DIR(CUPS_BACKENDS,cups/backend,/usr/lib/cups/backend,$BACKENDS$LIBSEARCHPATH)
+	FM_PATH_DIR(CUPS_BACKENDS,cups/backend,/usr/lib/cups/backend,$BACKENDS$LIBSEARCHPATH)
 fi
 
 # Check for /usr/lib/ppr
-AC_PATH_DIR(PPR,ppr,/usr/lib/ppr,$LIBSEARCHPATH)
+FM_PATH_DIR(PPR,ppr,/usr/lib/ppr,$LIBSEARCHPATH)
 
 # Check for /usr/lib/ppr/interfaces
-AC_PATH_DIR(PPR_INTERFACES,ppr/interfaces,/usr/lib/ppr/interfaces,$LIBSEARCHPATH)
+FM_PATH_DIR(PPR_INTERFACES,ppr/interfaces,/usr/lib/ppr/interfaces,$LIBSEARCHPATH)
 
 # Check for /usr/lib/ppr/lib
-AC_PATH_DIR(PPR_LIB,ppr/lib,/usr/lib/ppr/lib,$LIBSEARCHPATH)
+FM_PATH_DIR(PPR_LIB,ppr/lib,/usr/lib/ppr/lib,$LIBSEARCHPATH)
 
 AC_ARG_ENABLE(file-converter-check, [  --enable-file-converter-check  check whether a file converter is installed [default=yes]],
 [if eval "test x${enableval} = xno"; then

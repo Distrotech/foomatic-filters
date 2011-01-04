@@ -1,3 +1,8 @@
+2011-01-04  Till Kamppeter <till.kamppeter@gmail.com>
+
+        * acinclude.m4, configure.ac: General cleanup (as in bugs #609,
+          #610).
+
 2010-12-23  Till Kamppeter <till.kamppeter@gmail.com>
 
 	* README: Corrected several typos. Thanks to Christopher Yeleighton
