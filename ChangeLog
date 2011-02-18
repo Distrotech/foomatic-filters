@@ -1,3 +1,9 @@
+2011-02-18  Till Kamppeter <till.kamppeter@gmail.com>
+
+	* Tagged branch for release 4.0.7.
+
+	* VERSION, README, USAGE, configure.ac: Updated for release 4.0.7.
+
 2011-01-04  Till Kamppeter <till.kamppeter@gmail.com>
 
         * acinclude.m4, configure.ac: General cleanup (as in bugs #609,
