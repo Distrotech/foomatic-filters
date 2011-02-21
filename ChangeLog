@@ -1,3 +1,9 @@
+2011-02-21  Till Kamppeter <till.kamppeter@gmail.com>
+
+	* foomatic-rip.1.in: Corrected typos in the man page for
+	  foomatic-rip. Thanks to Tim Waugh from Red Hat for the patch (bug
+	  #659).
+
 2011-02-18  Till Kamppeter <till.kamppeter@gmail.com>
 
 	* Tagged branch for release 4.0.7.

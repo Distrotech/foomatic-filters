@@ -84,7 +84,7 @@ program is installed, but manual configuration is also possible.
 foomatic-rip does not only apply option settings supplied by the user
 through the command line of the printing command, but also searches
 the entire job for embedded option settings (only PostScript
-jobs). Here not only settings affectimg the whole job are taken into
+jobs). Here not only settings which affect the whole job are taken into
 account, but also settings in the page headers, which are only valid
 for the page where they were found, so applications which produce
 PostScript code with page-specific printer option settings are fully
@@ -141,7 +141,7 @@ Put a line
 .hy 0
 
 into the PPD file, right after \fB*PPD-Adobe: "4.3"\fR, where
-\fI<command>\fR is a command into which you wnat to re-direct the
+\fI<command>\fR is a command into which you want to re-direct the
 output data. Due to the restrictions of PPD files \fB<\fR, \fB>\fR, and
 \fB"\fR are not allowed in the \fI<command>\fR, replace them as
 follows:
@@ -203,7 +203,7 @@ therefore get ignored):
 .BI textfilter: \ <command>
 \fRSelects the filter for input files which are not PostScript or PDF.
 \fI<command>\fR is one of \fBa2ps\fR, \fBenscript\fR, or \fBmpage\fR.
-foomatic-rip auitomatically selects the needed command line options.
+foomatic-rip automatically selects the needed command line options.
 
 .TP 10
 .B debug: 0|1
