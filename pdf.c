@@ -110,13 +110,14 @@ static int pdf_extract_pages(char filename[PATH_MAX],
 {
     char gscommand[4095];
     char filename_arg[PATH_MAX], first_arg[50], last_arg[50];
+    int fd;
 
     _log("Extracting pages %d through %d\n", first, last);
 
     snprintf(filename, PATH_MAX, "%s/foomatic-XXXXXX", temp_dir());
-    mktemp(filename);
-    if (!filename[0])
+    if ((fd = mkstemp(filename)) == -1)
         rip_die(EXIT_STARVED, "Unable to create temporary file!\n");
+    close (fd);
 
     snprintf(filename_arg, PATH_MAX, "-sOutputFile=%s", filename);
     snprintf(first_arg, 50, "-dFirstPage=%d", first);

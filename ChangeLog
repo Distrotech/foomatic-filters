@@ -1,3 +1,17 @@
+2011-03-04  Till Kamppeter <till.kamppeter@gmail.com>
+
+	* configure.ac: Support for libdir in the ./configure script.
+
+	* pdf.c: Use mkstemp() instead of mktemp(). Thanks to Richard
+	  Hughes (hughsient at gmail dot com) for supplying me this patch
+	  from Red Hat.
+
+	* colord.c, colord.h, Makefile.am, configure.ac, foomaticrip.c,
+	  options.c, options.h: Added support for ICC-based color managment.
+	  Both colord and CUPS' ICC-related PPD extensions are supported.
+	  For colord D-Bus is required. Thanks to Richard Hughes (hughsient
+	  at gmail dot com) for the patch.
+
 2011-02-21  Till Kamppeter <till.kamppeter@gmail.com>
 
 	* foomatic-rip.1.in: Corrected typos in the man page for

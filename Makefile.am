@@ -53,6 +53,15 @@ foomatic_rip_SOURCES = \
 	fileconverter.c \
 	fileconverter.h
 
+if BUILD_DBUS
+foomatic_rip_SOURCES += \
+	colord.c \
+	colord.h
+
+foomatic_rip_CFLAGS = $(DBUS_CFLAGS) -DHAVE_DBUS
+foomatic_rip_LDADD = $(DBUS_LIBS)
+endif
+
 AM_CPPFLAGS = -DCONFIG_PATH='"$(sysconfdir)/foomatic"'
 
 # Masks for trash files which have to be removed before packaging Foomatic

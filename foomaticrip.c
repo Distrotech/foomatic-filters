@@ -45,6 +45,9 @@
 #include <signal.h>
 #include <pwd.h>
 
+#ifdef HAVE_DBUS
+  #include "colord.h"
+#endif
 
 /* Logging */
 FILE* logh = NULL;
@@ -1477,13 +1480,45 @@ int main(int argc, char** argv)
                     strlcat(pstoraster, " 0 '' '' 0 '%X'", 256);
                     break;
                 }
+                /* gstoraster is the new name for pstoraster */
+                strlcat(tmp, "/gstoraster", 1024);
+                if (access(tmp, X_OK) == 0) {
+                    havepstoraster = 1;
+                    strlcpy(pstoraster, tmp, 256);
+                    strlcat(pstoraster, " 0 '' '' 0 '%X'", 256);
+                    break;
+                }
             }
             if (!havepstoraster) {
-                strcpy(pstoraster, "gs -dQUIET -dDEBUG -dPARANOIDSAFER -dNOPAUSE -dBATCH -dNOMEDIAATTRS -sDEVICE=cups -sOutputFile=-%W -");
+                const char **qualifier = NULL;
+                const char *icc_profile = NULL;
+
+                qualifier = get_ppd_qualifier();
+                _log("INFO: Using qualifer: '%s.%s.%s'\n",
+                      qualifier[0], qualifier[1], qualifier[2]);
+
+                /* ask colord for the profile */
+                icc_profile = colord_get_profile_for_device_id ((const char *) getenv("PRINTER"),
+                                                                qualifier);
+
+                /* fall back to PPD */
+                if (icc_profile == NULL) {
+                  _log("INFO: need to look in PPD for matching qualifer\n");
+                  icc_profile = get_icc_profile_for_qualifier(qualifier);
+                }
+
+                if (icc_profile != NULL)
+                  snprintf(cmd, sizeof(cmd),
+                           "-sOutputICCProfile='%s'", icc_profile);
+                else
+                  cmd[0] = '\0';
+
+                snprintf(pstoraster, sizeof(pstoraster), "gs -dQUIET -dDEBUG -dPARANOIDSAFER -dNOPAUSE -dBATCH -dNOMEDIAATTRS -sDEVICE=cups %s -sOutputFile=-%W -", cmd);
             }
 
             /* build Ghostscript/CUPS driver command line */
             snprintf(cmd, 1024, "%s | %s", pstoraster, cupsfilter);
+            _log("INFO: Using command line: %s\n", cmd);
 
             /* Set environment variables */
             setenv("PPD", job->ppdfile, 1);

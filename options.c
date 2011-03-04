@@ -31,6 +31,11 @@
 #include <string.h>
 #include <math.h>
 
+/* qualifier -> filename mapping entry */
+typedef struct icc_mapping_entry_s {
+    char *qualifier;
+    char *filename;
+} icc_mapping_entry_t;
 
 /* Values from foomatic keywords in the ppd file */
 char printer_model [256];
@@ -70,6 +75,8 @@ dstr_t *setupprepend;
 dstr_t *pagesetupprepend;
 
 
+list_t *qualifier_data = NULL;
+char **qualifier = NULL;
 
 option_t *optionlist = NULL;
 option_t *optionlist_sorted_by_order = NULL;
@@ -78,7 +85,42 @@ int optionset_alloc, optionset_count;
 char **optionsets;
 
 
+const char * get_icc_profile_for_qualifier(const char **qualifier)
+{
+    char tmp[1024];
+    char *profile = NULL;
+    listitem_t *i;
+    icc_mapping_entry_t *entry;
 
+    /* no data */
+    if (qualifier_data == NULL)
+        goto out;
+
+    /* search list for qualifier */
+    snprintf(tmp, sizeof(tmp), "%s.%s.%s",
+             qualifier[0], qualifier[1], qualifier[2]);
+    for (i = qualifier_data->first; i != NULL; i = i->next) {
+        entry = (icc_mapping_entry_t *) i->data;
+        if (strcmp(entry->qualifier, tmp) == 0) {
+            profile = entry->filename;
+            break;
+        }
+    }
+out:
+    return profile;
+}
+
+/* a selector is a general tri-dotted specification.
+ * The 2nd and 3rd elements of the qualifier are optionally modified by
+ * cupsICCQualifier2 and cupsICCQualifier3:
+ *
+ * [Colorspace].[{cupsICCQualifier2}].[{cupsICCQualifier3}]
+ */
+const char **
+get_ppd_qualifier ()
+{
+  return (const char**) qualifier;
+}
 
 const char * type_name(int type)
 {
@@ -239,6 +281,8 @@ void options_free()
 {
     option_t *opt;
     int i;
+    listitem_t *item;
+    icc_mapping_entry_t *entry;
 
     for (i = 0; i < optionset_count; i++)
         free(optionsets[i]);
@@ -246,6 +290,20 @@ void options_free()
     optionsets = NULL;
     optionset_alloc = 0;
     optionset_count = 0;
+
+    if (qualifier_data) {
+        for (item = qualifier_data->first; item != NULL; item = item->next) {
+            entry = (icc_mapping_entry_t *) item->data;
+            free(entry->qualifier);
+            free(entry->filename);
+            free(entry);
+        }
+        list_free(qualifier_data);
+    }
+
+    for (i=0; i<3; i++)
+      free(qualifier[i]);
+    free(qualifier);
 
     while (optionlist) {
         opt = optionlist;
@@ -1493,6 +1551,9 @@ int optionset_equal(int optset1, int optset2, int exceptPS)
 void read_ppd_file(const char *filename)
 {
     FILE *fh;
+    const char *tmp;
+    char *icc_qual2 = NULL;
+    char *icc_qual3 = NULL;
     char line [256];            /* PPD line length is max 255 (excl. \0) */
     char *p;
     char key[128], name[64], text[64];
@@ -1501,6 +1562,7 @@ void read_ppd_file(const char *filename)
     value_t *val;
     option_t *opt, *current_opt = NULL;
     param_t *param;
+    icc_mapping_entry_t *entry;
 
     fh = fopen(filename, "r");
     if (!fh) {
@@ -1511,6 +1573,7 @@ void read_ppd_file(const char *filename)
 
     dstrassure(value, 256);
 
+    qualifier_data = list_create();
     while (!feof(fh)) {
         fgets(line, 256, fh);
 
@@ -1691,10 +1754,6 @@ void read_ppd_file(const char *filename)
         else if (!prefixcmp(key, "Default")) {
             /* Default<option>: <value> */
 
-            /* TODO *DefaultColorSpace is a keyword and doesn't need to be extraced, does it? */
-            if (!strcmp(key, "DefaultColorSpace"))
-                continue;
-
             opt = assure_option(&key[7]);
             val = option_assure_value(opt, optionset("default"));
             free(val->value);
@@ -1768,6 +1827,21 @@ void read_ppd_file(const char *filename)
             /*  "*FoomaticRIPOptionsEntityMaxLength: <length>" */
             sscanf(value->data, "%d", &optionsentitymaxlen);
         }
+        else if (!strcmp(key, "cupsICCProfile")) {
+            /*  "*cupsICCProfile: <qualifier/Title> <filename>" */
+            entry = calloc(1, sizeof(icc_mapping_entry_t));
+            entry->qualifier = strdup(name);
+            entry->filename = strdup(value->data);
+            list_append (qualifier_data, entry);
+        }
+        else if (!strcmp(key, "cupsICCQualifier2")) {
+            /*  "*cupsICCQualifier2: <value>" */
+            icc_qual2 = strdup(value->data);
+        }
+        else if (!strcmp(key, "cupsICCQualifier3")) {
+            /*  "*cupsICCQualifier3: <value>" */
+            icc_qual3 = strdup(value->data);
+        }
     }
 
     fclose(fh);
@@ -1786,6 +1860,36 @@ void read_ppd_file(const char *filename)
                defined in the PPD file */
             option_set_value(opt, optionset("default"), opt->choicelist->value);
     }
+
+    /* create qualifier for this PPD */
+    qualifier = calloc(4, sizeof(char*));
+
+    /* get colorspace */
+    tmp = option_get_value(find_option("ColorSpace"), optionset("default"));
+    if (tmp == NULL)
+      tmp = option_get_value(find_option("ColorModel"), optionset("default"));
+    if (tmp == NULL)
+      tmp = "";
+    qualifier[0] = strdup(tmp);
+
+    /* get selector2 */
+    if (icc_qual2 == NULL)
+        icc_qual2 = strdup("MediaType");
+    tmp = option_get_value(find_option(icc_qual2), optionset("default"));
+    if (tmp == NULL)
+      tmp = "";
+    qualifier[1] = strdup(tmp);
+
+    /* get selectors */
+    if (icc_qual3 == NULL)
+        icc_qual3 = strdup("Resolution");
+    tmp = option_get_value(find_option(icc_qual3), optionset("default"));
+    if (tmp == NULL)
+      tmp = "";
+    qualifier[2] = strdup(tmp);
+
+    free (icc_qual2);
+    free (icc_qual3);
 }
 
 int ppd_supports_pdf()

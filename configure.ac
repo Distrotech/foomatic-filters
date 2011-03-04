@@ -16,6 +16,9 @@ AC_PROG_INSTALL
 AC_PROG_LN_S
 AC_PROG_MAKE_SET
 
+# Allows per-target compilation flags
+AM_PROG_CC_C_O
+
 # Checks for libraries.
 AC_CHECK_LIB(m, roundf)
 
@@ -43,7 +46,7 @@ AC_CHECK_FUNCS([dup2 getcwd gethostname regcomp setenv strcasecmp strchr strcspn
 
 
 ETCSEARCHPATH=${prefix}/etc:/usr/etc:/usr/local/etc
-LIBSEARCHPATH=${prefix}/lib:${prefix}/lib64:/usr/lib:/usr/lib64:/usr/local/lib:${prefix}/libexec:/usr/libexec:/usr/local/libexec
+LIBSEARCHPATH=${libdir}:/usr/lib:/usr/lib64:/usr/local/lib:${prefix}/libexec:/usr/libexec:/usr/local/libexec
 
 uname=`uname`
 uversion=`uname -r | sed -e '1,$s/[[^0-9]]//g'`
@@ -118,6 +121,14 @@ AC_ARG_WITH(file-converter,[  --with-file-converter=[a2ps|enscript|mpage]
 	FILECONVERTER="")
 AC_MSG_RESULT([file-converter: $FILECONVERTER])
 AC_SUBST(FILECONVERTER)
+
+# Use DBUS
+AC_ARG_ENABLE(dbus, AS_HELP_STRING([--enable-dbus],[enable DBus CMS code]),
+	      enable_dbus=$enableval,enable_dbus=yes)
+AM_CONDITIONAL(BUILD_DBUS, test x$enable_dbus = xyes)
+if test x$enable_dbus = xyes; then
+	PKG_CHECK_MODULES(DBUS, dbus-1)
+fi
 
 if test "${NOCONVERTERCHECK}" = "" -a "${A2PS}" = "" -a "${ENSCRIPT}" = "" -a "${MPAGE}" = "" -a "${TEXTTOPS}" = "" ; then
 	AC_MSG_ERROR([cannot find a2ps, enscript, mpage, or CUPS' texttops.  You need to have at least one installed]);
