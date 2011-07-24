@@ -126,7 +126,7 @@ static int pdf_extract_pages(char filename[PATH_MAX],
     else
         first_arg[0] = '\0';
 
-    snprintf(gscommand, 4095, "%s -q -dNOPAUSE -dBATCH -dPARANOIDSAFER"
+    snprintf(gscommand, 4095, "%s -q -dNOPAUSE -dBATCH -dPARANOIDSAFER -dNOINTERPOLATE"
 	     "-sDEVICE=pdfwrite %s %s %s %s",
 	     gspath, filename_arg, first_arg, last_arg, pdffilename);
 

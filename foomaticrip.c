@@ -1048,11 +1048,17 @@ int print_file(const char *filename, int convert)
 		   "/cups/filter") which CUPS adds to the beginning of $PATH,
 		   so that Poppler's/XPDF's pdftops filter is called and not
 		   the one of CUPS, as the one of CUPS has a different command
-		   line and does undesired page management operations */
+		   line and does undesired page management operations.
+		   The "-dNOINTERPOLATE" makes Ghostscript rendering
+		   significantly faster.
+		   Note that Ghostscript's "pswrite" output device turns text
+		   into bitmaps and therefore produces huge PostScript files.
+		   In addition, this output device is deprecated. Therefore
+		   we use "ps2write". */
                 snprintf(pdf2ps_cmd, PATH_MAX,
 			 "%spdftops -level2 -origpagesizes %s - 2>/dev/null || "
-			 "gs -q -sstdout=%%stderr -sDEVICE=pswrite -sOutputFile=- "
-			 "-dBATCH -dNOPAUSE -dPARANOIDSAFER %s 2>/dev/null",
+			 "gs -q -sstdout=%%stderr -sDEVICE=ps2write -sOutputFile=- "
+			 "-dBATCH -dNOPAUSE -dPARANOIDSAFER -dNOINTERPOLATE %s 2>/dev/null",
 			 (spooler == SPOOLER_CUPS ?
 			  "PATH=${PATH#*/cups/filter:} " : ""),
 			 filename, filename);
@@ -1239,8 +1245,11 @@ int main(int argc, char** argv)
     }
 
     /* Check for LPRng first so we do not pick up bogus ppd files by the -ppd option */
-    if (arglist_remove_flag(arglist, "--lprng"))
-        spooler = SPOOLER_LPRNG;
+    if (spooler != SPOOLER_CUPS && spooler != SPOOLER_PPR && 
+	spooler != SPOOLER_PPR_INT) {
+        if (arglist_remove_flag(arglist, "--lprng"))
+            spooler = SPOOLER_LPRNG;
+    }
 
     /* 'PRINTCAP_ENTRY' environment variable is : LPRng
        the :ppd=/path/to/ppdfile printcap entry should be used */
@@ -1262,96 +1271,104 @@ int main(int argc, char** argv)
         }
     }
 
-    /* PPD file name given via the command line
-       allow duplicates, and use the last specified one */
-    if (spooler != SPOOLER_LPRNG) {
-        while ((str = arglist_get_value(arglist, "-p"))) {
-            strncpy(job->ppdfile, str, 256);
-            arglist_remove(arglist, "-p");
-        }
-    }
-    while ((str = arglist_get_value(arglist, "--ppd"))) {
-        strncpy(job->ppdfile, str, 256);
-        arglist_remove(arglist, "--ppd");
-    }
-
-    /* Check for LPD/GNUlpr by typical options which the spooler puts onto
-       the filter's command line (options "-w": text width, "-l": text
-       length, "-i": indent, "-x", "-y": graphics size, "-c": raw printing,
-       "-n": user name, "-h": host name) */
-    if ((str = arglist_get_value(arglist, "-h"))) {
-        if (spooler != SPOOLER_GNULPR && spooler != SPOOLER_LPRNG)
-            spooler = SPOOLER_LPD;
-        strncpy(job->host, str, 127);
-        job->host[127] = '\0';
-        arglist_remove(arglist, "-h");
-    }
-    if ((str = arglist_get_value(arglist, "-n"))) {
-        if (spooler != SPOOLER_GNULPR && spooler != SPOOLER_LPRNG)
-            spooler = SPOOLER_LPD;
-
-        strncpy(job->user, str, 127);
-        job->user[127] = '\0';
-        arglist_remove(arglist, "-n");
-    }
-    if (arglist_remove(arglist, "-w") ||
-        arglist_remove(arglist, "-l") ||
-        arglist_remove(arglist, "-x") ||
-        arglist_remove(arglist, "-y") ||
-        arglist_remove(arglist, "-i") ||
-        arglist_remove_flag(arglist, "-c")) {
+    /* CUPS calls foomatic-rip only with 5 or 6 positional parameters,
+       not with named options, like for example "-p <string>". Also PPR
+       does not used named options. */
+    if (spooler != SPOOLER_CUPS && spooler != SPOOLER_PPR && 
+	spooler != SPOOLER_PPR_INT) {
+        /* Check for LPD/GNUlpr by typical options which the spooler puts onto
+           the filter's command line (options "-w": text width, "-l": text
+           length, "-i": indent, "-x", "-y": graphics size, "-c": raw printing,
+           "-n": user name, "-h": host name) */
+        if ((str = arglist_get_value(arglist, "-h"))) {
             if (spooler != SPOOLER_GNULPR && spooler != SPOOLER_LPRNG)
                 spooler = SPOOLER_LPD;
-    }
-    /* LPRng delivers the option settings via the "-Z" argument */
-    if ((str = arglist_get_value(arglist, "-Z"))) {
-        spooler = SPOOLER_LPRNG;
-        dstrcatf(job->optstr, "%s ", str);
-        arglist_remove(arglist, "-Z");
-    }
-    /* Job title and options for stock LPD */
-    if ((str = arglist_get_value(arglist, "-j")) || (str = arglist_get_value(arglist, "-J"))) {
-        strncpy_omit(job->title, str, 128, omit_shellescapes);
-        if (spooler == SPOOLER_LPD)
-             dstrcatf(job->optstr, "%s ", job->title);
-         if (!arglist_remove(arglist, "-j"))
-            arglist_remove(arglist, "-J");
-    }
-    /* Check for CPS */
-    if (arglist_remove_flag(arglist, "--cps") > 0)
-        spooler = SPOOLER_CPS;
+            strncpy(job->host, str, 127);
+            job->host[127] = '\0';
+            arglist_remove(arglist, "-h");
+        }
+        if ((str = arglist_get_value(arglist, "-n"))) {
+            if (spooler != SPOOLER_GNULPR && spooler != SPOOLER_LPRNG)
+                spooler = SPOOLER_LPD;
 
-    /* Options for spooler-less printing, CPS, or PDQ */
-    while ((str = arglist_get_value(arglist, "-o"))) {
-        strncpy_omit(tmp, str, 1024, omit_shellescapes);
-        dstrcatf(job->optstr, "%s ", tmp);
-        arglist_remove(arglist, "-o");
-        /* If we don't print as PPR RIP or as CPS filter, we print
-           without spooler (we check for PDQ later) */
-        if (spooler != SPOOLER_PPR && spooler != SPOOLER_CPS)
-            spooler = SPOOLER_DIRECT;
+            strncpy(job->user, str, 127);
+            job->user[127] = '\0';
+            arglist_remove(arglist, "-n");
+        }
+        if (arglist_remove(arglist, "-w") ||
+            arglist_remove(arglist, "-l") ||
+            arglist_remove(arglist, "-x") ||
+            arglist_remove(arglist, "-y") ||
+            arglist_remove(arglist, "-i") ||
+            arglist_remove_flag(arglist, "-c")) {
+                if (spooler != SPOOLER_GNULPR && spooler != SPOOLER_LPRNG)
+                    spooler = SPOOLER_LPD;
+        }
+        /* LPRng delivers the option settings via the "-Z" argument */
+        if ((str = arglist_get_value(arglist, "-Z"))) {
+            spooler = SPOOLER_LPRNG;
+            dstrcatf(job->optstr, "%s ", str);
+            arglist_remove(arglist, "-Z");
+        }
+        /* Job title and options for stock LPD */
+        if ((str = arglist_get_value(arglist, "-j")) || (str = arglist_get_value(arglist, "-J"))) {
+            strncpy_omit(job->title, str, 128, omit_shellescapes);
+            if (spooler == SPOOLER_LPD)
+                 dstrcatf(job->optstr, "%s ", job->title);
+             if (!arglist_remove(arglist, "-j"))
+                arglist_remove(arglist, "-J");
+        }
+
+        /* Check for CPS */
+        if (arglist_remove_flag(arglist, "--cps") > 0)
+            spooler = SPOOLER_CPS;
+
+        /* PPD file name given via the command line
+           allow duplicates, and use the last specified one */
+        if (spooler != SPOOLER_GNULPR && spooler != SPOOLER_LPRNG &&
+	    spooler != SPOOLER_LPD) {
+            while ((str = arglist_get_value(arglist, "-p"))) {
+                strncpy(job->ppdfile, str, 256);
+                arglist_remove(arglist, "-p");
+            }
+	    while ((str = arglist_get_value(arglist, "--ppd"))) {
+	        strncpy(job->ppdfile, str, 256);
+	        arglist_remove(arglist, "--ppd");
+	    }
+        }
+
+        /* Options for spooler-less printing, CPS, or PDQ */
+        while ((str = arglist_get_value(arglist, "-o"))) {
+            strncpy_omit(tmp, str, 1024, omit_shellescapes);
+            dstrcatf(job->optstr, "%s ", tmp);
+            arglist_remove(arglist, "-o");
+            /* If we don't print as PPR RIP or as CPS filter, we print
+               without spooler (we check for PDQ later) */
+            if (spooler != SPOOLER_PPR && spooler != SPOOLER_CPS)
+                spooler = SPOOLER_DIRECT;
+        }
+
+        /* Printer for spooler-less printing or PDQ */
+        if ((str = arglist_get_value(arglist, "-d"))) {
+            strncpy_omit(job->printer, str, 256, omit_shellescapes);
+            arglist_remove(arglist, "-d");
+        }
+
+        /* Printer for spooler-less printing, PDQ, or LPRng */
+        if ((str = arglist_get_value(arglist, "-P"))) {
+            strncpy_omit(job->printer, str, 256, omit_shellescapes);
+            arglist_remove(arglist, "-P");
+        }
+
+        /* Were we called from a PDQ wrapper? */
+        if (arglist_remove_flag(arglist, "--pdq"))
+            spooler = SPOOLER_PDQ;
+
+        /* Were we called to build the PDQ driver declaration file? */
+        genpdqfile = check_pdq_file(arglist);
+        if (genpdqfile)
+            spooler = SPOOLER_PDQ;
     }
-
-    /* Printer for spooler-less printing or PDQ */
-    if ((str = arglist_get_value(arglist, "-d"))) {
-        strncpy_omit(job->printer, str, 256, omit_shellescapes);
-        arglist_remove(arglist, "-d");
-    }
-
-    /* Printer for spooler-less printing, PDQ, or LPRng */
-    if ((str = arglist_get_value(arglist, "-P"))) {
-        strncpy_omit(job->printer, str, 256, omit_shellescapes);
-        arglist_remove(arglist, "-P");
-    }
-
-    /* Were we called from a PDQ wrapper? */
-    if (arglist_remove_flag(arglist, "--pdq"))
-        spooler = SPOOLER_PDQ;
-
-    /* Were we called to build the PDQ driver declaration file? */
-    genpdqfile = check_pdq_file(arglist);
-    if (genpdqfile)
-        spooler = SPOOLER_PDQ;
 
     /* spooler specific initialization */
     switch (spooler) {
@@ -1513,7 +1530,7 @@ int main(int argc, char** argv)
                 else
                   cmd[0] = '\0';
 
-                snprintf(pstoraster, sizeof(pstoraster), "gs -dQUIET -dDEBUG -dPARANOIDSAFER -dNOPAUSE -dBATCH -dNOMEDIAATTRS -sDEVICE=cups %s -sOutputFile=-%W -", cmd);
+                snprintf(pstoraster, sizeof(pstoraster), "gs -dQUIET -dDEBUG -dPARANOIDSAFER -dNOPAUSE -dBATCH -dNOINTERPOLATE -dNOMEDIAATTRS -sDEVICE=cups %s -sOutputFile=- -", cmd);
             }
 
             /* build Ghostscript/CUPS driver command line */

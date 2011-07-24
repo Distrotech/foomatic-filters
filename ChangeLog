@@ -1,3 +1,20 @@
+2011-07-24  Till Kamppeter <till.kamppeter@gmail.com>
+
+	* foomaticrip.c: Removed stray characters from "pstoraster"
+	  Ghostscript command line.
+
+	* foomaticrip.c, pdf.c, renderer.c: Added "-dNOINTERPOLATE" to the
+	  Ghostscript command lines as this makes Ghostscript rendering
+	  the pages significantly faster. Use "ps2write" instead of "pswrite"
+	  as PostScript output device as Ghostscript produced huge output
+	  files with "pswrite" (and "pswrite" is also deprecated now).
+
+	* foomaticrip.c: SECURITY FIX: It was possible to make CUPS executing
+	  arbitrary commands as the system user "lp" when foomatic-rip was
+	  used as CUPS filter. Fixed by not parsing named options (like
+	  "--ppd lj.ppd") when foomatic-rip is running as CUPS filter, as
+	  CUPS does not supply named options to their filters.
+
 2011-03-04  Till Kamppeter <till.kamppeter@gmail.com>
 
 	* configure.ac: Support for libdir in the ./configure script.

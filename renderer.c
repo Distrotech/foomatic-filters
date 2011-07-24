@@ -43,7 +43,7 @@ int test_gs_output_redirection()
     char output[10] = "";
 
     snprintf(gstestcommand, PATH_MAX, "%s -dQUIET -dPARANOIDSAFER -dNOPAUSE "
-             "-dBATCH -dNOMEDIAATTRS -sDEVICE=pswrite -sstdout=%%stderr "
+             "-dBATCH -dNOMEDIAATTRS -sDEVICE=ps2write -sstdout=%%stderr "
              "-sOutputFile=/dev/null -c '(hello\n) print flush' 2>&1", gspath);
 
     FILE *pd = popen(gstestcommand, "r");
