@@ -1,3 +1,9 @@
+2011-02-18  Till Kamppeter <till.kamppeter@gmail.com>
+
+	* Tagged branch for release 4.0.8.
+
+	* VERSION, README, USAGE, configure.ac: Updated for release 4.0.8.
+
 2011-07-24  Till Kamppeter <till.kamppeter@gmail.com>
 
 	* foomaticrip.c: Removed stray characters from "pstoraster"
