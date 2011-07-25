@@ -1514,9 +1514,11 @@ int main(int argc, char** argv)
                 _log("INFO: Using qualifer: '%s.%s.%s'\n",
                       qualifier[0], qualifier[1], qualifier[2]);
 
+#ifdef HAVE_DBUS
                 /* ask colord for the profile */
                 icc_profile = colord_get_profile_for_device_id ((const char *) getenv("PRINTER"),
                                                                 qualifier);
+#endif
 
                 /* fall back to PPD */
                 if (icc_profile == NULL) {

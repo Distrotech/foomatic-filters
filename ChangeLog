@@ -1,4 +1,10 @@
-2011-02-18  Till Kamppeter <till.kamppeter@gmail.com>
+2011-07-25  Till Kamppeter <till.kamppeter@gmail.com>
+
+	* foomaticrip.c: Fixed build of foomatic-rip on systems without
+	  D-Bus. Thanks to Richard Hughes (hughsient at gmail dot com) for
+	  the quick fix.
+
+2011-07-25  Till Kamppeter <till.kamppeter@gmail.com>
 
 	* Tagged branch for release 4.0.8.
 
