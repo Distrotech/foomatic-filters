@@ -1,3 +1,14 @@
+2011-08-18  Till Kamppeter <till.kamppeter@gmail.com>
+
+	* foomaticrip.c, renderer.c: SECURITY FIX: Use the mktemp shell
+	  command/mkstemp() function to create the debug log file and the
+	  renderer input data file (both files only generated when
+	  foomatic-rip is un in debug mode) with file names with an
+	  unpredictable part. The names are /tmp/foomatic-rip-XXXXXX.log and
+	  /tmp/foomatic-rip-YYYYYY.ps where the XXXXXX and YYYYYY are
+	  replaced by random strings. Thanks to Tim Waugh from Red Hat for
+	  for the patch (bug #936, CVE-2011-2924).
+
 2011-07-25  Till Kamppeter <till.kamppeter@gmail.com>
 
 	* Tagged branch for release 4.0.9.

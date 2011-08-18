@@ -1188,9 +1188,13 @@ int main(int argc, char** argv)
     if (arglist_remove_flag(arglist, "--debug"))
         debug = 1;
 
-    if (debug)
-        logh = fopen(LOG_FILE ".log", "w"); /* insecure, use for debugging only */
-    else if (quiet && !verbose)
+    if (debug) {
+	int fd = mkstemp (LOG_FILE "-XXXXXX.log");
+	if (fd != -1)
+	    logh = fdopen(fd, "w");
+	else
+	    logh = stderr;
+    } else if (quiet && !verbose)
         logh = NULL; /* Quiet mode, do not log */
     else
         logh = stderr; /* Default: log to stderr */
@@ -1633,11 +1637,6 @@ int main(int argc, char** argv)
         /* Start the documentation page generator */
         /* TODO tbd */
     }
-
-    /* In debug mode save the data supposed to be fed into the
-       renderer also into a file, reset the file here */
-    if (debug)
-        run_system_process("reset-file", "> " LOG_FILE ".ps");
 
     filename = strtok_r(filelist->data, " ", &p);
     while (filename) {

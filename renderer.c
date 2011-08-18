@@ -434,7 +434,7 @@ int exec_kid3(FILE *in, FILE *out, void *user_arg)
         }
 
         /* Save the data supposed to be fed into the renderer also into a file*/
-        dstrprepend(commandline, "tee -a " LOG_FILE ".ps | ( ");
+        dstrprepend(commandline, "tee $(mktemp " LOG_FILE "-XXXXXX.ps) | ( ");
         dstrcat(commandline, ")");
     }
 
