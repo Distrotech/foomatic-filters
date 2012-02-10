@@ -2,7 +2,7 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ([2.61])
-AC_INIT(foomatic-rip, [4.0.9])
+AC_INIT(foomatic-rip, [4.0.10])
 AM_INIT_AUTOMAKE([no-define])
 AC_CONFIG_SRCDIR([options.c])
 
