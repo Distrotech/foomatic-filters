@@ -1,5 +1,15 @@
 2012-02-10  Till Kamppeter <till.kamppeter@gmail.com>
 
+	* foomaticrip.c: If incoming PDF needs to be converted to PostScript
+	  due to the filter command line not being a standard Ghostscript
+	  command line, no separate PDF command line being supplied, or
+	  options in the PPD being implemented by PostScript code, use
+	  preferrably Ghostscript (with the "ps2write" device) for this
+	  conversion as Ghostscript is better optimized for printing and
+	  has a more sophisticated color management compared to Poppler.
+
+2012-02-10  Till Kamppeter <till.kamppeter@gmail.com>
+
 	* Tagged branch for release 4.0.10.
 
 	* VERSION, README, USAGE, configure.ac: Updated for release 4.0.10.

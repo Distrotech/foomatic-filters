@@ -1054,14 +1054,17 @@ int print_file(const char *filename, int convert)
 		   Note that Ghostscript's "pswrite" output device turns text
 		   into bitmaps and therefore produces huge PostScript files.
 		   In addition, this output device is deprecated. Therefore
-		   we use "ps2write". */
+		   we use "ps2write".
+		   We give priority to Ghostscript here and use Poppler if
+		   Ghostscript is not available. */
                 snprintf(pdf2ps_cmd, PATH_MAX,
-			 "%spdftops -level2 -origpagesizes %s - 2>/dev/null || "
 			 "gs -q -sstdout=%%stderr -sDEVICE=ps2write -sOutputFile=- "
-			 "-dBATCH -dNOPAUSE -dPARANOIDSAFER -dNOINTERPOLATE %s 2>/dev/null",
+			 "-dBATCH -dNOPAUSE -dPARANOIDSAFER -dNOINTERPOLATE %s 2>/dev/null || "
+			 "%spdftops -level2 -origpagesizes %s - 2>/dev/null",
+			 filename,
 			 (spooler == SPOOLER_CUPS ?
 			  "PATH=${PATH#*/cups/filter:} " : ""),
-			 filename, filename);
+			 filename);
 
                 renderer_pid = start_system_process("pdf-to-ps", pdf2ps_cmd, &in, &out);
 
