@@ -1,3 +1,17 @@
+2012-03-02  Till Kamppeter <till.kamppeter@gmail.com>
+
+	* Tagged branch for release 4.0.13.
+
+	* VERSION, README, USAGE, configure.ac: Updated for release 4.0.13.
+
+2012-03-02  Lars Uebernickel <lars@uebernic.de>
+
+	* spooler.c: When using CUPS support option strings (5th command
+	  line argument to a CUPS filter) of more than 512 bytes. For PPD
+	  files with very many options this string can get very long (Thanks
+	  to Yoshito Nishihara, yoshito dot nishihara at nts dot ricoh dot co
+	  dot jp for reporting this).
+
 2012-02-10  Till Kamppeter <till.kamppeter@gmail.com>
 
 	* Tagged branch for release 4.0.12.

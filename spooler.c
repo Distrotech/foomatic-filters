@@ -249,7 +249,8 @@ void init_cups(list_t *arglist, dstr_t *filelist, jobparams_t *job)
     char cups_user [128];
     char cups_jobtitle [128];
     char cups_copies [128];
-    char cups_options [512];
+    int cups_options_len;
+    char *cups_options;
     char cups_filename [256];
     char texttopspath[PATH_MAX];
 
@@ -270,7 +271,10 @@ void init_cups(list_t *arglist, dstr_t *filelist, jobparams_t *job)
     strncpy_omit(cups_user, arglist_get(arglist, 1), 128, omit_shellescapes);
     strncpy_omit(cups_jobtitle, arglist_get(arglist, 2), 128, omit_shellescapes);
     strncpy_omit(cups_copies, arglist_get(arglist, 3), 128, omit_shellescapes);
-    strncpy_omit(cups_options, arglist_get(arglist, 4), 512, omit_shellescapes);
+
+    cups_options_len = strlen(arglist_get(arglist, 4));
+    cups_options = malloc(cups_options_len + 1);
+    strncpy_omit(cups_options, arglist_get(arglist, 4), cups_options_len, omit_shellescapes);
 
     /* Common job parameters */
     strcpy(job->id, cups_jobid);
@@ -312,6 +316,8 @@ void init_cups(list_t *arglist, dstr_t *filelist, jobparams_t *job)
                     texttopspath, cups_jobid, cups_user, cups_jobtitle, cups_copies, cups_options);
         }
     }
+
+    free(cups_options);
 }
 
 void init_solaris(list_t *arglist, dstr_t *filelist, jobparams_t *job)
