@@ -1043,28 +1043,33 @@ int print_file(const char *filename, int convert)
 		    filename = tmpfilename;
 		}
 
-		/* If the spooler is CUPS we remove the /usr/lib/cups/filter
-		   (CUPS filter directory, can be different, but ends with
-		   "/cups/filter") which CUPS adds to the beginning of $PATH,
-		   so that Poppler's/XPDF's pdftops filter is called and not
-		   the one of CUPS, as the one of CUPS has a different command
-		   line and does undesired page management operations.
+		/* If the spooler is CUPS we use the pdftops filter of CUPS,
+		   to have always the same PDF->PostScript conversion method
+		   in the whole printing environment, including incompatibility
+		   workarounds in the CUPS filter (so this way we also have to
+		   maintain all these quirks only once).
+
 		   The "-dNOINTERPOLATE" makes Ghostscript rendering
 		   significantly faster.
+
 		   Note that Ghostscript's "pswrite" output device turns text
 		   into bitmaps and therefore produces huge PostScript files.
 		   In addition, this output device is deprecated. Therefore
 		   we use "ps2write".
+
 		   We give priority to Ghostscript here and use Poppler if
 		   Ghostscript is not available. */
-                snprintf(pdf2ps_cmd, PATH_MAX,
-			 "gs -q -sstdout=%%stderr -sDEVICE=ps2write -sOutputFile=- "
-			 "-dBATCH -dNOPAUSE -dPARANOIDSAFER -dNOINTERPOLATE %s 2>/dev/null || "
-			 "%spdftops -level2 -origpagesizes %s - 2>/dev/null",
-			 filename,
-			 (spooler == SPOOLER_CUPS ?
-			  "PATH=${PATH#*/cups/filter:} " : ""),
-			 filename);
+		if (spooler == SPOOLER_CUPS)
+		  snprintf(pdf2ps_cmd, PATH_MAX,
+			   "pdftops '%s' '%s' '%s' '%s' '%s' '%s'",
+			   job->id, job->user, job->title, "1", job->optstr,
+			   filename);
+		else
+		  snprintf(pdf2ps_cmd, PATH_MAX,
+			   "gs -q -sstdout=%%stderr -sDEVICE=ps2write -sOutputFile=- "
+			   "-dBATCH -dNOPAUSE -dPARANOIDSAFER -dNOINTERPOLATE %s 2>/dev/null || "
+			   "pdftops -level2 -origpagesizes %s - 2>/dev/null",
+			   filename, filename);
 
                 renderer_pid = start_system_process("pdf-to-ps", pdf2ps_cmd, &in, &out);
 

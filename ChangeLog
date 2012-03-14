@@ -1,3 +1,11 @@
+2012-03-14  Till Kamppeter <till.kamppeter@gmail.com>
+
+	* foomaticrip.c: If the input data is PDF but the driver requires
+	  PostScript, use the pdftops CUPS filter when CUPS is the spooler.
+	  This way we always use the same method to convert PDF to PostScript
+	  in the whole system, including any workarounds applied in the CUPS
+	  filter.
+
 2012-03-02  Till Kamppeter <till.kamppeter@gmail.com>
 
 	* Tagged branch for release 4.0.13.
