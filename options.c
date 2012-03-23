@@ -1901,12 +1901,16 @@ int ppd_supports_pdf()
     {
         choice_t *choice;
 
-        if (!option_is_ps_command(opt))
-            continue;
+        if (!option_is_ps_command(opt) || option_is_composite(opt) ||
+	    (opt->type == TYPE_NONE))
+	  continue;
 
         for (choice = opt->choicelist; choice; choice = choice->next)
-            if (contains_active_postscript(choice->command))
-                return 0;
+	  if (contains_active_postscript(choice->command)) {
+	    _log("  PostScript option found: %s=%s: \"%s\"\n",
+		 opt->name, choice->value, choice->command);
+	    return 0;
+	  }
     }
 
     if (!isempty(cmd_pdf))
@@ -1920,6 +1924,7 @@ int ppd_supports_pdf()
         return 1;
     }
 
+    _log("  Neither PDF renderer command line nor Ghostscript-based renderer command line found\n");
     return 0;
 }
 

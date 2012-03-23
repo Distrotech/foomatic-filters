@@ -1,3 +1,11 @@
+2012-03-23  Till Kamppeter <till.kamppeter@gmail.com>
+
+	* options.c: Improved check whether a driver works with PDF input data:
+	  Do not take into account bogus options which appear due to bugs in
+	  PPD files (type is TYPE_NONE) or composite options and in addition
+	  add debug output to show the reason for the decision to convert to
+	  PostScript (Ubuntu bugs #953962 and #960989).
+
 2012-03-14  Till Kamppeter <till.kamppeter@gmail.com>
 
 	* Tagged branch for release 4.0.14.
