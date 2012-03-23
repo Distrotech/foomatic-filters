@@ -1,5 +1,9 @@
 2012-03-23  Till Kamppeter <till.kamppeter@gmail.com>
 
+	* Tagged branch for release 4.0.15.
+
+	* VERSION, README, USAGE, configure.ac: Updated for release 4.0.15.
+
 	* options.c: Improved check whether a driver works with PDF input data:
 	  Do not take into account bogus options which appear due to bugs in
 	  PPD files (type is TYPE_NONE) or composite options and in addition
