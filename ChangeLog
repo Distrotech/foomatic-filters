@@ -1,5 +1,9 @@
 2012-06-18  Till Kamppeter <till.kamppeter@gmail.com>
 
+	* Tagged branch for release 4.0.16.
+
+	* VERSION, README, USAGE, configure.ac: Updated for release 4.0.16.
+
 	* foomaticrip.c: Fixed wrong access to command line option list which
 	  prevented the command line options being passed on to the pdftops
 	  CUPS filter when incoming PDF is converted to PostScript (Ubuntu
