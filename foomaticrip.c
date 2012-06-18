@@ -1062,7 +1062,7 @@ int print_file(const char *filename, int convert)
 		if (spooler == SPOOLER_CUPS)
 		  snprintf(pdf2ps_cmd, PATH_MAX,
 			   "pdftops '%s' '%s' '%s' '%s' '%s' '%s'",
-			   job->id, job->user, job->title, "1", job->optstr,
+			   job->id, job->user, job->title, "1", job->optstr->data,
 			   filename);
 		else
 		  snprintf(pdf2ps_cmd, PATH_MAX,

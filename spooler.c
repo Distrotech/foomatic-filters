@@ -274,7 +274,7 @@ void init_cups(list_t *arglist, dstr_t *filelist, jobparams_t *job)
 
     cups_options_len = strlen(arglist_get(arglist, 4));
     cups_options = malloc(cups_options_len + 1);
-    strncpy_omit(cups_options, arglist_get(arglist, 4), cups_options_len, omit_shellescapes);
+    strncpy_omit(cups_options, arglist_get(arglist, 4), cups_options_len + 1, omit_shellescapes);
 
     /* Common job parameters */
     strcpy(job->id, cups_jobid);

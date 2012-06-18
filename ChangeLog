@@ -1,3 +1,16 @@
+2012-06-18  Till Kamppeter <till.kamppeter@gmail.com>
+
+	* foomaticrip.c: Fixed wrong access to command line option list which
+	  prevented the command line options being passed on to the pdftops
+	  CUPS filter when incoming PDF is converted to PostScript (Ubuntu
+	  bug #1002699).
+
+2012-06-06  Till Kamppeter <till.kamppeter@gmail.com>
+
+	* spooler.c: Fixed off-by-one bug which has cut off the last character
+	  of the option string for CUPS (5th command line argument) and so made
+	  the last option setting not being applied (Ubuntu bug #1003194).
+
 2012-03-23  Till Kamppeter <till.kamppeter@gmail.com>
 
 	* Tagged branch for release 4.0.15.
