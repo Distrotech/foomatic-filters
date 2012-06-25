@@ -690,8 +690,10 @@ char * paramvalues_to_string(option_t *opt, char **paramvalues)
     dstr_t *res = create_dstr();
     char *data;
 
-    if (opt->param_count < 1)
+    if (opt->param_count < 1) {
+        free (res);
         return NULL;
+    }
 
     if (opt->param_count == 1) {
         param = opt->paramlist;

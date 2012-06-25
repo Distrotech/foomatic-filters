@@ -319,6 +319,8 @@ static int write_merged_jcl_options(FILE *stream,
 		    fprintf(stream, "%s\n", *optsp2);
 	}
         if (optsp1 != original_opts) p = *optsp1;
+        if (!p)
+            _log("write_merged_jcl_options() dereferences NULL pointer p\n");
         if (jcl_options_find_keyword(opts, p, jclstr))
 	  fprintf(stream, "%s\n", jcl_options_find_keyword(opts, p, jclstr));
 	else
@@ -413,23 +415,28 @@ int exec_kid3(FILE *in, FILE *out, void *user_arg)
     dstrcpy(commandline, (const char *)user_arg);
 
     kid4 = start_process("kid4", exec_kid4, NULL, &kid4in, NULL);
-    if (kid4 < 0)
+    if (kid4 < 0) {
+        free_dstr(commandline);
         return EXIT_PRNERR_NORETRY_BAD_SETTINGS;
+    }
 
     if (in && dup2(fileno(in), fileno(stdin)) < 0) {
         _log("kid3: Could not dup stdin\n");
         fclose(kid4in);
+        free_dstr(commandline);
         return EXIT_PRNERR_NORETRY_BAD_SETTINGS;
     }
     if (dup2(fileno(kid4in), fileno(stdout)) < 0) {
         _log("kid3: Could not dup stdout to kid4\n");
         fclose(kid4in);
+        free_dstr(commandline);
         return EXIT_PRNERR_NORETRY_BAD_SETTINGS;
     }
     if (debug)
     {
         if (!redirect_log_to_stderr()) {
             fclose(kid4in);
+            free_dstr(commandline);
             return EXIT_PRNERR_NORETRY_BAD_SETTINGS;
         }
 

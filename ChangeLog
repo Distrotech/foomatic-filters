@@ -1,3 +1,8 @@
+2012-06-25  Jiri Popelka <jpopelka@redhat.com>
+
+	* options.c, renderer.c: Fixed problems discovered by a Coverity scan
+	  (Bug #752).
+
 2012-06-18  Till Kamppeter <till.kamppeter@gmail.com>
 
 	* Tagged branch for release 4.0.16.
@@ -432,12 +437,12 @@
 	  "PageSize" option in the PPD file did not allow 0 as value.
 	  Made error messages for the parameters of custom options more
 	  readable.
-	
+
 	* foomaticrip.c, options.c: If there are printing system options
 	  (like "media" of CUPS) and PPD options (like "PageSize") on the
 	  command line and they do the same thing (like choosing the paper
 	  size) let the setting of the PPD option always have priority,
-	  as this is expected for a CUPS filter (see CUPS STR #3148). This 
+	  as this is expected for a CUPS filter (see CUPS STR #3148). This
 	  is done by treating the printing system options before the PPD
 	  options. This fixes Ubuntu bug #338999.
 
@@ -763,7 +768,7 @@
 	   		Options with multiple parameters:
 	   		    -o optionname={param1=value1 param2=value2 ...}
 
-	* options.c: Refactored the options system to allow for custom 
+	* options.c: Refactored the options system to allow for custom
 	  options. As a nice side effect, lots of redundant code (getting
 	  commands / drivervalues for the options, syncing PageSize
 	  and PageRegion) could be removed from foomaticrip.c.
@@ -786,9 +791,9 @@
 	     "-o sides={one|two}-sided[-{long|short}-edge]" was supplied,
 	     the "Duplex" option could be set to "0", "LongEdge", or
 	     "ShortEdge", which do not exist in the "Duplex" options in
-	     PPD files (Thanks to Ricoh Japan for reporting this bug). 
-	   o Now all of "LongEdge", "DuplexNoTumble", or "ShortEdge", 
-	     "DuplexTumble", are converted to each other if supplied as 
+	     PPD files (Thanks to Ricoh Japan for reporting this bug).
+	   o Now all of "LongEdge", "DuplexNoTumble", or "ShortEdge",
+	     "DuplexTumble", are converted to each other if supplied as
 	     value to an enumerated choice option (usually "Duplex") and
 	     this value is not in the list of choices.
 	   o Removed the unused variable "$rangeend" from the
@@ -806,12 +811,12 @@
 	     numerical, string) in the PPD file, the first choice from
 	     the list was set as default and not "0".
 	   o When assigning a non-integer number to an integer option,
-	     the "%%BeginFeature: ..." line of the option inserted into 
+	     the "%%BeginFeature: ..." line of the option inserted into
 	     the PostScript data stream still contained the non-integer
 	     value. Only the value in the code piece was converted to
 	     integer.
 	   o If a non-integer "*FoomaticRIPDefault..." was given for an
-	     integer option it was not converted to integer. 
+	     integer option it was not converted to integer.
 	   o Boolean options had "0" and "1" as values in the
 	     "%%BeginFeature: ..." lines and not "False" and "True".
 	   o PPD-supplied JCL/PJL options did not get merged with
@@ -926,7 +931,7 @@
 
 	* Makefile.in: cleaned up some to work with makes other than gmake
 
-	* README, USAGE: added Solaris LP 
+	* README, USAGE: added Solaris LP
 
 2006-01-06  Till Kamppeter <till.kamppeter@gmx.net>
 
@@ -1046,7 +1051,7 @@
 
 2004-09-14  Till Kamppeter <till.kamppeter@gmx.net>
 
-	* *: Tagged CVS for the release of foomatic-filters 3.0.2. 
+	* *: Tagged CVS for the release of foomatic-filters 3.0.2.
 	  Tag name: "foomatic-filters-3_0_2".
 
 	* README, USAGE: Updated for version 3.0.2.
@@ -1068,7 +1073,7 @@
 
 	  - Let "open" commands for file access always use "<" or ">" to
 	    specify reading or writing.
- 	
+
 2004-06-15  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* foomatic-rip.in: Made workaround for OpenOffice.org 1.1.0 bug
@@ -1085,14 +1090,14 @@
 
 2004-02-18  Till Kamppeter <till.kamppeter@gmx.net>
 
-	* *: Tagged CVS for the release of foomatic-filters 3.0.1. 
+	* *: Tagged CVS for the release of foomatic-filters 3.0.1.
 	  Tag name: "foomatic-filters-3_0_1".
 
 	* README, USAGE: Updated for version 3.0.1.
 
 2004-01-24  Till Kamppeter <till.kamppeter@gmx.net>
 
-	* *: Tagged CVS for the release of foomatic-filters 3.0.1rc3. 
+	* *: Tagged CVS for the release of foomatic-filters 3.0.1rc3.
 	  Tag name: "foomatic-filters-3_0_1rc3".
 
 	* README, USAGE: Updated for version 3.0.1rc3.
@@ -1102,7 +1107,7 @@
 
 2004-01-24  Till Kamppeter <till.kamppeter@gmx.net>
 
-	* *: Tagged CVS for the release of foomatic-filters 3.0.1rc2. 
+	* *: Tagged CVS for the release of foomatic-filters 3.0.1rc2.
 	  Tag name: "foomatic-filters-3_0_1rc2".
 
 	* README, USAGE: Updated for version 3.0.1rc2.
@@ -1138,13 +1143,13 @@
 2003-11-22  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* README, USAGE: Updated for version number 3.1.0.
-	
+
 	* *: Tagged all files of the repository with "foomatic-3_0-bp",
 	  started stable branch "foomatic-3_0-branch".
-	
+
 2003-11-20  Till Kamppeter <till.kamppeter@gmx.net>
 
-	* *: Tagged CVS for the release of foomatic-filters 3.0.1rc1. 
+	* *: Tagged CVS for the release of foomatic-filters 3.0.1rc1.
 	  Tag name: "foomatic-filters-3_0_1rc1".
 
 	* README, USAGE: Updated for version 3.0.1rc1.
@@ -1170,7 +1175,7 @@
 	* configure.in: Added /usr/local/libexec to LIBSEARCHPATH for *BSD
 	  compatibilty. Thanks to Sebastian Horzela (sh at horzela dot
 	  com).
-	
+
 	* configure.in: For CUPS a2ps, enscript, or mpage is not needed,
 	  here texttops of CUPS is used be default. So let ./configure
 	  also check for texttops.
@@ -1226,7 +1231,7 @@
 
 	* modified the code for 'echo' to be compatible with the comments in
 	  foomatic-rip.  The filter.conf file can now set the echo program.
-	
+
 2003-09-13  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* foomatic-rip.in: When option settings on the last page of a job
@@ -1270,23 +1275,23 @@
 
 2003-04-29  Till Kamppeter <till.kamppeter@gmx.net>
 
-	* *: Tagged CVS for the release of foomatic-filters 3.0.0. 
+	* *: Tagged CVS for the release of foomatic-filters 3.0.0.
 	  Tag name: "foomatic-filters-3_0_0".
 
 	* README, USAGE: Updated for version 3.0.0.
 
 	* foomatic-rip.1.in: Updated linuxprinting.org link for 3.0.0.
-	
+
 2003-04-22  Till Kamppeter <till.kamppeter@gmx.net>
 
-	* *: Tagged CVS for the release of foomatic-filters 3.0.0rc2. 
+	* *: Tagged CVS for the release of foomatic-filters 3.0.0rc2.
 	  Tag name: "foomatic-filters-3_0_0rc2".
 
 	* README, USAGE: Updated for version 3.0.0rc2.
 
 	* foomatic-rip.1.in: Added missing substitutions for special
 	  characters in postpipe.
-	
+
 2003-04-21  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* foomatic-rip.in: added restriction for allowed strings by means
@@ -1306,10 +1311,10 @@
 	  empty string as argument value.
 
 	  Several bug fixes done for the string options.
-	
+
 2003-04-13  Till Kamppeter <till.kamppeter@gmx.net>
 
-	* *: Tagged CVS for the release of foomatic-filters 3.0.0rc1. 
+	* *: Tagged CVS for the release of foomatic-filters 3.0.0rc1.
 	  Tag name: "foomatic-filters-3_0_0rc1".
 
 	* README, USAGE: Updated for version 3.0.0rc1.
@@ -1341,7 +1346,7 @@
 	  Fixed bug of Prolog and DocumentSetup sections created by
 	  foomatic-rip when first "%%Page: ..." is found not being added
 	  to the PostScript header data .
-	
+
 2003-04-06  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* foomatic-rip.in: Added support for applying options only to
@@ -1368,10 +1373,10 @@
 	  The syntax is "even", "odd", or giving comma-separated page
 	  numbers or page ranges. Applying options to selected pages with
 	  PDQ is not supported.
-	    
+
 2003-03-22  Till Kamppeter <till.kamppeter@gmx.net>
 
-	* *: Tagged CVS for the release of foomatic-filters 3.0.0beta2. 
+	* *: Tagged CVS for the release of foomatic-filters 3.0.0beta2.
 	  Tag name: "foomatic-filters-3_0_0beta2".
 
 	* README, USAGE, foomatic-rip.1.in: Updated for version
@@ -1412,7 +1417,7 @@
 
 2003-02-03  Till Kamppeter <till.kamppeter@gmx.net>
 
-	* *: Tagged CVS for the release of foomatic-filters 3.0.0beta1. 
+	* *: Tagged CVS for the release of foomatic-filters 3.0.0beta1.
 	  Tag name: "foomatic-filters-3_0_0beta1".
 
 	* README, USAGE: Updated for version 3.0.0beta1.
@@ -1421,7 +1426,7 @@
 
 2002-12-19  Till Kamppeter <till.kamppeter@gmx.net>
 
-	* *: Tagged CVS for the release of foomatic-filters 2.9.1. 
+	* *: Tagged CVS for the release of foomatic-filters 2.9.1.
 	  Tag name: "foomatic-filters-2_9_1".
 
 	* README, USAGE: Updated for version 2.9.1.
@@ -1437,9 +1442,9 @@
 
 2002-12-04  Till Kamppeter <till.kamppeter@gmx.net>
 
-	* *: Tagged CVS for the release of foomatic-filters 2.9.0. 
+	* *: Tagged CVS for the release of foomatic-filters 2.9.0.
 	  Tag name: "foomatic-filters-2_9_0".
-	
+
 2002-12-01  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* foomatic-gswrapper.in: If there is no /dev/fd/0, don't use
@@ -1455,9 +1460,9 @@
 
 2002-11-29  Till Kamppeter <till.kamppeter@gmx.net>
 
-	* *: Tagged CVS for the release of foomatic-filters 2.9.0pre1. 
+	* *: Tagged CVS for the release of foomatic-filters 2.9.0pre1.
 	  Tag name: "foomatic-filters-2_9_0pre1".
-	
+
 2002-11-28  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* foomatic-rip.in: Fixed comment text.
@@ -1465,7 +1470,7 @@
 	* filter.conf: Updated comment text.
 
 	* USAGE: Fixed typo.
-	
+
 2002-11-27  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* Makefile.in, configure.in, makeMan.in: Updated Makefile
@@ -1477,7 +1482,7 @@
 	  ("%A", "%B", ...) in the RIP command line prototype, so that one
 	  option setting can act on several points of the command line
 	  (was an old TODO point of Grant).
-	
+
 	* foomatic-rip.1.in: Continued working on the man page for
 	  foomatic-rip.
 
@@ -1486,7 +1491,7 @@
 	  /dev/fd does not exist.
 
 	* README, USAGE, TODO: Updated the package documentation.
-	
+
 2002-11-26  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* foomatic-rip.in: Added instructions for using a custom page size
@@ -1510,7 +1515,7 @@
 
 	  Support for raw queues under all spoolers and spooler-less
 	  printing.
-	
+
 	  When foomatic-rip is used as a PPR RIP, it accepts also options
 	  through the new "--ripopts" option of the "ppr" command of PPR
 	  1.50 now.
@@ -1524,13 +1529,13 @@
 
 	  Fixed bug which broke renderer command lines composed from
 	  several shell commands in debug mode.
-	
+
 	  Read Foomatic IDs from the PPD file.
-	
+
 	  Make default configuration file for spooler-less printing being
 	  /etc/foomatic/direct/.config and PPD files being searched in
 	  /etc/foomatic/direct.
-	  
+
 	  In debug mode debug logging is started in the beginning of the
 	  parsing of the command line options, right after checking the
 	  options relevant for logging.
@@ -1600,7 +1605,7 @@
 
 	  Use "PPR_VERSION" environment variable to auto-detect whether
 	  PPR is the spooler.
-	
+
 	  The parsing of the command line options did not work with the
 	  Getopt::Long Perl library when using LPRng as the spooler.  The
 	  problem is that LPRng uses short options (one hyphen and one
@@ -1638,12 +1643,12 @@
 
 	  Fixed control of quiet, verbose, and debug mode from the command
 	  line ("-q", "-v", "--debug").
-	
+
 	  foomatic-rip used without spooler does not have any console
 	  output any more (except error messages). Use the "-v"
 	  ("Verbose") for log output on the console and "--debug" for
 	  debug log files.
-	  
+
 	  Debugging files are now /tmp/foomatic-rip.log (log file) and
 	  /tmp/foomatic-rip.ps (PostScript data pre-processed by
 	  foomatic-rip, as it is stuffed into the renderer).
@@ -1653,7 +1658,7 @@
 	  the log when in debug mode, so that Mac OS X does not produce
 	  lines for the "error_log" of CUPS which have more than 1024
 	  characters, as this makes CUPS aborting the job.
-	
+
 	  Fixed PPR spooler auto-detection. Now foomatic-rip should
 	  work as a PPR interface as ppromatic.
 
@@ -1662,7 +1667,7 @@
 	  and what they do.
 
 	  Minor clean-ups.
-	
+
 2002-11-11  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* foomatic-rip.in: Now it should be possible not only to use the
@@ -1697,7 +1702,7 @@
 	  Make sure that code for default and command line option settings
 	  get also inserted in the job when it has the DSC magic string
 	  ("%!PS-Adobe-..") but is not DSC-conforming in reality.
-	
+
 	  To be more general, use the expression "JCL" (Job Control
 	  Language) instead of "PJL" (Print Job Language) for variable
 	  names and comments.
@@ -1749,7 +1754,7 @@
 	  '*FoomaticRIPPostPipe: "..."'. Use of the postpipe needs still
 	  to be implemented. The postpipe is needed for LPD/LPRng/GNUlpr
 	  and spooler-less printing.
-	
+
 2002-11-07  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* foomatic-rip.in: foomatic-rip works also as a CUPS filter,
@@ -1774,12 +1779,12 @@
 	  Parse also "%%BeginProlog", "%%EndProlog", "%%BeginSetup",
 	  "%%EndSetup", "%%BeginFeature", and "%%EndFeature" comments so
 	  that additional option settings can be inserted.
-	
+
 2002-11-06  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* src/*omatic.pl.in: Made filters also recognizing option settings
 	  embedded in PostScript files with "dossy" line ends ("\r\n").
-	
+
 2002-11-03  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* foomatic-rip.in: "foomatic-rip", the filter to translate
@@ -1789,7 +1794,7 @@
 	  "-p" command line option and the PostScript on standard input,
 	  the job translated to the printer's native language appears as
 	  standard output.
-	  
+
 	  The filter recognizes DSC-conforming PostScript documents and
 	  searches for inserted options settings at all allowed places
 	  without loading the whole document into memory. It handles also
@@ -1801,7 +1806,7 @@
 
 	* Makefile.in, configure.in: Taken into account the new
 	  "foomatic-rip" filter.
-	
+
 2002-10-19  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* src/*omatic.pl.in: Support for custom page sizes. A choice named
@@ -1828,16 +1833,16 @@
 2002-10-10  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* *: Set revision number of all files to 3.0.
-	
+
 2002-10-09  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* README, USAGE: Updated documentation according to the splitted
 	  packages.
-	
+
 2002-10-08  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* *: Splitted Foomatic into four packages:
-	
+
 	  - foomatic-filters: Filter scripts used by the spoolers to
 	    convert the incoming PostScript data into the printer's
 	    native format using a printer/driver specific PPD file
@@ -1850,7 +1855,7 @@
 	    to generate PPD files.
 	  - foomatic-db-hpijs: Foomatic XML data generator for HP's HPIJS
 	    driver.
-	
+
 	  This package is foomatic-filters.
 
 	* configure.in, Makefile.in: Removed all portions not needed for
@@ -1862,7 +1867,7 @@
 
 	* configure.in: Fixed check to set /etc instead of /usr/local/etc
 	  as $sysconfdir.
-	
+
 	* mfomatic.in: This file was not maintained for long time and
 	  noone asked for it, removed.
 
@@ -1875,14 +1880,14 @@
 	* db/source/printer/122496.xml,
 	  db/source/printer/HP-DesignJet_750.xml: Removed hint that IJS
 	  driver has problem with large paper sizes. This is fixed.
-	
+
 2002-10-06  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* db/source/opt/*: Added "largeformat-PageSize.xml" special page
 	  size option for large format printers (drivers "dnj650c" and
 	  "Postscript"). Now Foomatic supports paper sizes larger than A3
 	  with these printers.
-	
+
 2002-10-05  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* db/source/*/*: Added the "lz11" driver entry (enhanced version
@@ -1891,7 +1896,7 @@
 	* db/source/printer/*: Fixed auto-detection info of the HP Color
 	  LaserJet 4500 and removed wrong auto-detection info from the
 	  Kyocera FS-1200.
-	
+
 2002-10-03  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* db/source/*/*: Added driver entry "lxm3200-tweaked", the
@@ -1900,7 +1905,7 @@
 
 	* db/source/printer/*: Rated the Lexmark Z31 as "Mostly" and the
 	  Z12 as "Partially", due to the "lxm3200-tweaked" driver.
-	
+
 	* db/source/printer/Epson-Stylus_CX3200.xml: Changed rating to
 	  "Paperweight" (nothing known about this device yet).
 
@@ -1910,7 +1915,7 @@
 	* db/source/*/*: Added the Epson MJ 520C to the list of supported
 	  printers of the "stcolor", "stcany.upp", and "stc300.upp"
 	  drivers. It is unclear whether it works with Gimp-Print.
-	
+
 2002-10-02  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* db/source/printer/*: Added more japanese Epson inkjets: Epson CL
@@ -1945,7 +1950,7 @@
 	* db/source/printer/*: Added japanese Epson inkjets: Epson MC
 	  5000, 1000, PM 700C, 730C, 750C, 770C, 780C, 790PT, 880C, 950C,
 	  2000C, 3000C, 3500C, 4000PX, 7000C, 9000C, 10000.
-	
+
 2002-09-30  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* data-generators/hpijs/hpijs-printermap, db/source/printer/*:
@@ -1955,7 +1960,7 @@
 	* data-generators/hpijs/hpijs-printermap, db/source/*/*: Added
 	  the HP Business Inkjet 3000, DesignJet 5500, 5500ps, LaserJet
 	  5100, Color LaserJet 2500, 5500.
-	
+
 2002-09-29  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* data-generators/hpijs-rss/*: Added support for HPIJS patched by
@@ -1984,11 +1989,11 @@
 	  inkjets without fax facility from "Mostly" to
 	  "Perfectly". Updated the texts of all "DJ9xx"-class models
 	  (because of the patched HPIJS, "hpijs-rss").
-	
+
 	* db/source/printer/*: Raised ratings of the HP PPA printers
 	  (supported by the "pnm2ppa" driver from "Mostly" to "Perfectly",
 	  the driver supports their full functionality.
-	
+
 	* db/source/driver/PostScript.xml: Added link to Kurt Pfeifle's
 	  tutorial chapter about PostScript to the text of the
 	  "Postscript" driver entry.
@@ -1999,12 +2004,12 @@
 	  logged in debug mode. Mac OS X adds very many options to the
 	  CUPS filter chain and so the option list gets longer than 1024
 	  bytes and this CUPS cannot handle in its error_log file.
-	
+
 2002-09-26  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* db/source/driver/Postscript.xml: Updated text for new PPD file
 	  download place.
-	
+
 2002-09-11  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* data-generators/hpijs/hpijs-generator: The 300-dpi normal mode
@@ -2012,12 +2017,12 @@
 	  does not work on the 300-dpi-only printers as the HP LaserJet 4L.
 	  Restricted these printers to use the 300-dpi draft mode which
 	  does real 300 dpi.
-	
+
 2002-08-31  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* db/source/opt/*, db/source/driver/pnm2ppa.xml: Cleaned up
 	  options for the "pnm2ppa" driver.
-	
+
 2002-08-30  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* db/source/printer/HP-LaserJet_1000.xml: Updated text and rating
@@ -2026,7 +2031,7 @@
 
 	* db/source/driver/oki4w.xml: Added additional hint about the
 	  setup of print queues with this driver to the text.
-	
+
 2002-08-29  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* db/source/driver/pbmtozjs.xml,
@@ -2035,26 +2040,26 @@
 
 	* db/source/printer/HP-LaserJet_1000.xml: Updated text and rating
 	  ("Mostly").
-	
+
 	* foomatic-configure.in, configure.in, Makefile.in, makeDefaults.in,
 	  USAGE: Added support for HPOJ 0.9.
 
 	* README, USAGE: Corrected version number.
-	
+
 2002-08-27  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* db/source/printer/*: Added the HP PSC 2110 and 2210, replaced
 	  the HP PSC 300 by the HP PSC 370 and 380, text fixes for the
 	  HP DeskJet 5550 and 5551, PhotoSmart 7150, 7350, and 7550,
 	  Epson Stylus C61 and C62.
-	
+
 	* db/source/printer/*: Corrected/updated "Recommended driver" and
 	  texts for Epson Stylus Photo 950, 960, 2100, 2200, Stylus Pro
 	  7600, 9600, and HP DeskJet 3420.
 
 	* data-generators/hpijs/hpijs-printermap: Added HP PSC 370, 380,
 	  2110, 2210, removed HP PSC 300.
-	
+
 2002-08-24  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* src/cupsomatic.pl.in, src/directomatic.pl.in, src/lpdomatic.pl.in:
@@ -2069,7 +2074,7 @@
 	  PPD-O-Matic PPD file are now overriding the PPD defaults which
 	  "pstops" inserts into the PostScript, but they are overridden
 	  when an application stuffs settings into the PostScript file.
-	
+
 2002-08-22  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* data-generators/hpijs/hpijs-generator,
@@ -2091,28 +2096,28 @@
 
 	* db/source/printer/*: Fixes on text and rating for the Epson
 	  Stylus Color 880, 980, 8 3, C42UX, C80.
-	
+
 2002-08-12  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* Makefile.in: In the "inplace" mode the line "use lib/;" and not
 	  "use lib/Foomatic/;" must be inserted to make the scripts using
 	  the Foomatic libraries from the source tree and not the system-
 	  wide ones.
-	
+
 2002-08-10  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* data-generators/hpijs/hpijs-generator: Given the short name
 	  "Resolution" to the "Quality, MediaType, Ink Type" option,
 	  so it gets accessable in the GIMP.
-	
+
 2002-08-09  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* db/source/printer/*: Text fixes for the HP OfficeJet 6xx/7xx and
 	  OfficeJet Pro 1175C (thanks to David Paschal for all the info).
-	
+
 	* db/source/printer/186729.xml: Corrected auto-detection data for
 	  the HP DeskJet 970C.
-	
+
 2002-08-08  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* db/source/printer/*: Adapted texts of the printer entries to the
@@ -2154,23 +2159,23 @@
 
 	* db/source/printer/HP-DeskJet_656C.xml: Corrected text, max.
 	  resolution and rating.
-	
+
 2002-07-24  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* src/cupsomatic.pl.in: CUPS 1.1.15 mangles the "docs" option and so
 	  the documentation page was not printed any more. Fixed.
-	
+
 2002-07-23  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* db/source/printer/Epson-Stylus_Pro_?600*.xml: Re-arranged
 	  entries for the Epson Stylus Pro 7600/9600 not being separate
 	  for different ink types to fit to the Foomatic generator of
 	  Gimp-Print.
-	
+
 	* db/source/printer/*: Raised the ratings of the Epson Stylus C42UX,
 	  Stylus Photo 950, 960, 2100, 2000 from "Paperweight" to
 	  "Partially", there is preliminary support by Gimp-Print.
-	
+
 2002-07-20  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* *: Raised revision number of all files to 2.9.
@@ -2179,7 +2184,7 @@
 	  Photo 960.
 
 	* db/source/printer/Epson-Stylus_Photo_950: Text update.
-	
+
 2002-07-19  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* README, USAGE: Foomatic version 2.0.0 (Stable branch of
@@ -2189,7 +2194,7 @@
 	* *: Before any further development is done, tagged all files
 	  of the repository with "foomatic-2_0_0" and "foomatic-2_0-bp",
 	  started stable branch "foomatic-2_0-branch".
-	
+
 2002-07-18  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* foomatic-combo-xml.c: Added facilities for drivers to suppress
@@ -2217,12 +2222,12 @@
 	* db/source/printer/*: Changed recommended driver of the HP
 	  DeskJet 500, 510, 520, 500C, 540C, OfficeJet, OfficeJet LX,
 	  OfficeJet 300, 330, and 350 to "hpijs".
-	
+
 2002-07-17  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* db/source/printer/Epson-Stylus_C42UX.xml: Added the Epson Stylus
 	  C42UX ("Paperweight").
-	
+
 	* src/cupsomatic.pl.in: Fixed bug of PostScript code for CUPS
 	  page logging not working correctly for PostScript level 1
 	  files rendered by a PostScript level 2/3 interpreter.
@@ -2240,13 +2245,13 @@
 
 	* db/source/printer/*: Text/rating updates of many HP printers due
 	  to HPIJS 1.2.
-	
+
 2002-07-15  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* src/cupsomatic.pl.in: Fixed bug of PostScript code for CUPS
 	  page logging not working correctly on all documents and also
 	  not working when more than one copy was requested.
-	
+
 2002-07-14  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* db/source/printer/*: Corrected link in the entries of the
@@ -2254,7 +2259,7 @@
 
 	* db/source/driver/gdi.xml: Mentione that the provided MagicFilter
 	  file only works with MagicFilter 1.2.
-	
+
 2002-07-10  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* foomatic-configure.in: Fixed incompatibility with Perl 5.0.x:
@@ -2276,13 +2281,13 @@
 
 	* db/source/printer/HP-PhotoSmart_7350.xml: Added HP PhotoSmart
 	  7350.
-	
+
 2002-07-06  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* db/source/*/*, data-generators/hpijs/hpijs-printermap: Added new
 	  HP printers: HP DeskJet 3420, 3820, 5550, 5551, PhotoSmart 7150,
 	  Color LaserJet 4600.
-	
+
 	* db/source/printer/*: Re-rated Epson Stylus C20/C40 and Stylus
 	  Color 680 to "Perfectly", added hint about head-alignment to the
 	  Epson Stylus Photo 810/820. Text cleanup for Epson Stylus Color
@@ -2295,7 +2300,7 @@
 
 	* README: Improvements of the description of the Foomatic XML data
 	  structure.
-	
+
 2002-06-25  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* db/source/printer/*: Corrected tags for PJL support in HP
@@ -2310,7 +2315,7 @@
 	* data-generators/hpijs/hpijs-printermap: Added the HP DesignJet
 	  ColorPro CAD to the printers supported by HPIJS, it is a
 	  repackaged HP 2500C. Re-rated it to "Perfectly".
-	
+
 	* src/cupsomatic.in, src/lpdomatic.in, src/ppromatic.in,
 	  src/directomatic.in, lib/Foomatic/DB.pm: Removed the usage of
 	  the PJL commands "JOB" and "EOJ" because not all PJL-capable
@@ -2324,12 +2329,12 @@
 	* USAGE: Updated for OpenOffice.org 1.0, added work-around for bug
 	  that OpenOffice.org and Star Office do not print the Euro currency
 	  symbol, added hint how to get PPD from remote CUPS server.
-	
+
 2002-06-21  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* db/source/printer/*: Added the Epson Stylus Pro 7600 and 9600
 	  printers.
-	
+
 2002-06-16  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* db/source/printer/*: Added the Epson AcuLaser C4000 and C4000PS.
@@ -2337,7 +2342,7 @@
 	* db/source/*/*: Added the "alc4000" driver entry and updated the
 	  "PostScript" driver entry for thr Epson AcuLaser C4000 and
 	  C4000PS.
-	
+
 2002-06-13  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* README: Added commented example of a Foomatic PPD with embedded
@@ -2345,7 +2350,7 @@
 
 	* Foomatic-Devel-Ideas.txt: New file to collect ideas about the
 	  further development of Foomatic.
-	
+
 2002-06-12  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* db/source/printer/*: Added hint to the "mtink"
@@ -2357,12 +2362,12 @@
 
 	* db/source/printer/*: Added the Epson Stylus Photo 950, 2100, and
 	  2200.
-	
+
 2002-06-02  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* db/source/printer/Epson-EPL-5900L.xml: Added the Epson EPL-5900L
 	  ("Paperweight").
-	
+
 2002-05-30  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* db/source/printer/*: Changed recommended driver for large-format
@@ -2378,7 +2383,7 @@
 
 	* db/source/opt/cdj5XX-BlackCorrect.xml: Corrected weird short
 	  name of the "BlackCorrect" option for the "cdj5xx" drivers.
-	
+
 2002-05-28  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* db/source/printer/*, data-generators/hpijs/hpijs-generator,
@@ -2395,19 +2400,19 @@
 
 	* db/source/driver/*: Corrected URLs of the drivers which come with
 	  GhostScript (GNU GhostScript 7.05 instead of 6.51).
-	
+
 2002-05-23  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* db/source/printer/*: Fixed URLs in several printer entries
 	  (added missing "http://").
-	
+
 2002-05-19  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* README, USAGE: Added information that make_configure needs libxml
 	  2.x.Fixed some typos.
 
 	* foomatic-fix-xml.in: Fixed initial comment.
-	
+
 2002-05-18  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* data-generators/hpijs/*, db/source/*/hpijs*, Makefile.in: Included
@@ -2415,7 +2420,7 @@
 	  appropriate entries are generated during the build process now.
 
 	* Makefile.in: Added "uninstall" targets.
-	
+
 2002-05-16  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* db/source/printer/Lexmark-Z13.xml: Added the Lexmark Z13 to the
@@ -2424,7 +2429,7 @@
 	* db/source/*/*: Fixed HPIJS data for the HP DeskJet 825C/845C: they
 	  do grayscale with the black cartridge and not with the color
 	  cartridge.
-	
+
 2002-05-15  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* foomatic-preferred-driver.in: Updated driver priority list to
@@ -2445,12 +2450,12 @@
 
 	* db/source/driver/lm1100.xml: Added hint how to compile it with
 	  gcc 3.1 to the description text.
-	
+
 2002-05-10  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* db/source/driver/hpijs.xml: Corrected version number in "hpijs"
 	  driver entry to be 1.1.
-	
+
 2002-05-09  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* db/source/*/*: Added HP Business Inkjet 2230 and 2280 printers.
@@ -2459,7 +2464,7 @@
 
 	* db/source/printer/HP-PhotoSmart_P100.xml: Raised the HP PhotoSmart
 	  P100 to "Perfectly".
-	
+
 2002-05-07  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* db/source/*/*: Added the printer models HP OfficeJet, OfficeJet
@@ -2502,7 +2507,7 @@
 	  function let the ISO B sizes be returned, when the paper size
 	  name is only "Bx" without "JIS" or "ISO". This is also the
 	  default of GhostScript.
-	
+
 	* Makefile.in: Fixed bug of database going to
 	  /usr/local/share/share/foomatic.
 
@@ -2519,7 +2524,7 @@
 	  and "curl".
 
 	* db/source/driver/gdi.xml: Updates URLs.
-	
+
 2002-04-16  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* db/source/*/*: Added HP 2000C/2500C/2500CM to the "hpijs"
@@ -2539,7 +2544,7 @@
 	  "htmlify()" to all strings which are shown on the web page.
 	  Added paper sizes for the "omni" driver to the
 	  "getpapersizes()" function.
-	
+
 2002-04-15  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* USAGE: Improvements on the installation instructions.
@@ -2549,7 +2554,7 @@
 
 	* db/source/*/*: Fixed entries for the HP 2000C/2500C/2500CM
 	  printers.
-	
+
 2002-04-14  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* configure.in, acinclude.m4, Makefile.in, Makefile, install-sh,
@@ -2570,7 +2575,7 @@
 	  src/ppromatic.pl: Introduced a GNU-autoconf-generated "configure"
 	  script, now one can easily install Foomatic with the well-known
 	  "./configure; make; make install".
-	
+
 2002-04-12  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* foomatic-ppdload: Switched foomatic-ppdload to the new
@@ -2585,9 +2590,9 @@
 	* lib/Foomatic/PPD.pm: Let the "PageRegion" option in the PPD file
 	  being skipped when creating Foomatic XML data. It is te same
 	  option as "PageSize".
-	
+
 	* db/source/driver/Postscript.xml: Corrected HTML tags.
-	
+
 2002-04-10  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* foomatic-perl-data.c: Added reading of auto-detection data also
@@ -2610,12 +2615,12 @@
 	  in the beginning of the lists.
 
 2002-04-08  Till Kamppeter <till.kamppeter@gmx.net>
-	
+
 	* foomatic-perl-data.c: New C program to parse the XML code to
 	  generate Perl data structures from it. Uses libxml (libxml 2.x
 	  recommended because otherwise XML files beginning with a blank
 	  line cannot be read).
-	
+
 	* lib/Foomatic/DB.pm: Removed disk cache and XML/Grove Perl
 	  library usage completely, all XML handling is done by C code
 	  now. Added paper sizes of the Dymo-CoStar/Avery label printers
@@ -2659,7 +2664,7 @@
 	  foomatic-perl-data.c.
 
 	* Makefile, makeDefault: Commented out all cache-related stuff.
-	
+
 	* Makefile: Moved foomatic-datafile and foomatic-compiledb from
 	  /usr/sbin to /usr/bin.
 
@@ -2682,7 +2687,7 @@
 
 	* src/ppromatic.pl: Made ppromatic also working in non-english
 	  configurations.
-	
+
 2002-03-28  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* db/source/printer/HP-LaserJet_12?0.xml: New user report
@@ -2699,19 +2704,19 @@
 	* foomatic-combo-xml.c: Added possibility to modify the default
 	  option settings in the generated XML ("-o" command line option
 	  for foomatic-combo-xml).
-	
+
 2002-03-26  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* db/source/printer/153056.xml: Updated text of the HP DeskJet
 	  340C according to a new user report.
 
 	* db/source/*/*: Added Lexmark Z83 multi-function device.
-	
+
 2002-03-24  Till Kamppeter <till.kamppeter@gmx.net>
 
-	* db/source/printer/HP-LaserJet_12?0.xml: LaserJet 1200/1220 is 
+	* db/source/printer/HP-LaserJet_12?0.xml: LaserJet 1200/1220 is
 	  very slow in graphics, added user report.
-	
+
 2002-03-21  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* db/source/printer/*: Updated text of all HP printers and
@@ -2728,7 +2733,7 @@
 	* db/source/*/*: Removed spaces from the names of the Okidata
 	  OLxxx models, so that they get correctly sorted in the printer
 	  listings. Modified option entries appropriately.
-	
+
 2002-03-20  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* db/source/printer/*: Updated text of many HP and Apollo printers
@@ -2740,19 +2745,19 @@
 
 	* db/source/*/*: Added the Apollo P-1220 Barbie, P1250, P2250,
 	  P-2550, and P-2650. Updated the driver data appropriately.
-	
+
 2002-03-19  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* db/source/printer/*: Updated data for the "hpijs" driver to fit
 	  to HPIJS 1.0.4. Modified printer entries appropriate to the new
 	  features ("hpijs" also recommended on large format printers,
 	  DeskJet 990 and compatibles work "Perfectly").
-	
+
 2002-03-18  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* db/source/printer/*: Modified text of HP LaserJet 1200, USB
 	  printing only works with HPOJ.
-	
+
 2002-03-17  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* foomatic-combo-xml.c: Introduced two debug output levels ("-v",
@@ -2779,12 +2784,12 @@
 	* db/source/printer/*: Modified text of HP LaserJet 31x0
 	  multi-function devices, because of the available code pieces for
 	  a free software driver for these models.
-	
+
 2002-03-14  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* db/source/printer/*: Corrected entries for Brother printers
 	  driven by the "hl7x0" driver.
-	
+
 2002-03-12  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* db/source/*/*: Fixed default "Quality" setting for the photo-
@@ -2796,7 +2801,7 @@
 	  of the "hpijs" driver.
 	* db/source/*/*: "Photo Full Bleed" paper size is only supported by
 	  the PhotoSmart P100 for the "hpijs" driver, fixed Foomatic data.
-	
+
 2002-03-08  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* db/source/*/*: Added the Canon BJC-255SP and BJC-265SP. Modified
@@ -2807,7 +2812,7 @@
 	* foomatic-configure: When "foomatic-configure" creates a queue
 	  for LPRng, the permissions for the /var/log/lp-errs file are set
 	  correctly now.
-	
+
 2002-03-05  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* db/source/*/*: Added Lexmark E210 laser printer (Samsung ML-4500
@@ -2856,13 +2861,13 @@
 
 	* db/source/*/*: Fixed the entry for the Brother MFC-9600, it does
 	  600 dpi with the "hl1250" driver.
-	
+
 2002-03-01  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* src/cupsomatic.pl: Disabled accounting for the "Postscript"
 	  driver, it leads to an extra blank page coming out with every
 	  job.
-	  
+
 	* db/source/*/*: Added Canon S100, S200, S300, S500, S630,
 	  BJC-2110, Lexmark Optra C710, HP DeskJet 200, DeskJet 841C,
 	  Okidata Okipage 14ex, OL400, Xerox Able 1406, Anitech M24,
@@ -2883,7 +2888,7 @@
 
 	* db/source/*/*: Updated Foomatic data for the "hpijs" driver to
 	  version 1.0.3.
-	
+
 2002-02-18  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* db/source/driver/lj5*: Removed HP LaserJet 6P, it does not work
@@ -2900,7 +2905,7 @@
 2002-02-09  Manfred Wassmann  <manolo@NCC-1701.B.Shuttle.de>
 
 	* lib/Foomatic/DB.pm: Check if existing cache file is empty.
-	  
+
 
 2002-02-06  Tim Waugh  <twaugh@redhat.com>
 
@@ -2956,7 +2961,7 @@
 	* Makefile, makeDefaults, foomatic-configure, USAGE, README: Added
 	  support for HPOJ (http://hpoj.sourceforge.net/, low-level driver
 	  for HP's multi-function devices) with "ptal:/..." URIs.
-	
+
 2002-01-31  Tim Waugh  <twaugh@redhat.com>
 
 	* lib/Foomatic/DB.pm (get_overview_xml): Create directory, like
@@ -2981,11 +2986,11 @@
 	  names can contain all printable characters except white space
 	  and "=". This fixed a problem with the "Color Mode" option of
 	  the "pcl3" driver.
-	
+
 2002-01-28  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* db/source/*/*: Added the HP LaserJet 3P with PCL5 extension.
-	
+
 2002-01-27  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* USAGE: Minor text modifications for XPP 1.1.
@@ -2994,7 +2999,7 @@
 	  from "Canon-LIPS-II+" to "Canon-LIPS-IIplus". With the "+" in its
 	  ID the printer entry was not accessible on the linuxprinting.org
 	  web site.
-	
+
 2002-01-24  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* foomatic-gswrapper: Replaced "-sOutputFile=|cat>&3" by
@@ -3022,7 +3027,7 @@
 2002-01-22  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* lpdomatic: Cleaned up user-editable settings part.
-	
+
 2002-01-21  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* db/source/opt/160.xml: Added Epson EPL lasers to constraint in
@@ -3040,13 +3045,13 @@
 
 	* lpdomatic/makeDefaults: Modified the config file support to not
 	  need a Perl library to make it easier to install lpdomatic without
-	  installing the whole Foomatic package.	
+	  installing the whole Foomatic package.
 
 2002-01-20  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* lib/Foomatic/DB.pm: Added '*PSVersion: "(3010.000) 652"' entry
 	  for GhostScript 6.52 to the PPD files.
-	
+
 2002-01-20  Manfred Wassmann  <manolo@NCC-1701.B.Shuttle.de>
 
 	* lpdomatic: Corrected the use of ConfigFile.pm.
@@ -3073,7 +3078,7 @@
 
 	* db/source/printer/*: Updated text of the Epson EPL-5900/5900PS
 	  because of a bug in Epson's driver.
-	
+
 2002-01-17  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* db/source/printer/*: Added new Epson laser printer models:
@@ -3081,7 +3086,7 @@
 
 	* db/source/*/*: Added new driver entries "epl2120" and "epl5900"
 	  for Epson-Kowa laser driver 1.0.4.
-	
+
 2002-01-16  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* cupsomatic, lpdomatic, ppromatic, directomatic: Auto-detection
@@ -3099,21 +3104,21 @@
 
 	* README, ChangeLog, foomatic-configure.1.in: Updated documentation
 	  to take into account the new "--oldppd" option.
-	
+
 	* db/source/*/*: HP removed the "HP only" clause from the license
 	  of HPIJS, so HPIJS is free now.
-	
+
 2002-01-15  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* lib/Foomatic/DB.pm: Fixed some incompatibilities in the PDQ file
 	  generator which prevented HPIJS 1.0 from working with PDQ.
-	
+
 2002-01-14  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* foomatic-configure: Fixed bug of foomatic-configure stopping on
 	  directomatic printer configuration when there is no directomatic
 	  config file.
-	
+
 2002-01-13  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* cupsomatic/ppromatic: The PPD default values of float options were
@@ -3133,7 +3138,7 @@
 	  into /etc/printcap (for LPD/GNUlpr/LPRng), so that the graphical
 	  printing frontend GPR finds the PPD-O-Matic PPD files
 	  automatically.
-	
+
 2002-01-11  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* db/source/*/*: Added "bjc250gs" driver and Canon BJC-250ex
@@ -3144,18 +3149,18 @@
 	* foomatic-gswrapper: Replaced "-sOutputFile=|cat >&3" by
 	  "-sOutputFile=|cat>&3" because the second one also works when
 	  "gs" is a wrapper script around the real GhostScript binary.
-	
+
 2002-01-09  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* cupsomatic: Numerical options given on the command line were
 	  ignored when using a PPD-O-Matic PPD file for the CUPS queue.
 	  Fixed.
-	
+
 2002-01-08  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* Makefile, makeDefaults, lpdomatic.8.in: Moved lpdomatic back to
 	  /usr/sbin.
-	
+
 2002-01-06  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* foomatic-configure: Added support for direct, spooler-less
@@ -3172,7 +3177,7 @@
 	* foomatic-printjob.1.in: Corrected command line for printing.
 
 	* README, USAGE: Updated to take into account all recent changes.
-	
+
 2002-01-06  Manfred Wassmann  <manolo@NCC-1701.B.Shuttle.de>
 
 	* foomatic-configure: Bails out if it encounters a lprng style
@@ -3199,7 +3204,7 @@
 	  line or in the "Switchset".
 
 	* foomatic-configure: Added PPR support.
-	
+
 2002-01-03  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* ppromatic: Made it possible to have PPD files in other
@@ -3217,7 +3222,7 @@
 
 	* db/source/opt/hpijs-Quality.xml: Fixed typo in human-readable
 	  text for 600-dpi-CMYK-normal quality.
-	
+
 2002-01-01  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* db/source/opt/hpijs-PageSize.xml: Worked around a bug in HPIJS
@@ -3234,7 +3239,7 @@
 
 	* db/source/driver/*.xml: Updated URLs of the home pages for the
 	  "cZ11" and "c2070" drivers.
-	
+
 2001-12-30  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* db/source/printer/Epson-EPL-5800L.xml: Added the Epson EPL-5800L
@@ -3260,12 +3265,12 @@
 	* db/source/printer/*: Updated comments and "Recommended driver"
 	  settings of the HP/Apollo printers for the new "hpijs" 1.0
 	  version.
-	
+
 2001-12-18  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* db/source/printer/*: Added/modified HP inkjets for the "hpijs" 1.0
 	  driver.
-	
+
 2001-12-17  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* lib/Foomatic/DB.pm: Applied a patch from Crutcher Dunnavant
@@ -3282,7 +3287,7 @@
 	* db/source/printer/Minolta-PagePro_1100L.xml,
 	  db/source/printer/642674.xml: Added the Paperweight "Minolta
 	  PagePro 1100L".
-	
+
 2001-12-14  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* foomatic-configure: Made "-f" (Force compilation) flag working
@@ -3296,7 +3301,7 @@
 	  crutcher@redhat.com for his suggestions).
 
 	* Makefile: Let "make install" also install the man pages.
-	
+
 2001-12-13  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* directomatic: Possibility to use a printer definition file in
@@ -3309,7 +3314,7 @@
 	* db/source/printer/*: Set links for the new location of the
 	  "Lexmark Foomatic Kit" in the comments of the database entries
 	  for the Lexmark Z22, Z23, Z32, Z33, Z52, Z53.
-	
+
 2001-12-11  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* lib/Foomatic/DB.pm: Made the "PaperDimension", "ImageableArea",
@@ -3321,7 +3326,7 @@
 	* db/source/opt/2.xml, db/source/driver/c2050.xml: Drivers
 	  "c2050", "cZ11", and "cZ11somsom" had no "PageSize" option,
 	  fixed.
-	
+
 2001-12-11  Manfred Wassmann  <manolo@NCC-1701.B.Shuttle.de>
 
 	* directomatic.1.in manpage added.
@@ -3337,11 +3342,11 @@
 	* db/source/drivers/lpstyl.xml: Re-hosted "lpstyl" driver on
 	  linuxprinting,org, original home page is dead. Modified the
 	  comments in the database entry file appropriately.
-	
+
 	* db/source/drivers/gdi.xml: Added filter for MagicFilter users to
 	  easily integrate this driver. Modified the comments in the
 	  database entry file appropriately.
-	
+
 	* db/source/*/*: Okipage 6w only works with "oki4w" 2.0, not with
 	  2.1. Modified the comments in the database entry files
 	  appropriately.
@@ -3364,7 +3369,7 @@
 
 	* db/source/driver/bjc600.xml, db/source/opt/6.xml: Added Canon
 	  BJC-2010 to the "bjc600" driver.
-	
+
 	* db/source/printer/Canon-BJ-100.xml: New printer entry: Canon
 	  BJ-100.
 
@@ -3392,7 +3397,7 @@
 	  in the respective libraries.
 
 	* db/source/printer/Lexmark-Z43.xml: Updated the comments.
-	
+
 2001-12-07  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* directomatic: New filter for spooler-less printing. See in the
@@ -3406,13 +3411,13 @@
 
 	* lpdomatic.1.in: lpdomatic in /usr/bin => "man 1 lpdomatic"
 
-	* foomatic-datafile: Added "direct" data file type for 
+	* foomatic-datafile: Added "direct" data file type for
 	  Direct-O-Matic
 
 	* lib/Foomatic/DB.pm: Modified comments of the LPD-O-Matic printer
 	  description file (generated by the function "getlpddata()")
 	  because these files are also used for Direct-O-Matic.
-	
+
 2001-12-07  Manfred Wassmann  <foomatic@NCC-1701.B.Shuttle.de>
 
 	* Makefile: Split the install target into install-bin and
@@ -3428,7 +3433,7 @@
 
 	* cupsomatic: Corrected link to documentation web page in the
 	  comments in the beginning of the script.
-	
+
 2001-12-04  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* cupsomatic, lpdomatic, ppromatic: Cleaned up multi-processing,
@@ -3456,23 +3461,23 @@
 	  "/PageRegion[...]" (found this out during tests of PPR, which
 	  uses the "*PageRegion" option and not the "*PageSize" option to
 	  set the paper size.
-	
+
 2001-12-02  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* ppromatic: Completed first version of ppromatic: Added error and
 	  signal handling. Introduced back channel from child processes to
 	  main process and let main process wait until all children finish,
 	  to not loose any error message or exit status to report to PPR.
-	
+
 2001-11-30  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* db/source/*/*: Added some comments about the similarity of the
 	  Sharp and Xerox inkjets.
-	
+
 	* db/source/opt/207.xml: Made "Model" option of "pcl3" having only
 	  the correct model entry as possible choice (as "Model" option of
 	  "gimp-print"/"stp".
-	
+
 2001-11-29  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* foomatic-preferred-driver: Higher priority for "pcl3" against
@@ -3484,7 +3489,7 @@
 	  "pcl3" version 3.3, also changed the recommended driver of the
 	  Sharp and Xerox inkjets to "pcl3" and the functionality to
 	  "Mostly".
-	
+
 2001-11-24  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* ppromatic: Interface for the spooler PPR (ppr.sourceforge.net)
@@ -3505,7 +3510,7 @@
 	  <address> means the printer address as needed by the interface
 	  (/dev/lp0 for parallel, printer.domain.com:9100 for tcpip, ...)
 	  <ppd file without path> is the name under which you have saved
-	  your downloaded PPD file. Do not specify the path 
+	  your downloaded PPD file. Do not specify the path
 	  /usr/share/ppr/PPDFiles/
 
 2001-11-23  Till Kamppeter <till.kamppeter@gmx.net>
@@ -3518,14 +3523,14 @@
 	* lib/Foomatic/DB.pm: Made HTML display of how to invoke a driver
 	  working correctly with the new XML Foomatic and enhanced it,
 	  especially for tricky command lines ("Execution Details" pages).
-	
+
 	* db/source/opt/*: Corrected the "Required" state for many
 	  options, to get the "Execution Details" pages correct.
-	
+
 2001-11-21  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* db/source/printer/drv_z42: New web site for "drv_z42".
-	
+
 2001-11-20  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* db/source/printer/*: Set "Recommended driver" field
@@ -3539,23 +3544,23 @@
 
 2001-11-18  Till Kamppeter <till.kamppeter@gmx.net>
 
-	* README, USAGE: Added info about the PPD-O-MATIC PPD files. 
+	* README, USAGE: Added info about the PPD-O-MATIC PPD files.
 	  Especially USAGE contains info about printing with graphical
 	  interfaces and out of applications now.
-	
+
 2001-11-16  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* foomatic-preferred-driver: Added the "sj48" driver in the list,
 	  so that when one adds "omni" as the last entry, the "sj48" will
 	  get priority.
-	
+
 2001-11-15  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* cupsomatic: Added support for GPR as CUPS printing frontend.
 
 	* db/source/*/*: Added Lexmark Z43 (supported by "drv_z42"
 	  driver), corrections on Lexmark Z42.
-	
+
 2001-11-14  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* lib/Foomatic/DB.pm: Added generation of a generic purpose PPD
@@ -3575,24 +3580,24 @@
 
 	* foomatic-configure: Now for every queue a generic PPD file is
 	  created and maintained as /etc/foomatic/<queuename>.ppd.
-	
+
 	* db/source/driver/oki4w.xml: Comments updated for oki4linux 2.1
 
 	* db/source/*/*: Resolution of Okidata OL 410e fixed (300 dpi only
 	  with "ljet4", RedHat bug #43120).
-	
+
 2001-11-13  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* db/source/driver/*: Added "-Mutf8" to the "perl" calls in the
 	  command line of the PCL/PCL-XL laser printer drivers with tray
 	  selection, otherwise Perl 5.6.0 and older cannot handle hex
 	  representations of binary strings in the Perl commands.
-	
+
 2001-11-08  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* db/source/opt/*: Fixed default resolutions for the "eps9mid" and
 	  "eps9high" drivers.
-	
+
 2001-11-07  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* db/source/opt/*: For the Epson laser printer drivers (EPL,
@@ -3603,7 +3608,7 @@
 
 	* db/source/printer/*: Perfect support for the Epson Stylus
 	  C70/C80 with Gimp-Print 4.1.99b4.
-	
+
 2001-10-23  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* db/source/*/*: Changed the comments/ratings of the Epson
@@ -3618,12 +3623,12 @@
 	* db/source/printer/*: Added comment about up/download of data to
 	  the photo cards in the card reader of the HP PhotoSmart
 	  printers.
-	
+
 2001-10-20  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* db/source/printer/630066.xml, db/source/driver/*: Removed
 	  duplicate entry for the HP DeskJet Plus.
-	
+
 2001-10-16  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* db/source/*/*: Added the Epson Stylus Photo 820.
@@ -3673,7 +3678,7 @@
 
 	* db/source/*/*: Added HP DeskJet 1120C to the printers supported
 	  by the "hpijs" driver.
-	
+
 2001-10-06  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* db/source/*/*: Added the printers HP LaserJet 1000, DeskJet
@@ -3683,7 +3688,7 @@
 
 	* db/source/opt/hpijs-PageSize.xml: Added A6 and Photo paper sizes
 	  for the "hpijs" driver,
-	
+
 2001-10-04  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* foomatic-combo-xml.c: Added an "#include <stdlib.h>" to make
@@ -3701,7 +3706,7 @@
 	* db/source/driver/*: Updated links to the GhostScript web pages.
 
 	* foomatic-preferred-driver: Correction for the DEC LJ250.
-	
+
 2001-10-02  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* db/source/*/*: Added paper tray selection to all the other PCL
@@ -3710,11 +3715,11 @@
 
 	* db/source/*/*: Added "cljet5c" driver (Color LaserJet 5 in
 	  Contone mode).
-	
+
 	* db/source/*/*: Added "ljet4d" driver ("ljet4" with PCL Duplex).
 
 	* foomatic-preferred-driver: Updated for the new drivers.
-	
+
 2001-10-01  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* db/source/*/*: Added paper tray selection option to the PCL-XL
@@ -3734,11 +3739,11 @@
 	* foomatic-combo-xml.c: Replaced an "strcat" by an "strcpy" when
 	  setting the default value for an option because otherwise there
 	  appear two values in the string for the default value.
-	
+
 	* db/source/*/*: Added GhostScript pre-filtering facility to the
 	  "Postscript" driver, this allows to use additionally installed
 	  GS fonts or converting to a lower PostScript level.
-	
+
 2001-09-28  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* lib/Foomatic/DB.pm: Made all file creation be done with "umask
@@ -3751,7 +3756,7 @@
 	* db/source/printer/HP-DesignJet_750.xml: Corrected bug in printer
 	  ID, which prevented entry from showing up correctly on
 	  www.linuxprinting.org.
-	
+
 2001-09-27  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* db/source/*/*: Added the Lexmark Z82.
@@ -3761,10 +3766,10 @@
 
 	* db/source/*/*: Added Foomatic data for the UPP files
 	  "s400a1.upp" and "s400b1.upp".
-	
+
 	* db/source/printer/123776.xml: Corrections in the text about the
 	  BJC-8200.
-	
+
 	* db/source/printer/Canon-S600.xml: Added the Canon S600.
 
 	* db/source/*/*: Added Foomatic data for the UPP files for the
@@ -3780,7 +3785,7 @@
 
 	* db/source/*/*: Added the Xerox DocuPrint N4512, corrected comments
 	  for the HP PSC 950 and the Epson Stylus C80.
-	
+
 2001-09-25  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* foomatic-preferred-driver: Given priority to the lxm3200 driver
@@ -3791,13 +3796,13 @@
 
 	* foomatic-combo-xml.c: Fixed a bug of not setting the high scores
 	  for the constraints.
-	
+
 2001-09-22  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* foomatic-configure: "checkpc -f" after any change on an LPRng
 	  system. LPRng refuses to print when one file has wrong
 	  permissions.
-	
+
 2001-09-13  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* cupsomatic: Made the "sides" (Duplex) option of CUPS working
@@ -3825,7 +3830,7 @@
 	* cupsomatic: All enumerated options with choices "On", "Off",
 	  "Yes", "No", "True", or "False" did not work with CUPS. This is
 	  fixed now.
-	
+
 2001-09-03  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* foomatic-configure: Possibility to set a system-wide default
@@ -3845,7 +3850,7 @@
 
 	* TODO: Removed the topic about speed and memory consumption, this
 	  is solved by foomatic-combo-xml.c now.
-	
+
 2001-09-02  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* foomatic-combo-xml.c: Added functionality for generating the
@@ -3861,9 +3866,9 @@
 
 	* foomatic-preferred-driver: Bugfix: Often default driver entries
 	  were not inserted into the printer XML file.
-	
+
 	* db/source/driver/ppmtocpva.xml: Added the Alps MD-1500 printer.
-	
+
 2001-08-29  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* db/source/printer/*: Several fixes on the comments of the HP
@@ -3876,7 +3881,7 @@
 
 	* db/source/driver/lj5gray.xml: Removed duplicate entry for the
 	  HP LaserJet 5Si.
-	
+
 2001-08-28  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* foomatic-combo-xml.c: C program to build XML files for
@@ -3890,17 +3895,17 @@
 	  used for building printer/driver combo data.
 
 	* Makefile, makeDefaults: Integration of foomatic-combo-xml.c.
-	
+
 2001-08-26  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* db/source/driver/*: Removed printer entry 207945 from the printer
 	  list of the "laserjet" and "stp" drivers, the printer was deleted.
-	
+
 2001-08-25  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* db/source/printer/HP-DesignJet_750.xml: added HP DesignJet 750,
 	  it is supported by Gimp-Print now.
-	
+
 2001-08-24  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* db/source/*/*: Added a whole bunch of japanese printers and
@@ -3925,7 +3930,7 @@
 
 	* db/source/*/*: Added the Epson laser printer drivers provided
 	  by Epson: "epl5800", "epl2050", "epl2050p", "acl2000", "acl8500".
-	
+
 	* foomatic-preferred-driver: Epson laser printer drivers.
 
 	* db/source/printer/641170.xml: Removed duplicate entry for the
@@ -3986,7 +3991,7 @@
 	  M750 and M760, they print with "sharp.upp" and are both partially
 	  working.
 
-	* db/source/driver/sharp.upp.xml: Added the new Sharp printers 
+	* db/source/driver/sharp.upp.xml: Added the new Sharp printers
 	  (AJ-1805/2005) and the Xerox DucuPrint M750/M760.
 
 	* db/source/driver/hl1250.xml: Updated the URL of the driver's home
@@ -3999,7 +4004,7 @@
 
 	* db/source/opt/161.xml: The media source selection for the
 	  "Postscript" driver only works for HP printers, restricted to HP.
-	
+
 2001-08-19  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* db/source/printer/*: Added HP and Apollo printers: Apollo P-2100,
@@ -4013,7 +4018,7 @@
 	  "DJxxx").
 
 	* db/source/*/*: Updated all information about the multifunction
-	  devices of HP, they are all capable for scanning with free 
+	  devices of HP, they are all capable for scanning with free
 	  software.
 
 	* db/source/printer/641138.xml: Duplicate entry for the Canon
@@ -4027,7 +4032,7 @@
 2001-08-17  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* Makefile: Moved foomatic-configure from /usr/sbin to /usr/bin.
-	
+
 	* db/source/printer/Epson-Stylus_C[24]0*: Split up the entries for
 	  the Epson Stylus C20/C40 into the SX and UX models. This is needed
 	  for the Gimp-Print GhostScript driver.
@@ -4038,7 +4043,7 @@
 	  and LPRng), output of the printer list both as root and normal
 	  user, LPRng SIGHUP after adding a new queue, spooler detection
 	  bug fix.
-	
+
 2001-08-11  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* foomatic-configure: Fixed bug of options not being conserved
@@ -4049,7 +4054,7 @@
 	  $PATH, for example during the installation of a distro.
 
 	* Makefile, makeDefaults: Paths for rlpr, nc, and smbclient added.
-	
+
 2001-08-05  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* db/source/opt/ppmtocpva-solidblack.xml: Added option "-solidblack"
@@ -4102,9 +4107,9 @@
 	* db/source/opt/69.xml: Made the "Normal" quality with the "cdj880"
 	  driver available again for all printers. With GNU GhostScript
 	  6.51 it works without problems.
-	
+
 2001-07-25  Till Kamppeter <till.kamppeter@gmx.net>
-	
+
 	* foomatic-configure: When one uses the -P option with a printer
 	  and a driver to obtain the datablob of this combo, one can also
 	  supply a queue to apply the default options of that queue to the
@@ -4175,7 +4180,7 @@
 	  old and the new driver are conserved.
 
 	* lib/Foomatic/DB.pm: Fixed help page of PDQ (numerical options).
-	
+
 2001-07-18  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* foomatic-printjob: Links named "lp", "lpr", "lpq", "lprm", and
@@ -4185,7 +4190,7 @@
 	  filtered so that it comes out in the same form as the job
 	  listings of the other spoolers, possibility to save a default
 	  spooler.
-	
+
 2001-07-17  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* foomatic-printjob: Added all missing job listing and job removal
@@ -4195,7 +4200,7 @@
 	* Makefile: Added CUPS commands for queue and job control.
 
 	* makeDefaults: Added CUPS commands for queue and job control.
-	
+
 2001-07-16  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* foomatic-printjob: Added job listing (query) and job removal
@@ -4206,14 +4211,14 @@
 
 	* foomatic-configure: Added line breaks at the end of all "die"
 	  calls.
-	
+
 2001-07-15  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* foomatic-printjob: Coomand line options which are not used by
 	  foomatic-printjob are passed to spooler-specific printing
 	  command, Support for printing multiple copies with PDQ, printer
 	  queue can also be specified with the "-d" option.
-	
+
 2001-07-14  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* foomatic-printjob: Exit status of the spooler's printing command
@@ -4224,7 +4229,7 @@
 
 	* foomatic-configure: Support for setting default options, help
 	  message cleaned up.
-	
+
 2001-07-13  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* lib/Foomatic/DB.pm: Removed backquote from the boolean option
@@ -4239,7 +4244,7 @@
 	* foomatic-configure: Set automatically a search path to
 	  /etc/foomatic/pdq into the /usr/lib/pdq/printrc file, so that
 	  the Foomatic driver description files are found.
-	
+
 2001-07-11  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* Makefile: The INSTALLPREFIX facility was broken. Fixed.
@@ -4247,16 +4252,16 @@
 	* USAGE: Added user instructions.
 
 	* README: Pointed to new USAGE file
-	
+
 2001-07-05  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* sharp.upp: New driver for the Sharp AJ-1800/2000 inkjet printers
-	
+
 2001-07-02  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* Makefile: Added foomatic-printjob to the user programs to be
 	  installed
-	
+
 2001-07-01  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* foomatic-configure: Now the combo XML data and not only the
@@ -4279,7 +4284,7 @@
 	  LPD "rlpr" is only used for remote LPD queues with filter, for
 	  raw queues the "rm" and "rp" tags in the /etc/printcap file are
 	  used.
-	
+
 2001-06-29  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* foomatic-configure: Added LPRng support (without
@@ -4294,7 +4299,7 @@
 	  not put the file name into the error message.
 
 	* Makefile: Removed comment that LPRng is not supported yet.
-	
+
 2001-06-28  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* lib/Foomatic/DB.pm: Fixed several bugs in the function
@@ -4312,7 +4317,7 @@
 	* cupsomatic, lpdomatic: Fixed bug of "This option corresponds to
 	  a PJL command" not appearing on documentation page (option
 	  "docs").
-	
+
 2001-06-27  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* foomatic-configure: Query function for CUPS, corrected bug in
@@ -4322,12 +4327,12 @@
 	  "rlpr".
 
 	* Makefile, makeDefaults: Added /etc/cups/printers.conf.
-	
+
 2001-06-26  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* foomatic-configure: Support for adding/modifying and removing
 	  CUPS queues (for all backends supported by CUPS).
-	
+
 	* cupsomatic: Parsing of options embedded in the document
 	  fixed. For accessing the value of an enumerated option $avalue
 	  instead of $value was used, so the values read into $value were
@@ -4340,7 +4345,7 @@
 	  marked by the existence of the "pjl" key in the Perl data set of
 	  the printer/driver combo. So "if (defined($dat->{'pjl'}))" and
 	  not "if ($dat->{'pjl'})" has to be asked to check PJL support.
-	
+
 2001-06-25  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* foomatic-configure: Support for adding CUPS queues (all queue
@@ -4348,14 +4353,14 @@
 	  Make directories before the backend script for raw queues is
 	  written to there, Rename old $etcfile and $etcxfile also when
 	  one sets up a raw queue.
-	
+
 	* Makefile, makeDefaults: Set default paths and file names for CUPS,
 	  let cupsomatic be installed in the CUPS filter directory.
 
 2001-06-24  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* foomatic-configure: Now one can configure all types of
-	  LPD queues automatically: local USB/parallel, remote 
+	  LPD queues automatically: local USB/parallel, remote
 	  LPD/SMB/Socket. In addition one can define a queue which pipes the
 	  output into an arbitrary command or a raw queue. Bugfix: Removed
 	  colon after "q" (="quiet") in "getopts()" line. Introduced "-f"
@@ -4369,32 +4374,32 @@
 	  and compiled directories in /var/cache/foomatic to
 	  /usr/local/share/foomatic/db, before the printer combo was always
 	  recompiled.
-	
+
 2001-06-21  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* Makefiles: Allowed the possibility to install the Perl libs with
 	  another prefix than the rest of the files. So installation is also
 	  possible when Perl does not search for libraries in /usr/local.
-	
+
 2001-06-20  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* Bugfixes: foomatic-configure could not delete queues, makeDefaults
 	  set a wrong path for lpdomatic, Makefile missed a "make" in
 	  the process of installing the Perl libraries.
-	
+
 2001-06-16  Till Kamppeter <till.kamppeter@gmx.net>
 
 	* PJL options can be added to the Foomatic data now:
 	  foomatic-getpjloptions retrives them from the printer,
 	  foomatic-addpjloptions generates XML datasets from them.
-	
+
 2001-04-01  Grant Taylor  <gtaylor@linuxprinting.org>
 
 	* Various renaming has happened.  Instead of 'PHTDBPUB', it's
 	  Foomatic::DB.  Foomatic::Defaults exports the libdir et al into
 	  you, and the flock of companion modules represent other mostly
 	  internal code.
- 
+
 	* Rearranged all the code; now there's a proper Perl module, in
 	  theory at least, in Foomatic/, and the toplevel Makefile
 	  supports this.  There's also 'make testing', for a run-in-place
@@ -4462,14 +4467,14 @@
 	* args_byname twiddle for Till.
 
 	* Include all the backends in the package.
-	
+
 2001-02-28  Grant Taylor  <gtaylor@linuxprinting.org>
 
         * Require Storable
-        
+
 	* Added printer autodetect sections to overview.  Use xpath or
 	  similar to see the values in /printer/autodetect/parallel
-	
+
 	* -Q in foomatic-configure; prints XML summary of system printer
 	  configuration.  -X and -O allow examination of the whole
 	  database.  f-c API should now be sufficient to build GUIs atop.
