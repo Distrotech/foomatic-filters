@@ -1,5 +1,9 @@
 2012-07-02  Till Kamppeter <till.kamppeter@gmail.com>
 
+	* Tagged branch for release 4.0.17.
+
+	* VERSION, README, USAGE, configure.ac: Updated for release 4.0.17.
+
 	* foomaticrip.h: Raised PATH_MAX to 65536 bytes so that CUPS
 	  filter calls with many command line options work (Ubuntu bug
 	  #1019662).
