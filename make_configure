@@ -1,0 +1,15 @@
+#!/bin/sh
+autoheader
+aclocal
+autoconf
+automake -ac
+
+REVNO=`bzr revno 2> /dev/null`
+if [ -z $REVNO ]; then
+    echo `cat VERSION` > VERSION.full
+else
+    echo `cat VERSION`.$REVNO > VERSION.full
+fi
+
+
+#perl -p -i -e "s=\#include <xmlversion.h>=\#include <libxml/xmlversion.h>=g" configure

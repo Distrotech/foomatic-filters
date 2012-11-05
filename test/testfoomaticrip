@@ -1,0 +1,564 @@
+#!/bin/sh
+# -------------------------------------------------
+# LSB test for presence and functionality of foomatic-rip
+# -------------------------------------------------
+# Modification History:
+# 11/15/2007 - Till Kamppeter - till.kamppeter@gmail.com
+# -------------------------------------------------
+tet_startup="startup"                   # startup function
+tet_cleanup="cleanup"                   # cleanup function
+iclist="ic1 ic2 ic3 ic4 ic5 ic6 ic7 ic8 ic9 ic10 ic11 ic12 ic13"
+ic1="tp1"
+ic2="tp2"
+ic3="tp3"
+ic4="tp4"
+ic5="tp5"
+ic6="tp6"
+ic7="tp7"
+ic8="tp8"
+ic9="tp9"
+ic10="tp10"
+ic11="tp11"
+ic12="tp12"
+ic13="tp13"
+
+FOOMATICRIP=`which foomatic-rip`
+export PPD=`pwd`"/foomatic-test.ppd"
+INPUTFILE=`pwd`"/foomatic-test-input-ps.ps"
+IFILE=$INPUTFILE
+BASECMDLINE="$FOOMATICRIP --ppd $PPD -o FilterPath="`pwd`"/"
+PREVCMDLINE=''
+HOSTNAME=`hostname`
+JOBTITLE="$USER@$HOSTNAME"
+PRIVATECUPSDIR="../../../cups"
+if [ -x $PRIVATECUPSDIR/sbin/cupsd ]; then
+    PSTOPS="$PRIVATECUPSDIR/lib/cups/filter/pstops"
+    CUPSDCONF="$PRIVATECUPSDIR/etc/cups/cupsd.conf"
+    CUPSINIT1="xxx"
+    CUPSINIT2="xxx"
+    CUPSD="cupsd"
+    LPADMIN="$PRIVATECUPSDIR/sbin/lpadmin"
+    LPSTAT="$PRIVATECUPSDIR/bin/lpstat"
+    LPR="$PRIVATECUPSDIR/bin/lpr"
+elif cups-config --version > /dev/null 2>&1; then
+    PSTOPS=`cups-config --serverbin`"/filter/pstops"
+    CUPSDCONF=`cups-config --serverroot`"/cupsd.conf"
+    CUPSINIT1="/etc/init.d/cups"
+    CUPSINIT2="/etc/init.d/cupsys"
+    CUPSD="cupsd"
+    LPADMIN="lpadmin"
+    LPSTAT="lpstat"
+    LPR="lpr"
+else
+    PSTOPS="/usr/lib/cups/filter/pstops"
+    CUPSDCONF="/etc/cups/cupsd.conf"
+    CUPSINIT1="/etc/init.d/cups"
+    CUPSINIT2="/etc/init.d/cupsys"
+    CUPSD="cupsd"
+    LPADMIN="lpadmin"
+    LPSTAT="lpstat"
+    LPR="lpr"
+fi
+if cups-config --version > /dev/null 2>&1; then
+    CUPSFILTER=`cups-config --serverbin`"/filter"
+else
+    CUPSFILTER="/usr/lib/cups/filter"
+fi
+
+tp1() {
+    tpstart "Reference III.8.1" 
+    tet_infoline "The implementation provides an exec-able version"
+    tet_infoline "of the foomatic-rip command in the PATH and in"
+    tet_infoline "the system's CUPS filter directory (symlink)"
+    test -x $FOOMATICRIP 2>out.stderr
+    check_exit_value $? 0
+    check_nostderr
+    test -x "$CUPSFILTER/foomatic-rip" 2>out.stderr
+    check_exit_value $? 0
+    check_nostderr
+    tpresult                        # set result code
+}
+
+tp2() {
+    tpstart "Reference III.8.2"
+    tet_infoline "foomatic-rip inserts standard PPD options correctly into"
+    tet_infoline "the PostScript data stream."
+    test_foomatic_rip 'Option1 (PostScript) inserted' '' \
+	'\[\{\s*[\n\r]+\s*\%\%BeginFeature:\s*\*Option1\s+Choice2\s*[\n\r]+\s*\<\<\/HWResolution \[1200  600\]\>\> setpagedevice \% Option1: Choice2\s*[\n\r]+\s*\%\%EndFeature\s*[\n\r]+\s*\}\s*stopped\s+cleartomark'
+    test_foomatic_rip 'Option2 (PostScript) inserted' '' \
+        '\[\{\s*[\n\r]+\s*\%\%BeginFeature:\s*\*Option2\s+Choice3\s*[\n\r]+\s*\% Option2: Choice3[\n\r]+    \<\<\/Test \[Example3\]\>\> setpagedevice[\n\r]+\s*\%\%EndFeature\s*[\n\r]+\s*\}\s*stopped\s+cleartomark'
+    test_foomatic_rip 'Option3 (PostScript) inserted' '' \
+        '\[\{\s*[\n\r]+\s*\%\%BeginFeature:\s*\*Option3\s+Choice1\s*[\n\r]+\s*\% Option3: Choice1\s*[\n\r]+\s*\%\%EndFeature\s*[\n\r]+\s*\}\s*stopped\s+cleartomark'
+    test_foomatic_rip 'Option4 (PostScript) inserted' '' \
+        '\[\{\s*[\n\r]+\s*\%\%BeginFeature:\s*\*Option4\s+Choice1\s*[\n\r]+\s*\% Option4: Choice1\s*[\n\r]+\s*\%\%EndFeature\s*[\n\r]+\s*\}\s*stopped\s+cleartomark'
+    test_foomatic_rip 'Option5 (PostScript) inserted' '' \
+        '\[\{\s*[\n\r]+\s*\%\%BeginFeature:\s*\*Option5\s+Choice1\s*[\n\r]+\s*\% Option5: Choice1\s*[\n\r]+\s*\%\%EndFeature\s*[\n\r]+\s*\}\s*stopped\s+cleartomark'
+    test_foomatic_rip 'Option6 (PJL) inserted' '' \
+        '\@PJL\s+SET\s+TEST6=CHOICE1\s*[\n\r]+'
+    test_foomatic_rip 'Option7 (PostScript) inserted' '' \
+        '\[\{\s*[\n\r]+\s*\%\%BeginFeature:\s*\*Option7\s+\S+\s*[\n\r]+\s*\% Option7: True\s*[\n\r]+\s*\%\%EndFeature\s*[\n\r]+\s*\}\s*stopped\s+cleartomark'
+    test_foomatic_rip 'Option8 (PostScript) inserted' '' \
+        '\[\{\s*[\n\r]+\s*\%\%BeginFeature:\s*\*Option8\s+\S+\s*[\n\r]+\s*\% Option8: False\s*[\n\r]+\s*\%\%EndFeature\s*[\n\r]+\s*\}\s*stopped\s+cleartomark'
+    tpresult                        # set result code
+}
+
+tp3() {
+    tpstart "Reference III.8.2"
+    tet_infoline "foomatic-rip inserts standard PPD options into the correct"
+    tet_infoline "sections of a DSC-compliant PostScript file and withing the"
+    tet_infoline "sections also in the correct order."
+    test_foomatic_rip 'JCLSetup: Option6' '' \
+	'\%\-12345X\@PJL' \
+	'\@PJL\s+SET\s+TEST6=CHOICE\d' \
+        '\%\!PS'
+    test_foomatic_rip 'Prolog: Option5' '' \
+        '\%\%BeginProlog' \
+	'\%\%BeginFeature:\s*\*Option5\s+Choice\d' \
+	'\%\%EndProlog'
+    test_foomatic_rip 'Setup: PageSize Option1 Option7 Option8 Option2 Option3' '' \
+        '\%\%BeginSetup' \
+	'\%\%BeginFeature:\s*\*PageSize\s+\S+' \
+	'\%\%BeginFeature:\s*\*Option1\s+\S+' \
+	'\%\%BeginFeature:\s*\*Option7\s+\S+' \
+	'\%\%BeginFeature:\s*\*Option8\s+\S+' \
+	'\%\%BeginFeature:\s*\*Option2\s+\S+' \
+	'\%\%BeginFeature:\s*\*Option3\s+\S+' \
+	'\%\%EndSetup'
+    test_foomatic_rip 'PageSetup: Page 1: Option4, Page 2: Option4, Page 3: Option4, Page 4: Option4' '' \
+        '\%\%Page:\s*1\s+1' \
+	'\%\%BeginFeature:\s*\*Option4\s+Choice\d' \
+	'gsave' \
+        '\%\%Page:\s*2\s+2' \
+	'\%\%BeginFeature:\s*\*Option4\s+Choice\d' \
+	'gsave' \
+        '\%\%Page:\s*3\s+3' \
+	'\%\%BeginFeature:\s*\*Option4\s+Choice\d' \
+	'gsave' \
+        '\%\%Page:\s*4\s+4' \
+	'\%\%BeginFeature:\s*\*Option4\s+Choice\d' \
+	'gsave'
+    tpresult                        # set result code
+}
+
+tp4() {
+    tpstart "Reference III.8.2" 
+    tet_infoline "foomatic-rip applies user-supplied option settings when"
+    tet_infoline "inserting PPD option code"
+    test_foomatic_rip 'Option1 (PostScript) with setting Choice1 inserted' \
+	'-o Option1=Choice1' \
+	'\[\{\s*[\n\r]+\s*\%\%BeginFeature:\s*\*Option1\s+Choice1\s*[\n\r]+\s*\<\<\/HWResolution \[1200 1200\]\>\> setpagedevice \% Option1: Choice1\s*[\n\r]+\s*\%\%EndFeature\s*[\n\r]+\s*\}\s*stopped\s+cleartomark'
+    test_foomatic_rip 'Option4 (PostScript) with setting Choice3 inserted for all 4 pages' \
+	'-o Option4=Choice3' \
+        '\[\{\s*[\n\r]+\s*\%\%BeginFeature:\s*\*Option4\s+Choice3\s*[\n\r]+\s*\% Option4: Choice3\s*[\n\r]+\s*\%\%EndFeature\s*[\n\r]+\s*\}\s*stopped\s+cleartomark' \
+        '\[\{\s*[\n\r]+\s*\%\%BeginFeature:\s*\*Option4\s+Choice3\s*[\n\r]+\s*\% Option4: Choice3\s*[\n\r]+\s*\%\%EndFeature\s*[\n\r]+\s*\}\s*stopped\s+cleartomark' \
+        '\[\{\s*[\n\r]+\s*\%\%BeginFeature:\s*\*Option4\s+Choice3\s*[\n\r]+\s*\% Option4: Choice3\s*[\n\r]+\s*\%\%EndFeature\s*[\n\r]+\s*\}\s*stopped\s+cleartomark' \
+        '\[\{\s*[\n\r]+\s*\%\%BeginFeature:\s*\*Option4\s+Choice3\s*[\n\r]+\s*\% Option4: Choice3\s*[\n\r]+\s*\%\%EndFeature\s*[\n\r]+\s*\}\s*stopped\s+cleartomark'
+    test_foomatic_rip 'Option6 (PJL) with Choice2 inserted' \
+	'-o Option6=Choice2' \
+        '\@PJL\s+SET\s+TEST6=CHOICE2\s*[\n\r]+'
+    test_foomatic_rip 'Option7 (PostScript) with setting False inserted' \
+	'-o Option7=False' \
+        '\[\{\s*[\n\r]+\s*\%\%BeginFeature:\s*\*Option7\s+\S+\s*[\n\r]+\s*\% Option7: False\s*[\n\r]+\s*\%\%EndFeature\s*[\n\r]+\s*\}\s*stopped\s+cleartomark'
+    test_foomatic_rip 'Option8 (PostScript) with setting True inserted' \
+	'-o Option8=True' \
+        '\[\{\s*[\n\r]+\s*\%\%BeginFeature:\s*\*Option8\s+\S+\s*[\n\r]+\s*\% Option8: True\s*[\n\r]+\s*\%\%EndFeature\s*[\n\r]+\s*\}\s*stopped\s+cleartomark'
+    test_foomatic_rip 'Option1 (PostScript) inserted, invalid setting Choice4 ignored' \
+	'-o Option1=Choice4' \
+	'\[\{\s*[\n\r]+\s*\%\%BeginFeature:\s*\*Option1\s+Choice2\s*[\n\r]+\s*\<\<\/HWResolution \[1200  600\]\>\> setpagedevice \% Option1: Choice2\s*[\n\r]+\s*\%\%EndFeature\s*[\n\r]+\s*\}\s*stopped\s+cleartomark'
+    tpresult                        # set result code
+}
+
+tp5() {
+    tpstart "Reference III.8.2" 
+    tet_infoline "foomatic-rip applies option settings to the renderer"
+    tet_infoline "command line"
+    test_foomatic_rip 'Renderer command line with arguments controlled by PPD options: FoomaticOption1 FoomaticOption7 FoomaticOption8 FoomaticOptionB FoomaticOptionE, check for presence, correct value, and order' \
+	'' \
+	'foomatic-test-renderer[^\n\r]* --option1=choice1[^\n\r]* --FoomaticOption7[^\n\r]* --option9=choiceC[^\n\r]* --optionA=choiceF[^\n\r]* --optionC=choiceB[^\n\r]* --optionD=choiceE[^\n\r]* --FoomaticOptionE'
+    test_foomatic_rip 'Changed settings: FoomaticOption1=Choice3' \
+	'-o FoomaticOption1=Choice3' \
+	'foomatic-test-renderer[^\n\r]* --option1=choice3[^\n\r]* --FoomaticOption7[^\n\r]* --option9=choiceC[^\n\r]* --optionA=choiceF[^\n\r]* --optionC=choiceB[^\n\r]* --optionD=choiceE[^\n\r]* --FoomaticOptionE'
+    tpresult
+}
+
+tp6() {
+    tpstart "Reference III.8.2"
+    tet_infoline "foomatic-rip supports composite options, where one option"
+    tet_infoline "sets all member options"
+    test_foomatic_rip 'Composite options: FoomaticOption8 (Members FoomaticOption9 FoomaticOptionA), FoomaticOptionB (Members: FoomaticOptionC FoomaticOptionD)' \
+	'' \
+	'foomatic-test-renderer[^\n\r]* --option9=choiceC[^\n\r]* --optionA=choiceF[^\n\r]* --optionC=choiceB[^\n\r]* --optionD=choiceE'
+    test_foomatic_rip 'Changing FoomaticOption8' \
+	'-o FoomaticOption8=Choice1' \
+	'foomatic-test-renderer[^\n\r]* --option9=choiceA[^\n\r]* --optionA=choiceD[^\n\r]* --optionC=choiceB[^\n\r]* --optionD=choiceE'
+    test_foomatic_rip 'Changing FoomaticOptionB' \
+	'-o FoomaticOptionB=Choice1' \
+	'foomatic-test-renderer[^\n\r]* --option9=choiceC[^\n\r]* --optionA=choiceF[^\n\r]* --optionC=choiceA[^\n\r]* --optionD=choiceD'
+    test_foomatic_rip 'FoomaticOption8 is a normal composite option, member options can be set individually' \
+	'-o FoomaticOption9=ChoiceB' \
+	'foomatic-test-renderer[^\n\r]* --option9=choiceB[^\n\r]* --optionA=choiceF[^\n\r]* --optionC=choiceB[^\n\r]* --optionD=choiceE'
+    test_foomatic_rip 'FoomaticOptionB is a forced composite option, member options exist but are not advertized in GUIs' \
+	'-o FoomaticOptionD=ChoiceF' \
+	'foomatic-test-renderer[^\n\r]* --option9=choiceC[^\n\r]* --optionA=choiceF[^\n\r]* --optionC=choiceB[^\n\r]* --optionD=choiceF'
+    tpresult
+}
+
+tp7() {
+    tpstart "Reference III.8.2"
+    tet_infoline "String and password options allow (nearly) arbitrary strings"
+    test_foomatic_rip 'FoomaticOption3 is a string option' \
+	'' \
+        '\[\{\s*[\n\r]+\s*\%\%BeginFeature:\s*\*FoomaticOption3\s+Choice1\s*[\n\r]+\s*\% FoomaticOption3: Choice1\s*[\n\r]+\s*\%\%EndFeature\s*[\n\r]+\s*\}\s*stopped\s+cleartomark'
+    test_foomatic_rip 'FoomaticOption3: Another predefined choice (Choice2)' \
+	'-o FoomaticOption3=Choice2' \
+        '\[\{\s*[\n\r]+\s*\%\%BeginFeature:\s*\*FoomaticOption3\s+Choice2\s*[\n\r]+\s*\% FoomaticOption3: Choice2\s*[\n\r]+\s*\%\%EndFeature\s*[\n\r]+\s*\}\s*stopped\s+cleartomark'
+    test_foomatic_rip 'FoomaticOption3: A freely chosen string (DFhj_3-4)' \
+	'-o FoomaticOption3=DFhj_3-4' \
+        '\[\{\s*[\n\r]+\s*\%\%BeginFeature:\s*\*FoomaticOption3\s+DFhj_3-4\s*[\n\r]+\s*\% FoomaticOption3: DFhj_3-4\s*[\n\r]+\s*\%\%EndFeature\s*[\n\r]+\s*\}\s*stopped\s+cleartomark'
+    test_foomatic_rip 'FoomaticOption3: Too many characters (DFhj_3-45)' \
+	'-o FoomaticOption3=DFhj_3-45' \
+        '\[\{\s*[\n\r]+\s*\%\%BeginFeature:\s*\*FoomaticOption3\s+Choice1\s*[\n\r]+\s*\% FoomaticOption3: Choice1\s*[\n\r]+\s*\%\%EndFeature\s*[\n\r]+\s*\}\s*stopped\s+cleartomark'
+    test_foomatic_rip 'FoomaticOption3: Invalid characters (DFhj;3:4)' \
+	'-o FoomaticOption3=DFhj;3:4' \
+        '\[\{\s*[\n\r]+\s*\%\%BeginFeature:\s*\*FoomaticOption3\s+Choice1\s*[\n\r]+\s*\% FoomaticOption3: Choice1\s*[\n\r]+\s*\%\%EndFeature\s*[\n\r]+\s*\}\s*stopped\s+cleartomark'
+    test_foomatic_rip 'FoomaticOption4 is a password option (same as string, but GUIs hide input)' \
+	'' \
+        '\[\{\s*[\n\r]+\s*\%\%BeginFeature:\s*\*FoomaticOption4\s+Choice1\s*[\n\r]+\s*\% FoomaticOption4: Choice1\s*[\n\r]+\s*\%\%EndFeature\s*[\n\r]+\s*\}\s*stopped\s+cleartomark'
+    test_foomatic_rip 'FoomaticOption4: Valid string (DFhj3545)' \
+	'-o FoomaticOption4=DFhj3545' \
+        '\[\{\s*[\n\r]+\s*\%\%BeginFeature:\s*\*FoomaticOption4\s+DFhj3545\s*[\n\r]+\s*\% FoomaticOption4: DFhj3545\s*[\n\r]+\s*\%\%EndFeature\s*[\n\r]+\s*\}\s*stopped\s+cleartomark'
+    test_foomatic_rip 'FoomaticOption4: String does not match regexp (DFhj;3:4)' \
+	'-o FoomaticOption4=DFhj;3:4' \
+        '\[\{\s*[\n\r]+\s*\%\%BeginFeature:\s*\*FoomaticOption4\s+Choice1\s*[\n\r]+\s*\% FoomaticOption4: Choice1\s*[\n\r]+\s*\%\%EndFeature\s*[\n\r]+\s*\}\s*stopped\s+cleartomark'
+    tpresult
+}
+
+tp8() {
+    tpstart "Reference III.8.2"
+    tet_infoline "Numerical options allow any value in the range"
+    test_foomatic_rip 'FoomaticOption6 is a floating point numerical option, default 1.2 is not under the given choices' \
+	'' \
+        '\[\{\s*[\n\r]+\s*\%\%BeginFeature:\s*\*FoomaticOption6\s+1.20*\s*[\n\r]+\s*\% FoomaticOption6: \s*1.20*\s*[\n\r]+\s*\%\%EndFeature\s*[\n\r]+\s*\}\s*stopped\s+cleartomark'
+    test_foomatic_rip 'FoomaticOption6 set to -2.2, also not under the given choices' \
+	'-o FoomaticOption6=-2.2' \
+        '\[\{\s*[\n\r]+\s*\%\%BeginFeature:\s*\*FoomaticOption6\s+\-2.20*\s*[\n\r]+\s*\% FoomaticOption6: \s*\-2.20*\s*[\n\r]+\s*\%\%EndFeature\s*[\n\r]+\s*\}\s*stopped\s+cleartomark'
+    test_foomatic_rip 'FoomaticOption6 set to -4.6, value out of range, therefore ignored.' \
+	'-o FoomaticOption6=-4.6' \
+        '\[\{\s*[\n\r]+\s*\%\%BeginFeature:\s*\*FoomaticOption6\s+1.20*\s*[\n\r]+\s*\% FoomaticOption6: \s*1.20*\s*[\n\r]+\s*\%\%EndFeature\s*[\n\r]+\s*\}\s*stopped\s+cleartomark'
+    test_foomatic_rip 'FoomaticOption6 set to 10, also out of range.' \
+	'-o FoomaticOption6=10' \
+        '\[\{\s*[\n\r]+\s*\%\%BeginFeature:\s*\*FoomaticOption6\s+1.20*\s*[\n\r]+\s*\% FoomaticOption6: \s*1.20*\s*[\n\r]+\s*\%\%EndFeature\s*[\n\r]+\s*\}\s*stopped\s+cleartomark'
+    test_foomatic_rip 'FoomaticOption5 is an integer numerical option, default is 2' \
+	'' \
+        '\[\{\s*[\n\r]+\s*\%\%BeginFeature:\s*\*FoomaticOption5\s+2\s*[\n\r]+\s*\% FoomaticOption5: \s*2\s*[\n\r]+\s*\%\%EndFeature\s*[\n\r]+\s*\}\s*stopped\s+cleartomark'
+    test_foomatic_rip 'FoomaticOption5 set to -7' \
+	'-o FoomaticOption5=-7' \
+        '\[\{\s*[\n\r]+\s*\%\%BeginFeature:\s*\*FoomaticOption5\s+\-7\s*[\n\r]+\s*\% FoomaticOption5: \s*\-7\s*[\n\r]+\s*\%\%EndFeature\s*[\n\r]+\s*\}\s*stopped\s+cleartomark'
+    test_foomatic_rip 'FoomaticOption5 set to 6.7, the digits after the decimal point get cut off.' \
+	'-o FoomaticOption5=6.7' \
+        '\[\{\s*[\n\r]+\s*\%\%BeginFeature:\s*\*FoomaticOption5\s+6\S*\s*[\n\r]+\s*\% FoomaticOption5: \s*6\s*[\n\r]+\s*\%\%EndFeature\s*[\n\r]+\s*\}\s*stopped\s+cleartomark'
+    tpresult
+}
+
+tp9() {
+    tpstart "Reference III.8.2"
+    tet_infoline "Disabled per Bug 1841 (http://bugs.linuxbase.org/show_bug.cgi?id=1841)"
+    tpresult UNTESTED
+    return
+    tet_infoline "Special entities get substituted by job parameters"
+    test_foomatic_rip 'Job parameters' \
+	'' \
+	'foomatic-test-renderer[^\n\r]* --FoomaticOptionE --user='$USER' --host='$HOSTNAME' --title='$USER'\@'$HOSTNAME' --copies=1 --options=\(FilterPath=[^\n\r]* \) --date=\d\d\/\d\d\/\d+ --time=\d\d\:\d\d\:\d\d --special=\&\<\>\"'
+    tpresult
+}
+
+tp10() {
+    tpstart "Reference III.8.2"
+    tet_infoline "PJL options from the PPD file get merged into PJL header"
+    tet_infoline "generated by the printer driver"
+    test_foomatic_rip 'FoomaticOption2 (PJL) inserted' '' \
+        '\@PJL\s+SET\s+TEST2=CHOICE1\s*[\n\r]+'
+    test_foomatic_rip 'Option6 and FoomaticOption2 (both PJL) merged into driver-generated PJL header' \
+	'-o FoomaticPJLMergeTest=DriverPJL' \
+        '\%-12345X\@PJL\s+SET\s+TEST2=CHOICE1\s*[\n\r]+\s*\@PJL\s+SET\s+TEST6=CHOICE1\s*[\n\r]+\s*\@PJL\s+SET\s+RESOLUTION=600\s*[\n\r]+\s*\@PJL\s+ENTER\s+LANGUAGE=POSTSCRIPT\s*[\n\r]+'
+    tpresult
+}
+
+tp11() {
+    tpstart "Reference III.8.2"
+    tet_infoline "Option settings can be applied to selected pages"
+    tet_infoline "(page overrides)"
+    test_foomatic_rip 'PageSetup: Page 1: Option4=Choice1, Page 2: Option4=Choice1, Page 3: Option4=Choice3, Page 4: Option4=Choice1' \
+	'-o 3:Option4=Choice3' \
+        '\%\%Page:\s*1\s+1' \
+	'\%\%BeginFeature:\s*\*Option4\s+Choice1' \
+	'gsave' \
+        '\%\%Page:\s*2\s+2' \
+	'\%\%BeginFeature:\s*\*Option4\s+Choice1' \
+	'gsave' \
+        '\%\%Page:\s*3\s+3' \
+	'\%\%BeginFeature:\s*\*Option4\s+Choice3' \
+	'gsave' \
+        '\%\%Page:\s*4\s+4' \
+	'\%\%BeginFeature:\s*\*Option4\s+Choice1' \
+	'gsave'
+    test_foomatic_rip 'FoomaticOption1=Choice3 for pages 2-4' \
+	'-o 2-4:FoomaticOption1=Choice3' \
+        '\%\%Page:\s*1\s+1' \
+	'foomatic-test-renderer[^\n\r]* --option1=choice1' \
+        '\%\%Page:\s*2\s+2' \
+        '\%\%Page:\s*3\s+3' \
+        '\%\%Page:\s*4\s+4' \
+	'foomatic-test-renderer[^\n\r]* --option1=choice3'
+    test_foomatic_rip 'FoomaticOption1=Choice3 for odd pages' \
+	'-o odd:FoomaticOption1=Choice3' \
+        '\%\%Page:\s*1\s+1' \
+	'foomatic-test-renderer[^\n\r]* --option1=choice3' \
+        '\%\%Page:\s*2\s+2' \
+	'foomatic-test-renderer[^\n\r]* --option1=choice1' \
+        '\%\%Page:\s*3\s+3' \
+	'foomatic-test-renderer[^\n\r]* --option1=choice3' \
+        '\%\%Page:\s*4\s+4' \
+	'foomatic-test-renderer[^\n\r]* --option1=choice1'
+    test_foomatic_rip 'FoomaticOption1=Choice3 for pages 1-2 and 4' \
+	'-o 1-2,4:FoomaticOption1=Choice3' \
+        '\%\%Page:\s*1\s+1' \
+        '\%\%Page:\s*2\s+2' \
+	'foomatic-test-renderer[^\n\r]* --option1=choice3' \
+        '\%\%Page:\s*3\s+3' \
+	'foomatic-test-renderer[^\n\r]* --option1=choice1' \
+        '\%\%Page:\s*4\s+4' \
+	'foomatic-test-renderer[^\n\r]* --option1=choice3'
+    tpresult
+}
+
+tp12() {
+    tpstart "Reference III.8.2"
+    tet_infoline "PostScript code of options in the PostScript data stream"
+    tet_infoline "gets taken into account, foomatic-rip executes Foomatic"
+    tet_infoline "options"
+    IFILE=""
+    # The CUPS filter pstops inserts the PostScript code of the options
+    # of the PPD file given by the $PPD environment variable. Usually
+    # the default option settings are used. Non-default option settings
+    # can be supplied by the fifth command line argument.
+    # Note: The environment variable $PPD to tell pstops which PPD to use
+    # was already set in the beginning of this script
+    $PSTOPS 0 x y 1 "FoomaticOption2=Choice2" \
+	$INPUTFILE 2> /dev/null | \
+	test_foomatic_rip 'FoomaticOption2 with setting Choice2 inserted' \
+	'' \
+        '\@PJL\s+SET\s+TEST2=CHOICE2\s*[\n\r]+'
+    $PSTOPS 0 x y 1 "Option7=False" \
+	$INPUTFILE 2> /dev/null | \
+	test_foomatic_rip 'Option7 (PostScript) with setting False inserted' \
+	'' \
+        '\[\{\s*[\n\r]+\s*\%\%BeginFeature:\s*\*Option7\s+\S+\s*[\n\r]+\s*\% Option7: False\s*[\n\r]+\s*\%\%EndFeature\s*[\n\r]+\s*\}\s*stopped\s+cleartomark'
+    $PSTOPS 0 x y 1 "FoomaticOption8=Choice1" \
+	$INPUTFILE 2> /dev/null | \
+	test_foomatic_rip 'Changing FoomaticOption8 (composite option)' \
+	'' \
+	'foomatic-test-renderer[^\n\r]* --option9=choiceA[^\n\r]* --optionA=choiceD[^\n\r]* --optionC=choiceB[^\n\r]* --optionD=choiceE'
+    tpresult
+}
+
+tp13() {
+    tpstart "Reference III.8.2"
+    tet_infoline "foomatic-rip acts as a CUPS filter and recognizes if it is"
+    tet_infoline "called as such. Also a test for the full printing workflow."
+    if ! grep -qi "FileDevice *yes" $CUPSDCONF; then
+	tet_infoline "Adding \"FileDevice Yes\" to cupsd.conf"
+	tet_infoline "This is needed so that we can print into a file."
+	echo "FileDevice yes" >> $CUPSDCONF
+	check_exit_value $? 0
+	check_nostderr
+	$CUPSINIT1 restart 2>/dev/null || \
+	    $CUPSINIT2 restart 2>/dev/null || \
+	    killall -HUP $CUPSD 2>/dev/null
+	check_exit_value $? 0
+	check_nostderr
+	sleep 3
+	FILEDEVICEYESADDED=1
+    fi
+    if [ -x $PRIVATECUPSDIR/sbin/cupsd ]; then
+	ln -s $FOOMATICRIP $PRIVATECUPSDIR/lib/cups/filter/
+    fi
+    if [ -e $HOME/.cupsrc ]; then
+	IPP_PORT=632
+	HOME=/tmp
+	export HOME IPP_PORT
+    fi
+    tet_infoline "Creating test print queue \"testprinter\""
+    $LPADMIN -p testprinter -E -v file:/tmp/out.prn -P $PPD
+    check_exit_value $? 0
+    check_nostderr
+    test_cups_job "Default option settings" \
+	'' \
+	'\[\{\s*[\n\r]+\s*\%\%BeginFeature:\s*\*Option1\s+Choice2\s*[\n\r]+\s*\<\<\/HWResolution \[1200  600\]\>\> setpagedevice \% Option1: Choice2\s*[\n\r]+\s*\%\%EndFeature\s*[\n\r]+\s*\}\s*stopped\s+cleartomark'
+    test_cups_job "Option setting Option1=Choice1" \
+	'-o Option1=Choice1' \
+	'\[\{\s*[\n\r]+\s*\%\%BeginFeature:\s*\*Option1\s+Choice1\s*[\n\r]+\s*\<\<\/HWResolution \[1200 1200\]\>\> setpagedevice \% Option1: Choice1\s*[\n\r]+\s*\%\%EndFeature\s*[\n\r]+\s*\}\s*stopped\s+cleartomark'
+    test_cups_job 'Changing FoomaticOption8' \
+	'-o FoomaticOption8=Choice1' \
+	'foomatic-test-renderer[^\n\r]* --option9=choiceA[^\n\r]* --optionA=choiceD[^\n\r]* --optionC=choiceB[^\n\r]* --optionD=choiceE'
+    test_cups_job 'FoomaticOption4: Valid string (DFhj3545)' \
+	'-o FoomaticOption4=DFhj3545' \
+        '\[\{\s*[\n\r]+\s*\%\%BeginFeature:\s*\*FoomaticOption4\s+DFhj3545\s*[\n\r]+\s*\% FoomaticOption4: DFhj3545\s*[\n\r]+\s*\%\%EndFeature\s*[\n\r]+\s*\}\s*stopped\s+cleartomark'
+    test_cups_job 'FoomaticOption5 set to -7' \
+	'-o FoomaticOption5=-7' \
+        '\[\{\s*[\n\r]+\s*\%\%BeginFeature:\s*\*FoomaticOption5\s+\-7\s*[\n\r]+\s*\% FoomaticOption5: \s*\-7\s*[\n\r]+\s*\%\%EndFeature\s*[\n\r]+\s*\}\s*stopped\s+cleartomark'
+    tet_infoline "Next test is with --user option, does not run on all LSB-compliant systems, see http://bugs.linuxbase.org/show_bug.cgi?id=1841"
+    test_cups_job 'Job parameters' \
+	'' \
+	'foomatic-test-renderer[^\n\r]* --FoomaticOptionE --user='$USER' --host='$HOSTNAME' --title=TEST --copies=1 --options=\([^\n\r]*\) --date=\d\d\/\d\d\/\d+ --time=\d\d\:\d\d\:\d\d --special=\&\<\>\"'
+    test_cups_job 'FoomaticOption2 (PJL) inserted' '' \
+	'\@PJL\s+SET\s+TEST2=CHOICE1\s*[\n\r]+'
+    test_cups_job 'Option6 and FoomaticOption2 (both PJL) merged into driver-generated PJL header' \
+	'-o FoomaticPJLMergeTest=DriverPJL' \
+        '\%-12345X\@PJL\s+SET\s+TEST2=CHOICE1\s*[\n\r]+\s*\@PJL\s+SET\s+TEST6=CHOICE1\s*[\n\r]+\s*\@PJL\s+SET\s+RESOLUTION=600\s*[\n\r]+\s*\@PJL\s+ENTER\s+LANGUAGE=POSTSCRIPT\s*[\n\r]+'
+    test_cups_job 'FoomaticOption1=Choice3 for pages 1-2 and 4' \
+	'-o 1-2,4:FoomaticOption1=Choice3' \
+        '\%\%Page:\s*1\s+1' \
+        '\%\%Page:\s*2\s+2' \
+	'foomatic-test-renderer[^\n\r]* --option1=choice3' \
+        '\%\%Page:\s*3\s+3' \
+	'foomatic-test-renderer[^\n\r]* --option1=choice1' \
+        '\%\%Page:\s*4\s+4' \
+	'foomatic-test-renderer[^\n\r]* --option1=choice3'
+    tet_infoline "Removing test print queue \"testprinter\""
+    $LPADMIN -x testprinter
+    check_exit_value $? 0
+    check_nostderr
+    if [ -x $PRIVATECUPSDIR/sbin/cupsd ]; then
+	rm -f $PRIVATECUPSDIR/lib/cups/filter/foomatic-rip
+    fi
+    if [ "$FILEDEVICEYESADDED" = "1" ]; then
+	tet_infoline "Removing \"FileDevice yes\" from cupsd.conf"
+	perl -p -i -e 's/FileDevice yes\n//sm' $CUPSDCONF
+	check_exit_value $? 0
+	check_nostderr
+	$CUPSINIT1 restart 2>/dev/null || \
+	    $CUPSINIT2 restart 2>/dev/null || \
+	    killall -HUP $CUPSD 2>/dev/null
+	check_exit_value $? 0
+	check_nostderr
+    fi
+    tpresult
+}
+
+test_foomatic_rip() {
+    COMMENT=$1
+    shift
+    EXTRAOPTS=$1
+    shift
+    CMDLINE="$BASECMDLINE $EXTRAOPTS $IFILE"
+    if [ "$CMDLINE" != "$PREVCMDLINE" ]
+    then
+	tet_infoline "Executing $CMDLINE"
+	$CMDLINE > out.stdout 2>out.stderr
+	PREVCMDLINE="$CMDLINE"
+    fi
+    check_exit_value $? 0
+    check_nostderr
+    SEARCHTERM=''
+    while [ -n "$1" ]
+    do
+	if [ -n "$SEARCHTERM" ]
+	then
+	    SEARCHTERM=$SEARCHTERM'.*'
+	fi
+	SEARCHTERM=$SEARCHTERM`/bin/echo "$1" | sed 's/ /\\\\x20/g'`
+	shift
+    done
+    tet_infoline "Checking: $COMMENT"
+    check_stdout_binary_P $SEARCHTERM
+}
+
+test_cups_job () {
+    COMMENT=$1
+    shift
+    EXTRAOPTS=$1
+    shift
+    SEARCHTERM=''
+    while [ -n "$1" ]
+    do
+	if [ -n "$SEARCHTERM" ]
+	then
+	    SEARCHTERM=$SEARCHTERM'.*'
+	fi
+	SEARCHTERM=$SEARCHTERM`/bin/echo "$1" | sed 's/ /\\\\x20/g'`
+	shift
+    done
+    tet_infoline "$COMMENT"
+    tet_infoline "Sending print job with option settings \"$EXTRAOPTS\""
+    $LPR -P testprinter -J "TEST" -o FilterPath=`pwd`'/' $EXTRAOPTS $INPUTFILE
+    check_exit_value $? 0
+    check_nostderr
+    counter=30
+    while [ "`$LPSTAT -o testprinter | wc -l`" != "0" ]; do
+	counter=$(($counter - 1))
+	if [ "$counter" = "0" ]; then
+	    tet_infoline "Print job timeout"
+	    FAIL=Y
+	    break
+	fi
+	sleep 1
+    done
+    chown $USER out.stdout
+    check_exit_value $? 0
+    check_nostderr
+    cat /tmp/out.prn | perl -e 'my $a = join("",<>); exit !($a =~ /'$SEARCHTERM'/sm)'
+    if [ $? -ne 0  ]
+    then
+        tet_infoline "Output written to stdout did not contain \""`echo $SEARCHTERM | perl -p -e 's/\\\\/\\\\\\\\/g'`"\""
+        FAIL=Y
+    fi
+}
+
+# This is a derived function from LIB/shfuncs.sh/check_stdout()
+# It checks whether string $1 is present in file out.stdout 
+# Differences:
+# 1. It does not output file when check_stdout failed
+# 2. It's using Perl rather than grep (grep -P is not available in all distros)
+check_stdout_binary_P() # check that a string went to stdout
+{
+    case $1 in
+    "")
+        if [ ! -s out.stdout ]
+        then
+            tet_infoline "Expected output to stdout, but none written"
+            FAIL=Y
+        fi
+        ;;
+    *)
+	cat out.stdout | perl -e 'my $a = join("",<>); exit !($a =~ /'$1'/sm)'
+        if [ $? -ne 0  ]
+        then
+                tet_infoline "Output written to stdout did not contain \""`echo $1 | perl -p -e 's/\\\\/\\\\\\\\/g'`"\""
+                FAIL=Y
+        fi
+        ;;
+    esac
+}
+
+startup() {
+	rm -f tet_xres
+}
+
+cleanup() {
+	if [ -f tet_xres ];then
+		#mv tet_xres journal.gs-test
+		rm -f out.stdout
+		rm -f out.stderr
+		rm -f /tmp/out.prn
+	fi
+}
+
+# source common shell functions
+
+. ./shfuncs.sh
+. ./lsbfuncs.sh
+
+# execute shell test case manager - must be last line
+. ./tcm.sh
+

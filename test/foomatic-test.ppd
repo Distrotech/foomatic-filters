@@ -1,0 +1,419 @@
+*PPD-Adobe: "4.3"
+*%
+*% For information on using this, and to obtain the required backend
+*% script, consult http://www.openprinting.org/
+*%
+*% This file is published under the GNU General Public License
+*%
+*% PPD-O-MATIC (3.0.0 or newer) generated this PPD file. It is for use with 
+*% all programs and environments which use PPD files for dealing with
+*% printer capability information. The printer must be configured with the
+*% "foomatic-rip" backend filter script of Foomatic 3.0.0 or newer. This 
+*% file and "foomatic-rip" work together to support PPD-controlled printer
+*% driver option access with arbitrary free software printer drivers and
+*% printing spoolers.
+*%
+*% To save this file on your disk, wait until the download has completed
+*% (the animation of the browser logo must stop) and then use the
+*% "Save as..." command in the "File" menu of your browser or in the 
+*% pop-up manu when you click on this document with the right mouse button.
+*% DO NOT cut and paste this file into an editor with your mouse. This can
+*% introduce additional line breaks which lead to unexpected results.
+*%
+*% You may save this file as 'foomatic-test.ppd'
+*%
+*%
+*FormatVersion:	"4.3"
+*FileVersion:	"1.1"
+*LanguageVersion: English 
+*LanguageEncoding: ISOLatin1
+*PCFileName:	"TEST.PPD"
+*Manufacturer:	"Test"
+*Product:	"(Testprinter)"
+*cupsVersion:	1.0
+*cupsManualCopies: True
+*cupsModelNumber:  2
+*cupsFilter:	"application/vnd.cups-postscript 0 foomatic-rip"
+*%pprRIP:        foomatic-rip other
+*ModelName:     "Test Testprinter"
+*ShortNickName: "Test Testprinter testdriver"
+*NickName:      "Test Testprinter Foomatic/testdriver"
+*PSVersion:	"(3010.000) 550"
+*PSVersion:	"(3010.000) 651"
+*PSVersion:	"(3010.000) 652"
+*PSVersion:	"(3010.000) 653"
+*PSVersion:	"(3010.000) 704"
+*PSVersion:	"(3010.000) 705"
+*PSVersion:	"(3010.000) 800"
+*LanguageLevel:	"3"
+*ColorDevice:	False
+*DefaultColorSpace: Gray
+*FileSystem:	False
+*Throughput:	"1"
+*LandscapeOrientation: Plus90
+*TTRasterizer:	Type42
+*1284DeviceID: "MFG:Test;MDL:Testprinter;DES:Test Testprinter;CMD:POSTSCRIPT;CLS:PRINTER;DRV:Dtestdriver,R0,M0;"
+
+*driverName testdriver/testdriver: ""
+*driverUrl: "http://www.openprinting.org/"
+*driverObsolete: False
+
+
+
+
+*HWMargins: 18 36 18 36
+*VariablePaperSize: True
+*MaxMediaWidth: 100000
+*MaxMediaHeight: 100000
+*NonUIOrderDependency: 100 AnySetup *CustomPageSize
+*CustomPageSize True: "pop pop pop
+<</PageSize [ 5 -2 roll ] /ImagingBBox null>>setpagedevice"
+*End
+*ParamCustomPageSize Width: 1 points 36 100000
+*ParamCustomPageSize Height: 2 points 36 100000
+*ParamCustomPageSize Orientation: 3 int 0 0
+*ParamCustomPageSize WidthOffset: 4 points 0 0
+*ParamCustomPageSize HeightOffset: 5 points 0 0
+
+*FoomaticIDs: Test-Testprinter testdriver
+*FoomaticRIPCommandLine: "%Afoomatic-test-renderer %B %C %D %E %F %Z"
+
+*OpenGroup: General/General
+
+*OpenUI *PageSize/Page Size: PickOne
+*OrderDependency: 100 AnySetup *PageSize
+*DefaultPageSize: Letter
+*PageSize Letter/Letter: "<</PageSize[612 792]/ImagingBBox null>>setpagedevice"
+*PageSize A4/A4: "<</PageSize[595 842]/ImagingBBox null>>setpagedevice"
+*PageSize Legal/Legal: "<</PageSize[612 1008]/ImagingBBox null>>setpagedevice"
+*CloseUI: *PageSize
+
+*OpenUI *PageRegion: PickOne
+*OrderDependency: 100 AnySetup *PageRegion
+*DefaultPageRegion: Letter
+*PageRegion Letter/Letter: "<</PageSize[612 792]/ImagingBBox null>>setpagedevice"
+*PageRegion A4/A4: "<</PageSize[595 842]/ImagingBBox null>>setpagedevice"
+*PageRegion Legal/Legal: "<</PageSize[612 1008]/ImagingBBox null>>setpagedevice"
+*CloseUI: *PageRegion
+
+*DefaultImageableArea: Letter
+*ImageableArea Letter/Letter: "18 36 594 756"
+*ImageableArea A4/A4: "18 36 577 806"
+*ImageableArea Legal/Legal: "18 36 594 972"
+
+*DefaultPaperDimension: Letter
+*PaperDimension Letter/Letter: "612 792"
+*PaperDimension A4/A4: "595 842"
+*PaperDimension Legal/Legal: "612 1008"
+
+*CloseGroup: General
+
+*OpenGroup: FilterHandling/Filter Handling
+
+*OpenUI *FilterPath/Filter Path: PickOne
+*FoomaticRIPOption FilterPath: string CmdLine A
+*FoomaticRIPOptionMaxLength FilterPath:255
+*FoomaticRIPOptionAllowedChars FilterPath: "./A-Za-z0-9_-"
+*OrderDependency: 150 AnySetup *FilterPath
+*FoomaticRIPOptionPrototype FilterPath: "%s"
+*DefaultFilterPath: Current
+*FilterPath None/None: ""
+*FilterPath Current/Current directory: "%% FoomaticRIPOptionSetting: FilterPath=Current"
+*FoomaticRIPOptionSetting FilterPath=Current: "./"
+*CloseUI: *FilterPath
+
+*CloseGroup: FilterHandling
+
+*OpenGroup: PSTest/Standard PostScript test options
+
+*OpenUI *Option1/Option 1: PickOne
+*OrderDependency: 200 DocumentSetup *Option1
+*DefaultOption1: Choice2
+*Option1 Choice1/Choice 1: "<</HWResolution [1200 1200]>> setpagedevice % Option1: Choice1"
+*Option1 Choice2/Choice 2: "<</HWResolution [1200  600]>> setpagedevice % Option1: Choice2"
+*Option1 Choice3/Choice 3: "
+    % Option1: Choice3
+    <</HWResolution [ 600  600]>> setpagedevice"
+*End
+*CloseUI: *Option1
+
+*OpenUI *Option2/Option 2: PickOne
+*OrderDependency: 210 DocumentSetup *Option2
+*DefaultOption2: Choice3
+*Option2 Choice1/Choice 1: "<</Test [Example1]>> setpagedevice % Option2: Choice1"
+*Option2 Choice2/Choice 2: "<</Test [Example2]>> setpagedevice % Option2: Choice2"
+*Option2 Choice3/Choice 3: "
+    % Option2: Choice3
+    <</Test [Example3]>> setpagedevice"
+*End
+*CloseUI: *Option2
+
+*OpenUI *Option3/Option 3: PickOne
+*OrderDependency: 250 AnySetup *Option3
+*DefaultOption3: Choice1
+*Option3 Choice1/Choice 1: "% Option3: Choice1"
+*Option3 Choice2/Choice 2: "% Option3: Choice2"
+*Option3 Choice3/Choice 3: "% Option3: Choice3"
+*CloseUI: *Option3
+
+*OpenUI *Option4/Option 4: PickOne
+*OrderDependency: 260 PageSetup *Option4
+*DefaultOption4: Choice1
+*Option4 Choice1/Choice 1: "% Option4: Choice1"
+*Option4 Choice2/Choice 2: "% Option4: Choice2"
+*Option4 Choice3/Choice 3: "% Option4: Choice3"
+*CloseUI: *Option4
+
+*OpenUI *Option5/Option 5: PickOne
+*OrderDependency: 270 Prolog *Option5
+*DefaultOption5: Choice1
+*Option5 Choice1/Choice 1: "% Option5: Choice1"
+*Option5 Choice2/Choice 2: "% Option5: Choice2"
+*Option5 Choice3/Choice 3: "% Option5: Choice3"
+*CloseUI: *Option5
+
+*OpenUI *Option6/Option 6: PickOne
+*OrderDependency: 280 JCLSetup *Option6
+*DefaultOption6: Choice1
+*Option6 Choice1/Choice 1: "@PJL SET TEST6=CHOICE1<0A>"
+*Option6 Choice2/Choice 2: "@PJL SET TEST6=CHOICE2<0A>"
+*Option6 Choice3/Choice 3: "@PJL SET TEST6=CHOICE3<0A>"
+*CloseUI: *Option6
+
+*OpenUI *Option7/Option 7: Boolean
+*OrderDependency: 205 AnySetup *Option7
+*DefaultOption7: True
+*Option7 True: "% Option7: True"
+*Option7 False: "% Option7: False"
+*CloseUI: *Option7
+
+*OpenUI *Option8/Option 8: Boolean
+*OrderDependency: 206 AnySetup *Option8
+*DefaultOption8: False
+*Option8 True: "% Option8: True"
+*Option8 False: "% Option8: False"
+*CloseUI: *Option8
+
+*CloseGroup: PSTest
+
+*OpenGroup: FoomaticTest/Test options with Foomatic keywords
+
+*OpenUI *FoomaticOption1/Foomatic Option 1: PickOne
+*FoomaticRIPOption FoomaticOption1: enum CmdLine B
+*OrderDependency: 300 AnySetup *FoomaticOption1
+*DefaultFoomaticOption1: Choice1
+*FoomaticOption1 Choice1/Choice 1: "%% FoomaticRIPOptionSetting: FoomaticOption1=Choice1"
+*FoomaticRIPOptionSetting FoomaticOption1=Choice1: " --option1=choice1"
+*FoomaticOption1 Choice2/Choice 2: "%% FoomaticRIPOptionSetting: FoomaticOption1=Choice2"
+*FoomaticRIPOptionSetting FoomaticOption1=Choice2: " --option1=choice2"
+*FoomaticOption1 Choice3/Choice 3: "%% FoomaticRIPOptionSetting: FoomaticOption1=Choice3"
+*FoomaticRIPOptionSetting FoomaticOption1=Choice3: " --option1=choice3"
+*CloseUI: *FoomaticOption1
+
+*OpenUI *FoomaticOption2/Foomatic Option 2: PickOne
+*FoomaticRIPOption FoomaticOption2: enum JCL B
+*OrderDependency: 300 AnySetup *FoomaticOption2
+*DefaultFoomaticOption2: Choice1
+*FoomaticOption2 Choice1/Choice 1: "%% FoomaticRIPOptionSetting: FoomaticOption2=Choice1"
+*FoomaticRIPOptionSetting FoomaticOption2=Choice1: "SET TEST2=CHOICE1"
+*FoomaticOption2 Choice2/Choice 2: "%% FoomaticRIPOptionSetting: FoomaticOption2=Choice2"
+*FoomaticRIPOptionSetting FoomaticOption2=Choice2: "SET TEST2=CHOICE2"
+*FoomaticOption2 Choice3/Choice 3: "%% FoomaticRIPOptionSetting: FoomaticOption2=Choice3"
+*FoomaticRIPOptionSetting FoomaticOption2=Choice3: "SET TEST2=CHOICE3"
+*CloseUI: *FoomaticOption2
+
+*OpenUI *FoomaticPJLMergeTest/Test for PJL Merging: PickOne
+*FoomaticRIPOption FoomaticPJLMergeTest: string CmdLine E
+*FoomaticRIPOptionAllowedChars FoomaticPJLMergeTest: " ./A-Za-z0-9_='-"
+*OrderDependency: 399 AnySetup *FoomaticPJLMergeTest
+*FoomaticRIPOptionPrototype FoomaticPJLMergeTest: "%s"
+*DefaultFoomaticPJLMergeTest: NoDriverPJL
+*FoomaticPJLMergeTest NoDriverPJL/No driver-generated PJL: "%% FoomaticRIPOptionSetting: FoomaticPJLMergeTest=NoDriverPJL"
+*FoomaticRIPOptionSetting FoomaticPJLMergeTest=NoDriverPJL: ""
+*FoomaticPJLMergeTest DriverPJL/Simulate driver-generated PJL: "%% FoomaticRIPOptionSetting: FoomaticPJLMergeTest=DriverPJL"
+*FoomaticRIPOptionSetting FoomaticPJLMergeTest=DriverPJL: " -p 'TEST2=CHOICE3' -p 'TEST6=CHOICE3' -p 'RESOLUTION=600'"
+*CloseUI: *FoomaticPJLMergeTest
+
+
+*OpenUI *FoomaticOption3/Foomatic Option 3: PickOne
+*FoomaticRIPOption FoomaticOption3: string PS Z
+*FoomaticRIPOptionMaxLength FoomaticOption3: 8
+*FoomaticRIPOptionAllowedChars FoomaticOption3: "./A-Za-z0-9_-"
+*OrderDependency: 350 AnySetup *FoomaticOption3
+*FoomaticRIPOptionPrototype FoomaticOption3: "% FoomaticOption3: %s"
+*DefaultFoomaticOption3: Choice1
+*FoomaticOption3 Choice1/Choice 1: "% FoomaticOption3: Choice1"
+*FoomaticOption3 Choice2/Choice 2: "% FoomaticOption3: Choice2"
+*FoomaticOption3 Choice3/Choice 3: "% FoomaticOption3: Choice3"
+*CloseUI: *FoomaticOption3
+
+*OpenUI *FoomaticOption4/Foomatic Option 4: PickOne
+*FoomaticRIPOption FoomaticOption4: password PS Z
+*FoomaticRIPOptionMaxLength FoomaticOption4: 8
+*FoomaticRIPOptionAllowedRegExp FoomaticOption4: "^[A-Za-z0-9]*$"
+*OrderDependency: 360 AnySetup *FoomaticOption4
+*FoomaticRIPOptionPrototype FoomaticOption4: "% FoomaticOption4: %s"
+*DefaultFoomaticOption4: Choice1
+*FoomaticOption4 Choice1/Choice 1: "% FoomaticOption4: Choice1"
+*FoomaticOption4 Choice2/Choice 2: "% FoomaticOption4: Choice2"
+*FoomaticOption4 Choice3/Choice 3: "% FoomaticOption4: Choice3"
+*CloseUI: *FoomaticOption4
+
+*OpenUI *FoomaticOption5/Foomatic Option 5: PickOne
+*FoomaticRIPOption FoomaticOption5: int PS Z
+*FoomaticRIPOptionRange FoomaticOption5: -10 10
+*OrderDependency: 370 AnySetup *FoomaticOption5
+*FoomaticRIPOptionPrototype FoomaticOption5: "% FoomaticOption5: %s"
+*DefaultFoomaticOption5: 2
+*FoomaticRIPDefaultFoomaticOption5: 2
+*FoomaticOption5 -10/-10: "% FoomaticOption5: -10"
+*FoomaticOption5 -8/-8: "% FoomaticOption5: -8"
+*FoomaticOption5 -6/-6: "% FoomaticOption5: -6"
+*FoomaticOption5 -4/-4: "% FoomaticOption5: -4"
+*FoomaticOption5 -2/-2: "% FoomaticOption5: -2"
+*FoomaticOption5 0/0: "% FoomaticOption5: 0"
+*FoomaticOption5 2/2: "% FoomaticOption5: 2"
+*FoomaticOption5 4/4: "% FoomaticOption5: 4"
+*FoomaticOption5 6/6: "% FoomaticOption5: 6"
+*FoomaticOption5 8/8: "% FoomaticOption5: 8"
+*FoomaticOption5 10/10: "% FoomaticOption5: 10"
+*CloseUI: *FoomaticOption5
+
+*OpenUI *FoomaticOption6/Foomatic Option 6: PickOne
+*FoomaticRIPOption FoomaticOption6: float PS Z
+*FoomaticRIPOptionRange FoomaticOption6: -2.5 2.5
+*OrderDependency: 380 AnySetup *FoomaticOption6
+*FoomaticRIPOptionPrototype FoomaticOption6: "% FoomaticOption6: %s"
+*DefaultFoomaticOption6: 1.0
+*FoomaticRIPDefaultFoomaticOption6: 1.2
+*FoomaticOption6 -2.5/-2.5: "% FoomaticOption6: -2.5"
+*FoomaticOption6 -2.0/-2.0: "% FoomaticOption6: -2.0"
+*FoomaticOption6 -1.5/-1.5: "% FoomaticOption6: -1.5"
+*FoomaticOption6 -1.0/-1.0: "% FoomaticOption6: -1.0"
+*FoomaticOption6 -0.5/-0.5: "% FoomaticOption6: -0.5"
+*FoomaticOption6 0/0: "% FoomaticOption6: 0"
+*FoomaticOption6 0.5/0.5: "% FoomaticOption6: 0.5"
+*FoomaticOption6 1.0/1.0: "% FoomaticOption6: 1.0"
+*FoomaticOption6 1.5/1.5: "% FoomaticOption6: 1.5"
+*FoomaticOption6 2.0/2.0: "% FoomaticOption6: 2.0"
+*FoomaticOption6 2.5/2.5: "% FoomaticOption6: 2.5"
+*CloseUI: *FoomaticOption6
+
+*FoomaticRIPOption FoomaticOption7: enum CmdLine B 390
+*FoomaticRIPOptionSetting FoomaticOption7=TheOnlyChoice: " --FoomaticOption7"
+
+*OpenUI *FoomaticOption8/Foomatic Option 8: PickOne
+*FoomaticRIPOption FoomaticOption8: enum Composite C
+*OrderDependency: 392 AnySetup *FoomaticOption8
+*DefaultFoomaticOption8: Choice3
+*FoomaticOption8 Choice1/Choice 1: "%% FoomaticRIPOptionSetting: FoomaticOption8=Choice1"
+*FoomaticRIPOptionSetting FoomaticOption8=Choice1: "FoomaticOption9=ChoiceA FoomaticOptionA=ChoiceD"
+*FoomaticOption8 Choice2/Choice 2: "%% FoomaticRIPOptionSetting: FoomaticOption8=Choice2"
+*FoomaticRIPOptionSetting FoomaticOption8=Choice2: "FoomaticOption9=ChoiceB FoomaticOptionA=ChoiceE"
+*FoomaticOption8 Choice3/Choice 3: "%% FoomaticRIPOptionSetting: FoomaticOption8=Choice3"
+*FoomaticRIPOptionSetting FoomaticOption8=Choice3: "FoomaticOption9=ChoiceC FoomaticOptionA=ChoiceF"
+*CloseUI: *FoomaticOption8
+
+*OpenUI *FoomaticOptionB/Foomatic Option B: PickOne
+*FoomaticRIPOption FoomaticOptionB: enum Composite C
+*OrderDependency: 395 AnySetup *FoomaticOptionB
+*DefaultFoomaticOptionB: Choice2
+*FoomaticOptionB Choice1/Choice 1: "%% FoomaticRIPOptionSetting: FoomaticOptionB=Choice1"
+*FoomaticRIPOptionSetting FoomaticOptionB=Choice1: "FoomaticOptionC=ChoiceA FoomaticOptionD=ChoiceD"
+*FoomaticOptionB Choice2/Choice 2: "%% FoomaticRIPOptionSetting: FoomaticOptionB=Choice2"
+*FoomaticRIPOptionSetting FoomaticOptionB=Choice2: "FoomaticOptionC=ChoiceB FoomaticOptionD=ChoiceE"
+*FoomaticOptionB Choice3/Choice 3: "%% FoomaticRIPOptionSetting: FoomaticOptionB=Choice3"
+*FoomaticRIPOptionSetting FoomaticOptionB=Choice3: "FoomaticOptionC=ChoiceC FoomaticOptionD=ChoiceF"
+*CloseUI: *FoomaticOptionB
+
+*FoomaticRIPOption FoomaticOptionE: enum CmdLine D 398
+*FoomaticRIPOptionSetting FoomaticOptionE=TheOnlyChoice: " --Foomatic&&
+OptionE --user='&user;' --host='&host;' --title='&title;' --copies='&&&
+copies;' --options='(&options;)' --date='&month;/&date;/&year;' --time='&&&
+hour;:&min;:&sec;' --special='&amp;&lt;&gt;&quot;&apos;"
+*End
+
+*CloseGroup: FoomaticTest
+
+*OpenGroup: FoomaticOption8/Foomatic Option 8
+
+*OpenUI *FoomaticOption9/Foomatic Option 9: PickOne
+*FoomaticRIPOption FoomaticOption9: enum CmdLine D
+*OrderDependency: 393 AnySetup *FoomaticOption9
+*DefaultFoomaticOption9: FromFoomaticOption8
+*FoomaticOption9 FromFoomaticOption8/Controlled by 'Foomatic Option 8': "%% FoomaticRIPOptionSetting: FoomaticOption9=@FoomaticOption8"
+*FoomaticOption9 ChoiceA/Choice A: "%% FoomaticRIPOptionSetting: FoomaticOption9=ChoiceA"
+*FoomaticRIPOptionSetting FoomaticOption9=ChoiceA: " --option9=choiceA"
+*FoomaticOption9 ChoiceB/Choice B: "%% FoomaticRIPOptionSetting: FoomaticOption9=ChoiceB"
+*FoomaticRIPOptionSetting FoomaticOption9=ChoiceB: " --option9=choiceB"
+*FoomaticOption9 ChoiceC/Choice C: "%% FoomaticRIPOptionSetting: FoomaticOption9=ChoiceC"
+*FoomaticRIPOptionSetting FoomaticOption9=ChoiceC: " --option9=choiceC"
+*CloseUI: *FoomaticOption9
+
+*OpenUI *FoomaticOptionA/Foomatic Option A: PickOne
+*FoomaticRIPOption FoomaticOptionA: enum CmdLine D
+*OrderDependency: 394 AnySetup *FoomaticOptionA
+*DefaultFoomaticOptionA: FromFoomaticOption8
+*FoomaticOptionA FromFoomaticOption8/Controlled by 'Foomatic Option 8': "%% FoomaticRIPOptionSetting: FoomaticOption9=@FoomaticOption8"
+*FoomaticOptionA ChoiceD/Choice D: "%% FoomaticRIPOptionSetting: FoomaticOptionA=ChoiceD"
+*FoomaticRIPOptionSetting FoomaticOptionA=ChoiceD: " --optionA=choiceD"
+*FoomaticOptionA ChoiceE/Choice E: "%% FoomaticRIPOptionSetting: FoomaticOptionA=ChoiceE"
+*FoomaticRIPOptionSetting FoomaticOptionA=ChoiceE: " --optionA=choiceE"
+*FoomaticOptionA ChoiceF/Choice F: "%% FoomaticRIPOptionSetting: FoomaticOptionA=ChoiceF"
+*FoomaticRIPOptionSetting FoomaticOptionA=ChoiceF: " --optionA=choiceF"
+*CloseUI: *FoomaticOptionA
+
+*CloseGroup: FoomaticOption8
+
+*FoomaticRIPOption FoomaticOptionC: enum CmdLine D 396
+*FoomaticRIPOptionSetting FoomaticOptionC=FromFoomaticOptionB: ""
+*FoomaticRIPOptionSetting FoomaticOptionC=ChoiceA: " --optionC=choiceA"
+*FoomaticRIPOptionSetting FoomaticOptionC=ChoiceB: " --optionC=choiceB"
+*FoomaticRIPOptionSetting FoomaticOptionC=ChoiceC: " --optionC=choiceC"
+
+*FoomaticRIPOption FoomaticOptionD: enum CmdLine D 397
+*FoomaticRIPOptionSetting FoomaticOptionD=FromFoomaticOptionB: ""
+*FoomaticRIPOptionSetting FoomaticOptionD=ChoiceD: " --optionD=choiceD"
+*FoomaticRIPOptionSetting FoomaticOptionD=ChoiceE: " --optionD=choiceE"
+*FoomaticRIPOptionSetting FoomaticOptionD=ChoiceF: " --optionD=choiceF"
+
+
+*% Generic boilerplate PPD stuff as standard PostScript fonts and so on
+
+*DefaultFont: Courier
+*Font AvantGarde-Book: Standard "(001.006S)" Standard ROM
+*Font AvantGarde-BookOblique: Standard "(001.006S)" Standard ROM
+*Font AvantGarde-Demi: Standard "(001.007S)" Standard ROM
+*Font AvantGarde-DemiOblique: Standard "(001.007S)" Standard ROM
+*Font Bookman-Demi: Standard "(001.004S)" Standard ROM
+*Font Bookman-DemiItalic: Standard "(001.004S)" Standard ROM
+*Font Bookman-Light: Standard "(001.004S)" Standard ROM
+*Font Bookman-LightItalic: Standard "(001.004S)" Standard ROM
+*Font Courier: Standard "(002.004S)" Standard ROM
+*Font Courier-Bold: Standard "(002.004S)" Standard ROM
+*Font Courier-BoldOblique: Standard "(002.004S)" Standard ROM
+*Font Courier-Oblique: Standard "(002.004S)" Standard ROM
+*Font Helvetica: Standard "(001.006S)" Standard ROM
+*Font Helvetica-Bold: Standard "(001.007S)" Standard ROM
+*Font Helvetica-BoldOblique: Standard "(001.007S)" Standard ROM
+*Font Helvetica-Narrow: Standard "(001.006S)" Standard ROM
+*Font Helvetica-Narrow-Bold: Standard "(001.007S)" Standard ROM
+*Font Helvetica-Narrow-BoldOblique: Standard "(001.007S)" Standard ROM
+*Font Helvetica-Narrow-Oblique: Standard "(001.006S)" Standard ROM
+*Font Helvetica-Oblique: Standard "(001.006S)" Standard ROM
+*Font NewCenturySchlbk-Bold: Standard "(001.009S)" Standard ROM
+*Font NewCenturySchlbk-BoldItalic: Standard "(001.007S)" Standard ROM
+*Font NewCenturySchlbk-Italic: Standard "(001.006S)" Standard ROM
+*Font NewCenturySchlbk-Roman: Standard "(001.007S)" Standard ROM
+*Font Palatino-Bold: Standard "(001.005S)" Standard ROM
+*Font Palatino-BoldItalic: Standard "(001.005S)" Standard ROM
+*Font Palatino-Italic: Standard "(001.005S)" Standard ROM
+*Font Palatino-Roman: Standard "(001.005S)" Standard ROM
+*Font Symbol: Special "(001.007S)" Special ROM
+*Font Times-Bold: Standard "(001.007S)" Standard ROM
+*Font Times-BoldItalic: Standard "(001.009S)" Standard ROM
+*Font Times-Italic: Standard "(001.007S)" Standard ROM
+*Font Times-Roman: Standard "(001.007S)" Standard ROM
+*Font ZapfChancery-MediumItalic: Standard "(001.007S)" Standard ROM
+*Font ZapfDingbats: Special "(001.004S)" Standard ROM
+
