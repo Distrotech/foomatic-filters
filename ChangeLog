@@ -1,3 +1,9 @@
+2014-08-21  Till Kamppeter <till.kamppeter@gmail.com>
+
+	* Clean trailing white space from PPD file lines to
+          avoid a segfault caused by it (Bug #1227). Thanks to
+	  Jörg Frings-Fürst for the patch.
+
 2012-07-02  Till Kamppeter <till.kamppeter@gmail.com>
 
 	* Tagged branch for release 4.0.17.
