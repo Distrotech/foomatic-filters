@@ -341,12 +341,12 @@ from the first subprocess and the giving its standard output to the
 main process. This way the main process has again PostScript as its
 standard input.
 
-Supported file conversion filters are "a2ps", "enscript", "mpage", and
-spooler-specific filters. All filters convert plain text to
+Supported file conversion filters are "a2ps", "enscript", "mpage",
+"paps", and spooler-specific filters. All filters convert plain text to
 PostScript, "a2ps" also other formats. The conversion filter is always
-used when one prints the documentation pages, as they are created as
-plain text, when CUPS is the spooler "pstops" is executed after the
-filter so that the default option settings from the PPD file and
+used when one prints the documentation pages, as they are created
+as plain text, when CUPS is the spooler "pstops" is executed after
+the filter so that the default option settings from the PPD file and
 CUPS-specific options as N-up get applied. On regular printouts one
 gets always PostScript or PDF when CUPS is the spooler and PostScript
 in the case of PPR, so the filter is only used for regular printouts

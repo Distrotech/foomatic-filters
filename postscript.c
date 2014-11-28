@@ -131,9 +131,9 @@ int line_type(const char *line)
     features described in the PPD file.
 
     Supported file conversion filters are "a2ps", "enscript",
-    "mpage", and spooler-specific filters. All filters convert
-    plain text to PostScript, "a2ps" also other formats. The
-    conversion filter is always used when one prints the
+    "mpage", "paps", and spooler-specific filters. All filters
+    convert plain text to PostScript, "a2ps" also other formats.
+    The conversion filter is always used when one prints the
     documentation pages, as they are created as plain text,
     when CUPS is the spooler "pstops" is executed after the
     filter so that the default option settings from the PPD file

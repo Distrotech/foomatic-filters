@@ -52,7 +52,7 @@ software printer drivers are supported. Foomatic also supports
 printing of various non-PostScript/PDF file types for spoolers which
 do not support these by themselves (LPD, LPRng, GNUlpr, spooler-less
 printing). To enable this feature you need to have "a2ps", "enscript",
-or "mpage" installed.
+"mpage", or "paps" installed.
 
 Another problem is that the way how to install queues, to print files,
 and to handle jobs is very different with different spoolers. LPD for
@@ -85,10 +85,10 @@ To run beh (Backend Error Handler) or the test suite a Perl interpreter
 To connect to remote printers with a non-CUPS printing system, you
 need additional connectivity software (as "rlpr", "nc", "smbspool',
 ...). To print non-PostScript/PDF files with LPD, LPRng, GNUlpr, or
-without spooler, you will need a2ps, enscript, mpage, or similar
+without spooler, you will need a2ps, enscript, mpage, paps, or similar
 filters which convert non-PostScript files to PostScript. a2ps,
-enscript, and mpage will be automatically used by the scripts when
-they are installed.
+enscript, mpage, and paps will be automatically used by the scripts
+when they are installed.
 
 Download sources:
 rlpr: http://freshmeat.net/projects/rlpr/ or
@@ -174,11 +174,13 @@ make PostScript out of non-PostScript files, so that you can print
 those non-PostScript files and also a list of available options using
 the "docs" option. The supported utilities are "a2ps"
 (http://www-inf.enst.fr/~demaille/a2ps/), "enscript"
-(http://people.ssh.fi/mtr/genscript/), and "mpage"
-(http://www.mesa.nl/pub/mpage). Recommended is "a2ps" because it
+(http://people.ssh.fi/mtr/genscript/), "mpage"
+(http://www.mesa.nl/pub/mpage), and "paps"
+(http://paps.sourceforge.net/). Recommended is "a2ps" because it
 detects many file types (text, most image formats) and together with
-ImageMagick (for images) and Ghostscript it converts them to
-PostScript. The other tools convert only text files. The tool you have
+ImageMagick (for images) and Ghostscript it converts them to PostScript.
+The other tools convert only text files. However at present paps
+is the only one to support files encoded in utf-8. The tool you have
 installed is auto-detected by foomatic-rip and used automatically if
 necessary. PPR needs this tool only for printing the option list, and
 CUPS does not need it at all. PPR and CUPS use internal filters for

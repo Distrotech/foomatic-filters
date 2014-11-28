@@ -1,3 +1,9 @@
+2014-11-28  Till Kamppeter <till.kamppeter@gmail.com>
+
+	* Added support for the text-to-PostScript converter paps which
+	  supports UTF-8 input. Thanks to Stéphane Aulery (saulery at free
+	  dot fr) for the patch (Bug #1239).
+
 2014-08-21  Till Kamppeter <till.kamppeter@gmail.com>
 
 	* Clean trailing white space from PPD file lines to

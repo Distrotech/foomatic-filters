@@ -40,6 +40,7 @@ const char *fileconverters[][2] = {
     { "a2ps", "a2ps -1 @@--medium=@@PAGESIZE@@ @@--center-title=@@JOBTITLE@@ -o -" },
     { "enscript", "enscript -G @@-M @@PAGESIZE@@ @@-b \"Page $%|@@JOBTITLE@@ --margins=36:36:36:36 --mark-wrapped-lines=arrow --word-wrap -p-" },
     { "mpage", "mpage -o -1 @@-b @@PAGESIZE@@ @@-H -h @@JOBTITLE@@ -m36l36b36t36r -f -P- -" },
+    { "paps", "paps @@--paper @@PAGESIZE@@ --header --font=11.5" },
     { NULL, NULL }
 };
 

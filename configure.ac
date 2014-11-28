@@ -109,13 +109,14 @@ AC_ARG_ENABLE(file-converter-check, [  --enable-file-converter-check  check whet
   AC_MSG_WARN([Absence of a file converter is ignored, package will be built anyway])
 fi])
 
-# Check for a2ps, enscript, mpage
+# Check for a2ps, enscript, mpage, paps
 AC_PATH_PROG(A2PS,a2ps)
 AC_PATH_PROG(ENSCRIPT,enscript)
 AC_PATH_PROG(MPAGE,mpage)
+AC_PATH_PROG(PAPS,paps)
 AC_PATH_PROG(TEXTTOPS,texttops,,$CUPS_FILTERS)
 
-AC_ARG_WITH(file-converter,[  --with-file-converter=[a2ps|enscript|mpage]
+AC_ARG_WITH(file-converter,[  --with-file-converter=[a2ps|enscript|mpage|paps]
 			Default: auto],
 	FILECONVERTER="$withval",
 	FILECONVERTER="")
@@ -130,8 +131,8 @@ if test x$enable_dbus = xyes; then
 	PKG_CHECK_MODULES(DBUS, dbus-1)
 fi
 
-if test "${NOCONVERTERCHECK}" = "" -a "${A2PS}" = "" -a "${ENSCRIPT}" = "" -a "${MPAGE}" = "" -a "${TEXTTOPS}" = "" ; then
-	AC_MSG_ERROR([cannot find a2ps, enscript, mpage, or CUPS' texttops.  You need to have at least one installed]);
+if test "${NOCONVERTERCHECK}" = "" -a "${A2PS}" = "" -a "${ENSCRIPT}" = "" -a "${MPAGE}" = "" -a "${PAPS}" = "" -a "${TEXTTOPS}" = "" ; then
+	AC_MSG_ERROR([cannot find a2ps, enscript, mpage, paps, or CUPS' texttops.  You need to have at least one installed]);
 fi
 
 AC_ARG_WITH(echo,[  --with-echo=(path to GNU compatible echo command)

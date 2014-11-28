@@ -77,8 +77,17 @@ were supplied by the spooler.
 .Topic
 Non-PostScript/PDF files are translated to PostScript before they are
 passed to the renderer. This is usually done by \fBa2ps(1)\fR,
-\fBenscript(1)\fR, or \fBmpage(1)\fR. foomatic-rip auto-detects which
-program is installed, but manual configuration is also possible.
+\fBenscript(1)\fR, \fBmpage(1)\fR, or \fBpaps(1)\fR. foomatic-rip
+auto-detects which program is installed, but manual configuration is
+also possible.
+
+.Topic
+
+Recommended is \fBa2ps\fR because it detects many file types (text, most
+image formats) and together with \fBImageMagick(1)\fR (for images) and
+\fBGhostscript(1)\fR it converts them to PostScript. The other tools convert
+only text files. However at present \fBpaps\fR is the only one to support
+files encoded in utf-8.
 
 .Topic
 foomatic-rip does not only apply option settings supplied by the user
@@ -202,7 +211,7 @@ therefore get ignored):
 .TP 10
 .BI textfilter: \ <command>
 \fRSelects the filter for input files which are not PostScript or PDF.
-\fI<command>\fR is one of \fBa2ps\fR, \fBenscript\fR, or \fBmpage\fR.
+\fI<command>\fR is one of \fBa2ps\fR, \fBenscript\fR, \fBmpage\fR, or \fBpaps\fR.
 foomatic-rip automatically selects the needed command line options.
 
 .TP 10
